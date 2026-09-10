@@ -308,6 +308,36 @@ d'aujourd'hui.
 
 ---
 
+## Avant chaque campagne — deux minutes qui en sauvent soixante
+
+```bash
+ssh master 'bash ~/autodeploy/apps/loadgen.sh bilan'
+```
+
+```
+   parcours                             appels   échecs     taux
+   --------------------------------------------------------------
+   01 connexion                            300        0     0.0%
+   10 chercher un train                    900       12     1.3%
+   20 commander un repas                   180        2     1.1%
+
+   Tous les parcours passent. La campagne peut être lancée.
+```
+
+**Deux choses sont fatales, et aucune ne se voit ailleurs :**
+
+| | ce que ça produit |
+|---|---|
+| un parcours qui **échoue** | des taux d'erreur qui n'ont aucun rapport avec une panne injectée |
+| un parcours **jamais exécuté** | une file vide, un graphe sans flèche — et pas un seul compteur d'erreur qui bouge |
+
+Une campagne d'une heure a été perdue faute de ce contrôle : le jeton de
+connexion avait expiré, tous les parcours s'arrêtaient à leur première ligne.
+L'application tournait, les pods étaient `Running`, la collecte écrivait dans le
+magasin. Rien ne le montrait — sauf ce tableau.
+
+---
+
 ## Étape 11 — Lancer une campagne de mesure
 
 Une campagne n'est pas une suite de commandes tapées à la main : c'est un

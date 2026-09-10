@@ -25,6 +25,7 @@
 #       bash ~/autodeploy/apps/loadgen.sh install|uninstall|status|urls
 #       bash ~/autodeploy/apps/loadgen.sh scale <n>     changer la charge
 #       bash ~/autodeploy/apps/loadgen.sh voyageurs     combien tournent vraiment
+#       bash ~/autodeploy/apps/loadgen.sh bilan         les parcours passent-ils ?
 #
 #   Variables d'environnement reconnues :
 #     LG_NAMESPACE     (défaut: loadgen)        espace du générateur
@@ -210,6 +211,55 @@ print(d.get('user_count', ''))
 }
 
 # ------------------------------------------------------------------------------
+# bilan — les parcours passent-ils, ou échouent-ils ?
+# ------------------------------------------------------------------------------
+# La question à poser AVANT de lancer une campagne d'une heure.
+#
+# Une campagne entière a été perdue faute de ce contrôle : le jeton de connexion
+# avait expiré, tous les parcours s'arrêtaient à leur première ligne, et rien ne
+# le montrait — l'application tournait, les pods étaient « Running », la collecte
+# écrivait dans le magasin. Seul le taux d'échec par parcours l'aurait dit.
+#
+# Deux minutes de trafic suffisent à trancher.
+# ------------------------------------------------------------------------------
+bilan_app() {
+    local pod; pod=$(locust_pod)
+    [ -n "$pod" ] || fail "Générateur introuvable. Lance d'abord : $0 install"
+    kubectl exec -n "$NAMESPACE" "$pod" -- python -c "
+import json, urllib.request
+d = json.loads(urllib.request.urlopen('http://localhost:8089/stats/requests', timeout=10).read().decode())
+print()
+print('  voyageurs actifs : %s' % d.get('user_count'))
+print()
+print('  %-34s %8s %8s %8s' % ('parcours', 'appels', 'échecs', 'taux'))
+print('  ' + '-' * 62)
+mauvais = 0
+for s in sorted(d.get('stats', []), key=lambda x: x.get('name') or ''):
+    nom = s.get('name') or ''
+    if nom in ('', 'Aggregated'):
+        continue
+    n, e = s.get('num_requests', 0), s.get('num_failures', 0)
+    taux = (e / n) if n else 0
+    # Un parcours JAMAIS EXÉCUTÉ est aussi grave qu'un parcours qui échoue, et
+    # bien plus discret : son taux d'échec vaut zéro. C'est ce qui est arrivé à
+    # « commander un repas » — jamais atteint, donc file food_delivery vide, sans
+    # qu'aucun compteur d'erreur ne bouge.
+    souci = '   <<< échoue' if taux > 0.05 else ('   <<< jamais exécuté' if n == 0 else '')
+    if souci:
+        mauvais += 1
+    print('  %-34s %8d %8d %7.1f%%%s' % (nom[:34], n, e, 100 * taux, souci))
+print()
+if mauvais:
+    print('  %d parcours en défaut — NE LANCE PAS DE CAMPAGNE.' % mauvais)
+    print('  Un parcours jamais exécuté laisse une file vide et un graphe sans flèche.')
+    print('  Regarde les journaux du service concerné avant toute mesure.')
+else:
+    print('  Tous les parcours passent. La campagne peut être lancée.')
+print()
+" 2>&1
+}
+
+# ------------------------------------------------------------------------------
 # scale <n> — changer le nombre de voyageurs SANS redémarrer
 # ------------------------------------------------------------------------------
 # C'est le geste qui produit la première cause candidate : une hausse de charge
@@ -333,6 +383,7 @@ case "${1:-status}" in
     urls)      urls_app ;;
     scale)     shift; scale_app "${1:-}" ;;
     voyageurs) voyageurs_actuels "$(locust_pod)" ;;
+    bilan)     bilan_app ;;
     isolate)   shift; isolate_app "${1:-}" ;;
-    *) echo "Usage: $0 {install|uninstall|status|urls|scale <n>|voyageurs|isolate <nœud>}" >&2; exit 2 ;;
+    *) echo "Usage: $0 {install|uninstall|status|urls|scale <n>|voyageurs|bilan|isolate <nœud>}" >&2; exit 2 ;;
 esac
