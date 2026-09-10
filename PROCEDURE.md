@@ -84,6 +84,30 @@ un dossier suivi par git.
 
 ---
 
+## Deux copies des scripts, et comment les garder d'accord
+
+Les scripts de `apps/` vivent à deux endroits :
+
+| où | quoi |
+|---|---|
+| ton nœud de contrôle, dans le dépôt | la version de référence, celle que `git pull` met à jour |
+| le master, dans `~/autodeploy/apps/` | la copie qui s'exécute, faite au moment du déploiement |
+
+**Un `git pull` ne touche pas la copie du master.** Elle date du dernier
+déploiement, et rien ne le signale : les scripts s'exécutent sans se plaindre,
+dans leur ancienne version.
+
+Après chaque `git pull` sur le nœud de contrôle, rafraîchis-la :
+
+```bash
+./deploy.sh --push-scripts
+```
+
+Ça ne déploie rien, ne redémarre rien, ne touche pas aux applications. Ça recopie
+les fichiers de `apps/` sur le master, et c'est tout — quelques secondes.
+
+---
+
 ## Étape 3 — Poser la chaîne de mesure
 
 **Où** : sur le master · **Durée** : 5 à 10 minutes

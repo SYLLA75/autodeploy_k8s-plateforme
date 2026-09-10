@@ -92,6 +92,10 @@ PARAMÈTRES D'INFRASTRUCTURE (écrasent le .env)
     --master-flavor <f>     Gabarit du master
     --duration <d>          Durée de réservation (ex. 3h, 1d)
     --master-ip <ip>        IP du master (utile avec --apps-only)
+    --push-scripts          Recopie seulement les scripts de apps/ sur le master,
+                            sans rien déployer. À lancer après un « git pull »
+                            sur le nœud de contrôle : la copie du master date du
+                            dernier déploiement et ne se met pas à jour seule.
 
 DIVERS
     --skip-capacity-check   N'analyse pas l'adéquation ressources/besoins
@@ -110,7 +114,7 @@ EOF
 # Analyse des arguments
 # ------------------------------------------------------------------------------
 APPS_ARG=""
-MODE="full"                 # full | apps-only | infra-only
+MODE="full"                 # full | apps-only | infra-only | push-scripts
 FORCE_REINSTALL=0
 SKIP_CAPACITY=0
 ASSUME_YES=0
@@ -126,6 +130,7 @@ while [ $# -gt 0 ]; do
         --app|--apps)          need_value "$@"; APPS_ARG="${APPS_ARG} $2"; shift 2 ;;
         --app=*|--apps=*)      APPS_ARG="${APPS_ARG} ${1#*=}"; shift ;;
         --apps-only|--app-only) MODE="apps-only"; shift ;;
+        --push-scripts) MODE="push-scripts"; shift ;;
         --infra-only|--cluster-only) MODE="infra-only"; shift ;;
         --check|--preflight)   MODE="check"; shift ;;
         --vms-only)            MODE="vms-only"; shift ;;
@@ -175,6 +180,7 @@ info "Topologie .............. 1 master ($MASTER_FLAVOR) + $WORKERS workers ($WO
 
 TOTAL_STEPS=8
 [ "$MODE" = "apps-only" ] && TOTAL_STEPS=4
+[ "$MODE" = "push-scripts" ] && TOTAL_STEPS=2
 
 # ==============================================================================
 # MODE « check » : vérification préalable, sans engager la moindre ressource
@@ -290,12 +296,15 @@ reserve_obs_node() {
     fi
 }
 
-# MODE « apps-only » : on se raccroche à un cluster existant
-# ==============================================================================
-if [ "$MODE" = "apps-only" ]; then
-    [ -n "$SELECTED_APPS" ] || die "Aucune application sélectionnée. Utilise --app otel-demo|train-ticket|both."
-
-    step 1 "$TOTAL_STEPS" "Localisation du cluster existant"
+# ------------------------------------------------------------------------------
+# locate_master — retrouver un cluster déjà en place
+# ------------------------------------------------------------------------------
+# Partagée par « --apps-only » et « --push-scripts » : les deux se raccrochent à
+# un cluster existant et ont besoin des mêmes trois choses — l'IP du master, le
+# bastion, et une clé utilisable. Écrite une fois pour que les deux modes ne
+# divergent pas.
+# ------------------------------------------------------------------------------
+locate_master() {
     if [ -n "$CLI_MASTER_IP" ]; then
         MASTER_IP="$CLI_MASTER_IP"
     elif [ -f "$INVENTORY_FILE" ]; then
@@ -322,8 +331,38 @@ if [ "$MODE" = "apps-only" ]; then
     [ -f "$SSH_PRIV_KEY" ] || {
         [ -f "$SSH_SOURCE_PRIV_KEY" ] || die "Clé SSH introuvable ($SSH_PRIV_KEY et $SSH_SOURCE_PRIV_KEY)."
         cp "$SSH_SOURCE_PRIV_KEY" "$SSH_PRIV_KEY"; chmod 600 "$SSH_PRIV_KEY"
-    }
-    wait_for_ssh "$MASTER_IP" 120 || die "Le master $MASTER_IP est injoignable."
+}
+wait_for_ssh "$MASTER_IP" 120 || die "Le master $MASTER_IP est injoignable."
+}
+
+# MODE « push-scripts » : rafraîchir les scripts du master, sans rien déployer
+# ==============================================================================
+# Les scripts d'application vivent dans le dépôt, sur le nœud de contrôle, mais
+# s'exécutent sur le master, depuis une copie faite au moment du déploiement. Un
+# « git pull » ne touche donc pas cette copie, et le master reste en retard sans
+# que rien ne le signale.
+#
+# Rejouer « --apps-only » réinstallerait les applications pour recopier cinq
+# fichiers. Ce mode ne fait que la copie.
+# ==============================================================================
+if [ "$MODE" = "push-scripts" ]; then
+    step 1 "$TOTAL_STEPS" "Localisation du cluster existant"
+    locate_master
+
+    step 2 "$TOTAL_STEPS" "Copie des scripts d'application"
+    push_app_scripts "$MASTER_IP" "$ROOT/apps"
+    ok "Le master exécute maintenant les scripts de ce dépôt."
+    log "Vérifier :  ssh master \"ls -l ~/autodeploy/apps/\""
+    exit 0
+fi
+
+# MODE « apps-only » : on se raccroche à un cluster existant
+# ==============================================================================
+if [ "$MODE" = "apps-only" ]; then
+    [ -n "$SELECTED_APPS" ] || die "Aucune application sélectionnée. Utilise --app otel-demo|train-ticket|both."
+
+    step 1 "$TOTAL_STEPS" "Localisation du cluster existant"
+    locate_master
 
     step 2 "$TOTAL_STEPS" "Préparation du master (kubectl, Helm 3 et 4, stockage)"
     master_bootstrap "$MASTER_IP"
