@@ -70,23 +70,38 @@ Central, registres d'images. Vous n'avez rien à ouvrir pour elles.
 
 **Où** : sur votre poste · **Durée** : 5 minutes
 
-SLICES enregistre votre clé publique sur chaque machine créée. Sans elle, les
-machines existent mais restent inaccessibles.
+SLICES enregistre votre clé **publique** sur chaque machine créée. Le script se
+connecte ensuite avec la clé **privée**. Il faut donc les deux.
 
 ```bash
-ls ~/.ssh/id_rsa.pub 2>/dev/null || ssh-keygen -t ed25519 -f ~/.ssh/id_rsa
+ls ~/.ssh/id_rsa ~/.ssh/id_rsa.pub 2>/dev/null \
+    || ssh-keygen -t ed25519 -f ~/.ssh/id_rsa -N ""
 ```
 
-Sous WSL, la clé vit souvent côté Windows. Notez son chemin — il ira dans
-`.env` :
+La clé privée est le fichier **sans** `.pub`. C'est la confusion la plus
+fréquente : un dossier `~/.ssh/` qui ne contient que des `.pub` n'a pas de clé
+privée, et le déploiement s'arrête dès la première étape.
 
-```bash
-ls /mnt/c/Users/VOTRE_NOM/.ssh/id_rsa.pub
+Ces chemins iront dans `.env` :
+
+```
+SSH_SOURCE_PRIV_KEY="/home/VOTRE_NOM/.ssh/id_rsa"
+SSH_SOURCE_PUB_KEY="/home/VOTRE_NOM/.ssh/id_rsa.pub"
 ```
 
-> **Permissions.** Un fichier sous `/mnt/c/` est en 0777, et `ssh` refuse une
-> clé privée aussi ouverte. Les scripts en font une copie en 0600 dans
-> `~/.ssh/` ; ne pointez pas directement `ssh -i` sur `/mnt/c/`.
+Rien n'oblige à réutiliser la clé d'une autre machine : une paire neuve, créée
+là où vous lancez le déploiement, convient parfaitement. C'est même préférable —
+une clé privée ne se recopie pas de machine en machine.
+
+> **Sous WSL**, la clé vit souvent côté Windows :
+>
+> ```
+> SSH_SOURCE_PRIV_KEY="/mnt/c/Users/VOTRE_NOM/.ssh/id_rsa"
+> ```
+>
+> Un fichier sous `/mnt/c/` est en 0777 et `ssh` refuse une clé privée aussi
+> ouverte. Les scripts en font une copie en 0600 dans `~/.ssh/` ; ne pointez pas
+> directement `ssh -i` sur `/mnt/c/`.
 
 ---
 
@@ -157,7 +172,7 @@ Ce qu'il faut adapter :
 | variable | pourquoi |
 |----------|----------|
 | `EXPERIMENT_NAME` | un nom à vous ; deux personnes ne peuvent pas partager une expérience |
-| `WINDOWS_SSH_PRIV_KEY` / `_PUB_KEY` | le chemin de la clé de l'étape 1 |
+| `SSH_SOURCE_PRIV_KEY` / `_PUB_KEY` | les chemins des clés de l'étape 1 |
 | `SITE_ID` | le site SLICES où vous avez des droits |
 | `DURATION` | `3h` pour un essai, `3d` pour une campagne |
 

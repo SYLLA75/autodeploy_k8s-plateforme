@@ -75,8 +75,15 @@ load_env() {
     : "${SITE_ID:?SITE_ID manquant dans .env}"
     : "${OS_IMAGE:?OS_IMAGE manquant dans .env}"
     : "${DURATION:?DURATION manquant dans .env}"
-    : "${WINDOWS_SSH_PRIV_KEY:?WINDOWS_SSH_PRIV_KEY manquant dans .env}"
-    : "${WINDOWS_SSH_PUB_KEY:?WINDOWS_SSH_PUB_KEY manquant dans .env}"
+    # La paire de clés SOURCE : celle que le script recopie en 0600 avant de
+    # s'en servir, et dont il enregistre la partie publique sur les machines
+    # créées. Elle n'a rien de spécifique à Windows — le nom d'origine
+    # (WINDOWS_SSH_*) faisait chercher au mauvais endroit sur une machine Linux.
+    # Les anciens noms restent acceptés pour ne casser aucun .env existant.
+    SSH_SOURCE_PRIV_KEY="${SSH_SOURCE_PRIV_KEY:-${WINDOWS_SSH_PRIV_KEY:-}}"
+    SSH_SOURCE_PUB_KEY="${SSH_SOURCE_PUB_KEY:-${WINDOWS_SSH_PUB_KEY:-}}"
+    : "${SSH_SOURCE_PRIV_KEY:?SSH_SOURCE_PRIV_KEY manquant dans .env}"
+    : "${SSH_SOURCE_PUB_KEY:?SSH_SOURCE_PUB_KEY manquant dans .env}"
 
     # Valeurs par défaut (rétro-compatibilité avec les anciens .env)
     MASTER_FLAVOR="${MASTER_FLAVOR:-medium}"

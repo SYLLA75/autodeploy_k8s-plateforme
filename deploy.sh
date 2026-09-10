@@ -148,12 +148,12 @@ if [ "$MODE" = "check" ]; then
     CHECK_FAIL=0
 
     step 1 4 "Poste local"
-    for f in "$WINDOWS_SSH_PRIV_KEY" "$WINDOWS_SSH_PUB_KEY"; do
+    for f in "$SSH_SOURCE_PRIV_KEY" "$SSH_SOURCE_PUB_KEY"; do
         if [ -f "$f" ]; then ok "Clé présente : $f"
         else err "Clé manquante : $f"; CHECK_FAIL=1; fi
     done
-    if ssh-keygen -l -f "$WINDOWS_SSH_PUB_KEY" >/dev/null 2>&1; then
-        ok "Clé publique valide : $(ssh-keygen -l -f "$WINDOWS_SSH_PUB_KEY" 2>/dev/null | awk '{print $1, $4}')"
+    if ssh-keygen -l -f "$SSH_SOURCE_PUB_KEY" >/dev/null 2>&1; then
+        ok "Clé publique valide : $(ssh-keygen -l -f "$SSH_SOURCE_PUB_KEY" 2>/dev/null | awk '{print $1, $4}')"
     else err "Clé publique illisible ou invalide."; CHECK_FAIL=1; fi
     python3 -c "import venv" 2>/dev/null && ok "python3-venv disponible" \
         || { err "python3-venv absent : sudo apt install -y python3-venv"; CHECK_FAIL=1; }
@@ -176,8 +176,8 @@ if [ "$MODE" = "check" ]; then
     step 4 4 "Joignabilité SSH (une seule connexion par VM)"
     # destroy.sh supprime $SSH_PRIV_KEY : sans cette recopie, --check testerait
     # avec une clé absente et conclurait à tort à un filtrage réseau.
-    if [ ! -f "$SSH_PRIV_KEY" ] && [ -f "$WINDOWS_SSH_PRIV_KEY" ]; then
-        cp "$WINDOWS_SSH_PRIV_KEY" "$SSH_PRIV_KEY"; chmod 600 "$SSH_PRIV_KEY"
+    if [ ! -f "$SSH_PRIV_KEY" ] && [ -f "$SSH_SOURCE_PRIV_KEY" ]; then
+        cp "$SSH_SOURCE_PRIV_KEY" "$SSH_PRIV_KEY"; chmod 600 "$SSH_PRIV_KEY"
         log "Clé privée recopiée dans $SSH_PRIV_KEY pour le test."
     fi
     NET_TESTED=0
@@ -283,8 +283,8 @@ if [ "$MODE" = "apps-only" ]; then
     fi
 
     [ -f "$SSH_PRIV_KEY" ] || {
-        [ -f "$WINDOWS_SSH_PRIV_KEY" ] || die "Clé SSH introuvable ($SSH_PRIV_KEY et $WINDOWS_SSH_PRIV_KEY)."
-        cp "$WINDOWS_SSH_PRIV_KEY" "$SSH_PRIV_KEY"; chmod 600 "$SSH_PRIV_KEY"
+        [ -f "$SSH_SOURCE_PRIV_KEY" ] || die "Clé SSH introuvable ($SSH_PRIV_KEY et $SSH_SOURCE_PRIV_KEY)."
+        cp "$SSH_SOURCE_PRIV_KEY" "$SSH_PRIV_KEY"; chmod 600 "$SSH_PRIV_KEY"
     }
     wait_for_ssh "$MASTER_IP" 120 || die "Le master $MASTER_IP est injoignable."
 
@@ -315,11 +315,37 @@ fi
 # --- [1/8] Clé SSH ------------------------------------------------------------
 step 1 "$TOTAL_STEPS" "Préparation de la clé SSH"
 mkdir -p "$HOME/.ssh"
-[ -f "$WINDOWS_SSH_PRIV_KEY" ] || die "Clé privée introuvable : $WINDOWS_SSH_PRIV_KEY (vérifie WINDOWS_SSH_PRIV_KEY dans .env)"
-[ -f "$WINDOWS_SSH_PUB_KEY" ]  || die "Clé publique introuvable : $WINDOWS_SSH_PUB_KEY (vérifie WINDOWS_SSH_PUB_KEY dans .env)"
+manque_cle() {
+    err "Clé $1 introuvable : $2"
+    err ""
+    err "  Le script a besoin d'une paire de clés pour se connecter aux machines"
+    err "  qu'il va créer. Il enregistre la partie publique sur chacune d'elles."
+    err ""
+    err "  Si vous n'en avez pas encore, créez-en une ici même :"
+    err "      ssh-keygen -t ed25519 -f ~/.ssh/id_rsa -N \"\""
+    err ""
+    err "  Puis dans .env :"
+    err "      SSH_SOURCE_PRIV_KEY=\"$HOME/.ssh/id_rsa\""
+    err "      SSH_SOURCE_PUB_KEY=\"$HOME/.ssh/id_rsa.pub\""
+    err ""
+    err "  Sous WSL, la clé vit souvent côté Windows :"
+    err "      SSH_SOURCE_PRIV_KEY=\"/mnt/c/Users/VOTRE_NOM/.ssh/id_rsa\""
+    exit 1
+}
+[ -f "$SSH_SOURCE_PRIV_KEY" ] || manque_cle "privée"  "$SSH_SOURCE_PRIV_KEY"
+[ -f "$SSH_SOURCE_PUB_KEY" ]  || manque_cle "publique" "$SSH_SOURCE_PUB_KEY"
+
+# Une clé publique passée comme clé privée est une confusion fréquente, et elle
+# se manifesterait bien plus loin par un « Permission denied » incompréhensible.
+case "$SSH_SOURCE_PRIV_KEY" in
+    *.pub) die "SSH_SOURCE_PRIV_KEY pointe sur un fichier .pub — c'est la clé PUBLIQUE.
+  La clé privée est le même chemin SANS le .pub : ${SSH_SOURCE_PRIV_KEY%.pub}" ;;
+esac
+head -1 "$SSH_SOURCE_PRIV_KEY" | grep -q "PRIVATE KEY" \
+    || die "SSH_SOURCE_PRIV_KEY ne contient pas une clé privée : $SSH_SOURCE_PRIV_KEY"
 # Copie côté Linux : les permissions d'un fichier monté depuis /mnt/c ne peuvent
 # pas être restreintes à 600, ce que SSH exige.
-cp "$WINDOWS_SSH_PRIV_KEY" "$SSH_PRIV_KEY"
+cp "$SSH_SOURCE_PRIV_KEY" "$SSH_PRIV_KEY"
 chmod 600 "$SSH_PRIV_KEY"
 ok "Clé privée sécurisée dans $SSH_PRIV_KEY"
 
