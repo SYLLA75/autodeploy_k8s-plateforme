@@ -11,27 +11,29 @@
 #  analyse.
 #
 #  Ce qui n'était noté nulle part, c'est la CONDITION EXPÉRIMENTALE : cette
-#  campagne est-elle la référence saine, ou une injection ? Quel profil de charge
-#  a été appliqué, et à quels instants ? L'information vivait en texte libre dans
-#  les journaux du master — c'est-à-dire sur la machine que destroy.sh efface.
+#  campagne est-elle la référence saine, ou une injection ? Quelle charge a été
+#  appliquée, et à quels instants ? L'information vivait sur le master —
+#  c'est-à-dire sur la machine que destroy.sh efface.
 #
-#  Ce script la rassemble, la range à côté du dépôt, et rapatrie les journaux.
+#  D'OÙ VIENT LE PROFIL DE CHARGE
 #
-#  UNE LIGNE DE JOURNAL N'EST PAS UNE PREUVE
+#  D'un seul fichier : journaux/paliers.tsv, écrit par loadgen.sh à chaque
+#  changement CONFIRMÉ par Locust. Format fixe, données seules.
 #
-#  Avant le correctif du 2026-09-10, loadgen.sh écrivait « Passage à N
-#  voyageurs — instant : … » AVANT de tenter le changement, et l'appel échouait
-#  systématiquement (wget absent de l'image). Les journaux d'alors contiennent
-#  donc des changements qui n'ont pas eu lieu. Un changement n'est retenu ici que
-#  si le même journal porte la confirmation de Locust ; les autres sont signalés
-#  et écartés, jamais silencieusement recopiés.
+#  Ce script ne lit AUCUN texte affiché. Reconstituer un profil en relisant des
+#  phrases obligerait à en connaître la formulation exacte : un mot changé, et
+#  l'analyse casse sans rien signaler.
+#
+#  Le registre s'accumule sur toute la vie du cluster. Seuls les paliers de la
+#  fenêtre exploitable sont retenus, plus celui qui était en vigueur au début —
+#  sans lui on ignorerait la charge de départ.
 #
 #  Usage (depuis le nœud de contrôle, à la fin d'une campagne) :
 #      ./campagne.sh noter <nom> [--type saine|panne] [--cause <nom>]
 #
-#  Exemples :
-#      ./campagne.sh noter saine-01
-#      ./campagne.sh noter panne-cpu-01 --type panne --cause machine_saturee
+#  Variables reconnues :
+#    CAMPAGNE_SSH      (défaut: master)                cible ssh du master
+#    CAMPAGNE_DISTANT  (défaut: /home/ubuntu/autodeploy) racine du projet là-bas
 # ==============================================================================
 set -uo pipefail
 
@@ -40,32 +42,28 @@ CIBLE_SSH="${CAMPAGNE_SSH:-master}"
 DISTANT="${CAMPAGNE_DISTANT:-/home/ubuntu/autodeploy}"
 
 say()  { echo "  [campagne] $*"; }
-ok()   { echo "  [campagne] ✅ $*"; }
+ok()   { echo "  [campagne] OK  $*"; }
 warn() { echo "  [campagne] ATTENTION: $*" >&2; }
 fail() { echo "  [campagne] ERREUR: $*" >&2; exit 1; }
 
-# ------------------------------------------------------------------------------
-# profil_de_charge — les changements de charge RÉELLEMENT appliqués
-# ------------------------------------------------------------------------------
-# Chaque appel à « loadgen.sh scale » écrit son propre journal. On les lit tous,
-# et on ne garde un changement que si Locust l'a confirmé dans le même fichier.
-# ------------------------------------------------------------------------------
-profil_de_charge() {
-    # Le script distant part par stdin plutôt que dans une chaîne : sans cela il
-    # faudrait échapper trois niveaux de guillemets, et la moindre erreur passe
-    # inaperçue puisque ssh renvoie la sortie du shell, pas celle du script.
-    ssh "$CIBLE_SSH" "DISTANT='$DISTANT' bash -s" 2>/dev/null <<'DISTANTEOF'
-for f in "$DISTANT"/journaux/loadgen-*.log; do
-    [ -f "$f" ] || continue
-    ligne=$(grep -h 'Passage à' "$f" 2>/dev/null | head -1)
-    [ -n "$ligne" ] || continue
-    if grep -q 'Locust répond' "$f" 2>/dev/null; then
-        echo "CONFIRME|$ligne"
-    else
-        echo "ECHOUE|$ligne"
-    fi
-done
-DISTANTEOF
+# secondes depuis l'époque, ou rien si la date est illisible
+epoque() { date -u -d "$1" +%s 2>/dev/null; }
+
+usage() {
+    cat <<EOF
+
+  campagne.sh — enregistrer les conditions d'une campagne de mesure
+
+    ./campagne.sh noter <nom> [--type saine|panne] [--cause <nom>]
+
+  Exemples :
+    ./campagne.sh noter saine-01
+    ./campagne.sh noter panne-cpu-01 --type panne --cause machine_saturee
+
+  Écrit campagnes/<nom>/campagne.yaml et y rapatrie les journaux du master,
+  qui disparaîtraient avec le cluster.
+
+EOF
 }
 
 noter() {
@@ -88,32 +86,50 @@ noter() {
     [ -d "$dossier" ] && warn "« $nom » existe déjà — le contenu sera remplacé."
     mkdir -p "$dossier/journaux" || fail "Impossible de créer $dossier"
 
-    say "Interrogation du master ($CIBLE_SSH)…"
     ssh -o BatchMode=yes "$CIBLE_SSH" true 2>/dev/null \
         || fail "Master injoignable via « ssh $CIBLE_SSH ». Le cluster est-il debout ?"
 
-    # La plage exploitable, telle que collecte.sh la calcule. Capturée verbatim :
-    # c'est ce texte qui sera recopié dans graphe_en/config.yaml.
+    # ------------------------------------------------------- la fenêtre mesurée
     say "Lecture de la plage exploitable…"
-    local fenetre
-    fenetre=$(ssh "$CIBLE_SSH" "JOURNAL_OFF=1 bash $DISTANT/apps/collecte.sh fenetre" 2>&1)
-
+    local fenetre etat
+    fenetre=$(ssh "$CIBLE_SSH" "JOURNAL_OFF=1 bash '$DISTANT/apps/collecte.sh' fenetre" 2>&1)
     say "Lecture de l'état du cluster…"
-    local etat
-    etat=$(ssh "$CIBLE_SSH" "JOURNAL_OFF=1 bash $DISTANT/apps/collecte.sh etat" 2>&1)
-
-    say "Lecture du profil de charge…"
-    local profil retenus=0 ecartes=0
-    # Trié sur l'instant, qui termine chaque ligne. Le glob distant les rend
-    # déjà dans l'ordre des noms de fichier, mais on ne s'y fie pas.
-    profil=$(profil_de_charge | sort -t'|' -k2)
+    etat=$(ssh "$CIBLE_SSH" "JOURNAL_OFF=1 bash '$DISTANT/apps/collecte.sh' etat" 2>&1)
 
     local plage_date plage_de plage_a
-    plage_date=$(printf '%s\n' "$fenetre" | grep -oP 'date:\s+\K[0-9-]+' | head -1)
-    plage_de=$(printf '%s\n' "$fenetre"  | grep -oP 'from:\s+"\K[0-9:]+' | head -1)
-    plage_a=$(printf '%s\n' "$fenetre"   | grep -oP '^\s+to:\s+"\K[0-9:]+'   | head -1)
+    plage_date=$(printf '%s\n' "$fenetre" | grep -oP '^\s+date:\s+\K[0-9-]+'   | head -1)
+    plage_de=$(printf '%s\n' "$fenetre"   | grep -oP '^\s+from:\s+"\K[0-9:]+' | head -1)
+    plage_a=$(printf '%s\n' "$fenetre"    | grep -oP '^\s+to:\s+"\K[0-9:]+'   | head -1)
 
-    # ---------------------------------------------------------------- le fichier
+    local debut_s fin_s
+    debut_s=$(epoque "${plage_date} ${plage_de}")
+    fin_s=$(epoque "${plage_date} ${plage_a}")
+
+    # ------------------------------------------------------- le profil de charge
+    say "Lecture du registre des paliers…"
+    local registre
+    registre=$(ssh "$CIBLE_SSH" "cat '$DISTANT/journaux/paliers.tsv'" 2>/dev/null)
+
+    local lignes=() avant="" retenus=0 hors=0
+    if [ -n "$registre" ] && [ -n "$debut_s" ] && [ -n "$fin_s" ]; then
+        while IFS=$'\t' read -r instant n _spawn _cible origine; do
+            case "${instant:-}" in ''|'#'*) continue ;; esac
+            local s; s=$(epoque "$instant") || continue
+            [ -n "$s" ] || continue
+            if [ "$s" -le "$debut_s" ]; then
+                # Le dernier palier antérieur est la charge en vigueur au début.
+                avant="  - { instant: $instant, voyageurs: $n, origine: ${origine:-inconnue}, note: en_vigueur_au_debut }"
+            elif [ "$s" -le "$fin_s" ]; then
+                lignes+=("  - { instant: $instant, voyageurs: $n, origine: ${origine:-inconnue} }")
+            else
+                hors=$((hors + 1))
+            fi
+        done <<< "$registre"
+        [ -n "$avant" ] && retenus=$((retenus + 1))
+        retenus=$((retenus + ${#lignes[@]}))
+    fi
+
+    # ----------------------------------------------------------------- le fichier
     local sortie="$dossier/campagne.yaml"
     {
         echo "# Conditions expérimentales — écrit par campagne.sh, ne pas éditer à la main."
@@ -129,48 +145,39 @@ noter() {
         echo "  from: \"${plage_de:-?}\""
         echo "  to:   \"${plage_a:-?}\""
         echo
+        echo "# Source : journaux/paliers.tsv, écrit par loadgen.sh après confirmation"
+        echo "# de Locust. Seuls les paliers de la fenêtre sont retenus, plus celui qui"
+        echo "# était en vigueur au début."
         echo "profil_de_charge:"
-    } > "$sortie"
-
-    if [ -z "$profil" ]; then
-        echo "  []   # aucun changement de charge trouvé dans les journaux" >> "$sortie"
-        warn "Aucun changement de charge trouvé — profil constant, ou journaux effacés."
-    else
-        while IFS='|' read -r etiquette ligne; do
-            local n instant
-            n=$(printf '%s' "$ligne" | grep -oP 'Passage à \K[0-9]+')
-            instant=$(printf '%s' "$ligne" | grep -oP 'instant : \K\S+')
-            if [ "$etiquette" = "CONFIRME" ]; then
-                printf '  - { instant: %s, voyageurs: %s }\n' "$instant" "$n" >> "$sortie"
-                retenus=$((retenus + 1))
-            else
-                printf '  # ÉCARTÉ — non confirmé par Locust : %s voyageurs à %s\n' \
-                       "$n" "$instant" >> "$sortie"
-                ecartes=$((ecartes + 1))
-            fi
-        done <<< "$profil"
-    fi
-
-    {
+        if [ -z "$registre" ]; then
+            echo "  []   # registre absent sur le master"
+        elif [ "$retenus" -eq 0 ]; then
+            echo "  []   # aucun palier dans la fenêtre"
+        else
+            [ -n "$avant" ] && echo "$avant"
+            printf '%s\n' "${lignes[@]}"
+        fi
         echo
         echo "# Sortie verbatim de « collecte.sh fenetre » :"
         printf '%s\n' "$fenetre" | sed 's/^/#   /'
         echo
         echo "# Sortie verbatim de « collecte.sh etat » :"
         printf '%s\n' "$etat" | sed 's/^/#   /'
-    } >> "$sortie"
+    } > "$sortie"
 
     # ------------------------------------------- les journaux, avant destroy.sh
     say "Rapatriement des journaux du master…"
     scp -q -r "$CIBLE_SSH:$DISTANT/journaux/." "$dossier/journaux/" 2>/dev/null \
-        && ok "Journaux copiés dans campagnes/$nom/journaux/" \
+        && ok "journaux copiés dans campagnes/$nom/journaux/" \
         || warn "Copie des journaux impossible — ils resteront sur le master."
 
     echo
-    ok "Campagne « $nom » enregistrée."
-    say "  fichier   : campagnes/$nom/campagne.yaml"
-    say "  paliers   : $retenus retenu(s), $ecartes écarté(s)"
-    [ "$ecartes" -gt 0 ] && warn "  $ecartes changement(s) non confirmé(s) — écartés, voir les commentaires du fichier."
+    ok "campagne « $nom » enregistrée dans campagnes/$nom/campagne.yaml"
+    say "  paliers retenus : $retenus"
+    [ "$hors" -gt 0 ] && say "  paliers hors fenêtre, non retenus : $hors"
+    [ -z "$registre" ] && warn "  registre des paliers absent : le générateur n'a jamais été installé,"
+    [ -z "$registre" ] && warn "  ou loadgen.sh est antérieur au registre. Les journaux copiés restent"
+    [ -z "$registre" ] && warn "  la seule trace de la charge appliquée."
     echo
     if [ -n "$plage_de" ]; then
         say "À recopier dans graphe_en/config.yaml :"
@@ -180,26 +187,13 @@ noter() {
         echo "      from:       \"$plage_de\""
         echo "      to:         \"$plage_a\""
         echo
+    else
+        warn "Plage exploitable illisible — voir la sortie verbatim dans le fichier."
     fi
     say "Ce dossier est à committer : c'est la provenance de tes données."
 }
 
 case "${1:-}" in
     noter) shift; noter "$@" ;;
-    *)
-        cat <<EOF
-
-  campagne.sh — enregistrer les conditions d'une campagne de mesure
-
-    ./campagne.sh noter <nom> [--type saine|panne] [--cause <nom>]
-
-  Exemples :
-    ./campagne.sh noter saine-01
-    ./campagne.sh noter panne-cpu-01 --type panne --cause machine_saturee
-
-  Écrit campagnes/<nom>/campagne.yaml et y rapatrie les journaux du master,
-  qui disparaîtraient avec le cluster.
-
-EOF
-        ;;
+    *)     usage ;;
 esac

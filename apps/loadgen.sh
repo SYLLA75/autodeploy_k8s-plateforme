@@ -144,8 +144,38 @@ EOF
 
     kubectl -n "$NAMESPACE" rollout status deployment/locust --timeout=180s >/dev/null 2>&1 \
         || warn "Le générateur n'est pas encore prêt."
+
+    # Le palier de départ compte autant que les suivants : sans lui, un profil de
+    # charge commencerait dans le vide et on ignorerait la charge initiale.
+    consigner_palier "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$USERS" "demarrage"
     status_app
     urls_app
+}
+
+# ------------------------------------------------------------------------------
+# consigner_palier <instant_utc> <voyageurs> <origine>
+# ------------------------------------------------------------------------------
+# Écrit le palier dans un fichier MACHINE, en plus de l'afficher.
+#
+# Reconstituer un profil de charge en relisant l'affichage obligerait à analyser
+# des phrases françaises : changer un mot d'affichage casserait l'analyse, sans
+# rien signaler. Ce fichier a un format fixe, ne contient que des données, et
+# n'est écrit qu'après confirmation — ce qui s'y trouve a donc réellement eu lieu.
+#
+# Il s'accumule sur toute la vie du cluster ; c'est au lecteur de ne retenir que
+# les paliers de la fenêtre qui l'intéresse.
+# ------------------------------------------------------------------------------
+REGISTRE="$(cd "$SCRIPT_DIR/.." && pwd)/journaux/paliers.tsv"
+
+consigner_palier() {
+    local instant="$1" n="$2" origine="$3"
+    if [ ! -f "$REGISTRE" ]; then
+        mkdir -p "$(dirname "$REGISTRE")" 2>/dev/null
+        printf '# instant_utc\tvoyageurs\tspawn_rate\tcible\torigine\n' > "$REGISTRE" 2>/dev/null
+    fi
+    printf '%s\t%s\t%s\t%s\t%s\n' "$instant" "$n" "$SPAWN_RATE" "$TARGET_NS" "$origine" \
+        >> "$REGISTRE" 2>/dev/null \
+        || warn "Palier appliqué mais non consigné dans $REGISTRE"
 }
 
 # ------------------------------------------------------------------------------
@@ -190,8 +220,13 @@ except Exception:
         printf '%s\n' "$sortie" | sed 's/^/      /' >&2
         return 1
     fi
-    say "Passage à $n voyageurs — instant : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    local instant
+    instant=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+    consigner_palier "$instant" "$n" "demande"
+    say "Passage à $n voyageurs — instant : $instant"
     say "Locust répond : $sortie"
+    say "Consigné dans $REGISTRE"
 }
 
 uninstall_app() {

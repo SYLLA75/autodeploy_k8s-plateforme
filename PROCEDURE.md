@@ -139,9 +139,14 @@ Depuis le nœud de contrôle, quand la campagne est finie :
 Ça écrit `campagnes/<nom>/campagne.yaml`, rapatrie les journaux du master, et
 affiche la plage à recopier dans `graphe_en/config.yaml`.
 
-**Un changement de charge non confirmé par Locust est écarté**, pas recopié : le
-journal peut contenir la trace d'un changement qui a échoué, et une étiquette
-fausse vaut moins que pas d'étiquette du tout.
+Le profil vient d'un seul fichier, `journaux/paliers.tsv`, que `loadgen.sh` écrit
+**après confirmation de Locust** — ce qui s'y trouve a donc réellement eu lieu.
+Aucun texte affiché n'est relu : une phrase reformulée casserait l'analyse sans
+rien signaler.
+
+Le registre s'accumule sur toute la vie du cluster. Seuls les paliers de la
+fenêtre sont retenus, plus **celui qui était en vigueur au début** — sans lui, on
+ignorerait la charge de départ.
 
 Ce dossier est à committer — c'est la provenance de tes données.
 
