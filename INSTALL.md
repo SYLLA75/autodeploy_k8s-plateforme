@@ -208,6 +208,26 @@ configuration. La plage de dates se remplit plus tard, à l'étape 8.
 
 **Où** : sur votre poste · **Durée** : 45 à 60 minutes, sans intervention
 
+> **Si vous pilotez depuis une machine distante, lancez-le dans `tmux`.**
+> Une commande lancée dans une session SSH meurt quand la connexion tombe, et
+> celle-ci dure 45 à 60 minutes.
+>
+> ```bash
+> tmux new -s deploy
+> ./deploy.sh --app train-ticket
+> ```
+>
+> Le terminal appartient alors à `tmux`, pas à la connexion SSH. Vous pouvez
+> fermer votre portable, changer de réseau, perdre le wifi : le script continue.
+>
+> | | |
+> |---|---|
+> | se détacher volontairement | `Ctrl+b` puis `d` |
+> | lister les sessions | `tmux ls` |
+> | revenir, depuis n'importe où | `tmux attach -t deploy` |
+>
+> Vous retrouvez l'écran exactement où il en était, avec tout l'historique.
+
 ```bash
 ./deploy.sh --app train-ticket
 ```
@@ -228,7 +248,29 @@ ssh master 'kubectl get pods -n train-ticket --no-headers | wc -l'
 Huit machines, et 56 pods.
 
 > Le script est rejouable : en cas d'échec, relancez-le. Il réutilise ce qui
-> existe déjà et reprend là où il s'était arrêté.
+> existe déjà et reprend là où il s'était arrêté. **Les machines réservées
+> survivent** à la mort du script : vous perdez du temps, pas du quota.
+
+### Suivre l'avancement après une déconnexion
+
+Toute la sortie est dupliquée dans un journal, annoncé au démarrage :
+
+```
+  journal : /home/ubuntu/autodeploy_k8s/journaux/deploy-20260910-130118.log
+```
+
+Depuis une autre connexion :
+
+```bash
+tail -f ~/autodeploy_k8s/journaux/deploy-*.log
+```
+
+Le journal et `tmux` sont complémentaires, pas redondants : `tmux` garde le
+**processus** en vie, le journal garde la **trace** même si le processus meurt.
+Sans journal, un script mort ne laisse rien — ni où il en était, ni pourquoi il
+s'est arrêté.
+
+`DEPLOY_NO_LOG=1` désactive le journal.
 
 ---
 

@@ -818,6 +818,7 @@ peut en effet interrompre la suppression sans le signaler par son code de retour
 | `Something is wrong with your user credentials` | Jeton SLICES expiré | `source ~/slices-venv/bin/activate && slices auth login` |
 | `Slices CLI core is not installed` | CLI appelée sans activer le venv | `source ~/slices-venv/bin/activate` avant toute commande `slices` |
 | `Permissions 0777 for 'id_rsa' are too open` | Droits trop ouverts sur la clé privée | `chmod 600` sur la clé désignée par `SSH_SOURCE_PRIV_KEY`. Le script travaille sur une copie en 0600, mais lit d'abord l'originale. |
+| Le déploiement s'arrête net à la déconnexion | Session SSH fermée | Lancer dans `tmux` : `tmux new -s deploy`. Les machines réservées survivent, relancer le script les réutilise. |
 | `Impossible de lister les ressources de « … »` | L'expérience n'existait pas | Corrigé : elle est créée automatiquement. Sur une version antérieure : `slices experiment create <nom> --duration 3h`. |
 | `Clé privée introuvable` | `~/.ssh/` ne contient que des `.pub` | Créer la paire : `ssh-keygen -t ed25519 -f ~/.ssh/id_rsa -N ""`. La clé privée est le fichier **sans** `.pub`. |
 | Kubespray échoue sur `Wait for the apiserver to be running` | VMs pas encore prêtes, ou nœud sous-dimensionné | Relance `./deploy.sh` (ré-entrant : il réutilise les VMs et le clone Kubespray) |

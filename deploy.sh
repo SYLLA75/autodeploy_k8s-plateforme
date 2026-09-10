@@ -19,6 +19,35 @@ source "$ROOT/lib/slices.sh"
 source "$ROOT/lib/cluster.sh"
 
 # ------------------------------------------------------------------------------
+# Journal d'exécution
+# ------------------------------------------------------------------------------
+# Un déploiement dure 45 à 60 minutes. Si la connexion tombe — et sur une machine
+# distante elle tombe — tout ce qui s'est affiché est perdu, et il devient
+# impossible de savoir où le script en était, ni pourquoi il s'est arrêté.
+#
+# Toute la sortie est donc dupliquée dans un fichier, consultable depuis une
+# autre connexion :
+#
+#     tail -f ~/autodeploy_k8s/journaux/deploy-<horodatage>.log
+#
+# Cela ne remplace pas tmux, qui garde le PROCESSUS en vie ; c'est
+# complémentaire : le journal garde la TRACE même si le processus meurt.
+#
+# La redirection n'est posée qu'une fois : DEPLOY_LOG marque le passage, sinon
+# la relance à travers « tee » créerait une boucle infinie de processus.
+if [ -z "${DEPLOY_LOG:-}" ] && [ "${DEPLOY_NO_LOG:-0}" != "1" ]; then
+    mkdir -p "$ROOT/journaux"
+    DEPLOY_LOG="$ROOT/journaux/deploy-$(date +%Y%m%d-%H%M%S).log"
+    export DEPLOY_LOG
+    echo "  journal : $DEPLOY_LOG"
+    echo "  suivi depuis une autre connexion :  tail -f $DEPLOY_LOG"
+    echo
+    # exec redirige le script lui-même : pas de sous-processus, donc le code de
+    # sortie et les signaux restent ceux du script.
+    exec > >(tee -a "$DEPLOY_LOG") 2>&1
+fi
+
+# ------------------------------------------------------------------------------
 # Aide
 # ------------------------------------------------------------------------------
 usage() {
