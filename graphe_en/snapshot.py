@@ -121,7 +121,30 @@ def build(window, vectors, edges, edge_report) -> dict:
     }
 
 
-def manifest(settings, fetched, cut_report, written: int) -> dict:
+def _counted(snapshots: list[dict]) -> dict:
+    """
+    How MANY objects each window holds, as one number when it never varies and
+    a [min, max] range otherwise.
+
+    Reported next to the component widths because the two were confused. The
+    manifest used to publish only the widths under the keys "nodes" and
+    "edges", so a relation carrying no feature column showed as
+    "executes_on: 0" and read as "there is no such edge" — while every window
+    in fact held 58 of them.
+    """
+    def spread(values: list[int]):
+        return values[0] if len(set(values)) == 1 else [min(values), max(values)]
+
+    return {
+        "nodes_per_window": {k: spread([len(s["nodes"][k]["keys"])
+                                        for s in snapshots]) for k in KINDS},
+        "edges_per_window": {r: spread([len(s["edges"][r]["target"])
+                                        for s in snapshots]) for r in RELATIONS},
+    }
+
+
+def manifest(settings, fetched, cut_report, written: int,
+             snapshots: list[dict] | None = None) -> dict:
     origin = {}
     if fetched and fetched.manifest.exists():
         raw = json.loads(fetched.manifest.read_text())
@@ -144,8 +167,9 @@ def manifest(settings, fetched, cut_report, written: int) -> dict:
             "edges": "windows not fully covered by the data are discarded",
         },
         "dimensions": {
-            "nodes": {k: len(COLUMNS[k]) for k in KINDS},
-            "edges": {r: len(v[2]) for r, v in RELATIONS.items()},
+            "node_components": {k: len(COLUMNS[k]) for k in KINDS},
+            "edge_components": {r: len(v[2]) for r, v in RELATIONS.items()},
+            **(_counted(snapshots) if snapshots else {}),
         },
         "windowing": {k: v for k, v in cut_report.items() if k != "discarded"},
         "windows_written": written,

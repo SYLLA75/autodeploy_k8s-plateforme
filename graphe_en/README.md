@@ -24,11 +24,14 @@ Everything is set in `config.yaml`. Nothing is hard-coded elsewhere.
 
 ## The graph
 
-Three kinds of node, four relations, following the formalisation:
+Three kinds of node, four relations, following the formalisation — with
+one departure: the paper puts 19 components on an instance, this puts 18.
+The nineteenth was the consumed-message rate, which is already a component
+of the consumption relation. See the header of `features.py`.
 
 | node | components | what it is |
 |------|-----------|------------|
-| `instance` | 19 | one running copy of a service — a pod |
+| `instance` | 18 | one running copy of a service — a pod |
 | `queue` | 6 | one message queue |
 | `host` | 5 | one machine of the cluster — a node |
 

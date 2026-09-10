@@ -96,13 +96,37 @@ class Span:
         return self.attributes.get("messaging.operation.type")
 
     @property
+    def is_broker_delivery(self) -> bool:
+        """
+        True when this consumption span describes the BROKER HANDING OVER the
+        message, false when it describes the APPLICATION HANDLING it.
+
+        Measured on the healthy campaign: exactly one span of each consumed
+        pair carries network.peer.address, 710 pairs out of 710. The attribute
+        separates the two roles; the duration does not.
+        """
+        return "network.peer.address" in self.attributes
+
+    @property
     def message_key(self) -> tuple | None:
         """
         What identifies one MESSAGE, as opposed to one span.
 
         Verified trap. A single consumed message produces TWO spans, not one:
-        same attributes, same kind, same parent, same delivery tag, only the
-        span id differs. This was systematic — 92 out of 92 consumptions.
+        same trace, same parent, same delivery tag, same messaging attributes.
+        This was systematic — 710 out of 710 consumptions.
+
+        THEY ARE NOT COPIES OF EACH OTHER. They describe two different things,
+        and only one of them carries a network peer address:
+
+            with network.peer.address     the broker handing the message over
+                                          the wire — p50 0.090 ms
+            without                       the application listener actually
+                                          handling it — p50 6.201 ms
+
+        Which is which is decided by the attribute, never by the duration: on
+        5 of the 710 pairs the network span outlasted the handling. See
+        Span.is_broker_delivery.
 
         Counting spans therefore doubles the consumed rate, which is half of the
         difference between what enters and what leaves a queue, the central
@@ -247,18 +271,33 @@ def published_messages(spans: list[Span]) -> list[Span]:
 
 def consumed_messages(spans: list[Span]) -> list[Span]:
     """
-    Spans that consume a message, ONE PER MESSAGE.
+    Spans that consume a message, ONE PER MESSAGE, and always the one that
+    describes the APPLICATION HANDLING it.
 
-    Deduplication is mandatory here: one consumed message emits two identical
-    spans. See Span.message_key.
+    Two things are settled here, not one.
+
+    THE COUNT. Deduplication is mandatory: one consumed message emits two
+    spans, so counting spans doubles the consumed rate — half of the difference
+    between what enters and what leaves a queue, the central quantity of this
+    work. See Span.message_key.
+
+    WHICH ONE SURVIVES. The two spans do not last the same time, so keeping
+    whichever arrived first left the duration to chance. The handling span is
+    kept and the broker delivery discarded, because the quantity wanted is how
+    long the replica took to process the message, not how long the wire took to
+    deliver it. Measured on the healthy campaign, keeping both mixed two
+    populations and reported a median of 0.283 ms where the true handling
+    median was 6.201 ms — twenty-two times too small.
     """
-    seen, kept = set(), []
+    best: dict[tuple, Span] = {}
+    order: list[tuple] = []
     for s in spans:
         if not (s.queue_name and s.messaging_operation == "process"):
             continue
         key = s.message_key
-        if key in seen:
-            continue
-        seen.add(key)
-        kept.append(s)
-    return kept
+        if key not in best:
+            best[key] = s
+            order.append(key)
+        elif best[key].is_broker_delivery and not s.is_broker_delivery:
+            best[key] = s
+    return [best[k] for k in order]

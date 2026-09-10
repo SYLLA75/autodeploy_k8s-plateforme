@@ -199,7 +199,9 @@ def _nodes(console: Console, conf, kept):
 def _features(console: Console, conf, kept, node_series):
     import features as features_module
 
-    console.step("features", "19 instance, 6 queue, 5 host components")
+    console.step("features", ", ".join(
+        f"{len(features_module.COLUMNS[k])} {k}" for k in ("instance", "queue", "host")
+    ) + " components")
     vectors = features_module.compute(
         kept, conf.graph["namespace"], conf.width,
         int(conf.graph["slope_horizon"]),
@@ -271,7 +273,8 @@ def _export(console: Console, conf, kept, vectors, built, got, cut_report):
     paths = snapshot_module.write(snapshots, graph_dir)
     (graph_dir / "manifest.json").write_text(
         __import__("json").dumps(
-            snapshot_module.manifest(conf, got, cut_report, len(paths)),
+            snapshot_module.manifest(conf, got, cut_report, len(paths),
+                                     snapshots),
             ensure_ascii=False, indent=2), encoding="utf-8")
     total = sum(p.stat().st_size for p in graph_dir.glob("*.json"))
     console.ok(f"{len(paths)} snapshots + manifest, {total/1024:.0f} KB")

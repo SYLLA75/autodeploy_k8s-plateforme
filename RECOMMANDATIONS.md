@@ -23,14 +23,41 @@ inconstructibles** sur cette famille.
 
 **À décider** : tracer une flèche vers *chaque* groupe qui lit la destination.
 
-### 1.2 Une même information est écrite à deux endroits
+### 1.2 Une même information est écrite à deux endroits — CORRIGÉ DANS LE CODE
 
-Le débit de traitement figure à la fois dans le vecteur de la copie de service et
-sur la flèche « retirer » qui y mène. Dans l'exemple : 9,2 des deux côtés.
+Le débit de traitement figurait à la fois dans le vecteur de la copie de service
+et sur la flèche « retirer » qui y mène.
 
-**Conséquence** : l'ablation qui retire les flèches « retirer » ne pourra pas
-échouer, puisque l'information reste dans le vecteur. La prédiction falsifiable
-de la section 10.7 est invalidée par la composition même du vecteur.
+**Conséquence** : l'ablation qui retire les flèches « retirer » ne pouvait pas
+échouer, puisque l'information restait dans le vecteur. La prédiction falsifiable
+de la section 10.7 était invalidée par la composition même du vecteur.
+
+**Mesure faite depuis** — et elle est pire que le simple doublon. Les deux copies
+ne portaient pas le même nombre : sur les 48 relevés de la campagne saine (12
+fenêtres × 4 consommateurs), le vecteur annonçait **exactement le double** de la
+flèche, rapport 2.00 partout. Le vecteur comptait des spans, la flèche comptait
+des messages, et un message consommé émet deux spans.
+
+**Correction appliquée à `graphe_en`** : la composante disparaît du vecteur, la
+grandeur ne vit plus que sur la relation de consommation. Vérifié avant de
+retirer : aucune copie n'avait un débit non nul sans flèche de consommation, donc
+rien ne se perd. Un nœud qui a besoin du total somme ses flèches entrantes, ce
+que fait de toute façon la propagation de messages.
+
+**Découverte connexe, corrigée aussi** : les deux spans d'un message consommé ne
+sont pas des copies l'un de l'autre. L'un décrit le courtier qui remet le message
+sur le réseau, l'autre l'application qui le traite ; l'attribut
+`network.peer.address` les sépare, 710 paires sur 710. Le temps de traitement
+mélangeait les deux populations et annonçait une médiane de **0,283 ms** là où la
+vraie médiane de traitement est **6,201 ms** — vingt-deux fois trop petit. Le
+span de traitement est désormais seul retenu.
+
+**Reste à faire dans le papier** : reprendre l'exemple chiffré, et corriger le
+tableau des composantes.
+
+**Reste à faire dans `graphe/`** (chaîne française) : elle porte encore les deux
+défauts, `valeurs.py` ligne 213 comptant les spans sans déduplication ni
+séparation des rôles.
 
 ### 1.3 L'exemple chiffré se contredit d'un facteur dix
 
@@ -44,9 +71,18 @@ la file accumule.
 ### 1.4 La dimension du vecteur d'instance est tranchée
 
 7×19 + 6 + 2×5 + 4×5 + 1 + 3 = **173**, le total annoncé. Avec 18, on obtient
-166 et l'exemple devient faux. Aucun argument formel ne pousse vers 18.
+166 et l'exemple devient faux.
 
-**Décision** : 19. La variante 18 devient une projection documentée.
+**Cette décision disait « aucun argument formel ne pousse vers 18 ». Ce n'est
+plus vrai.** Il en existe désormais deux, tous deux mesurés (§1.2) : la
+composante est la même grandeur qu'une composante de relation, et la copie du
+vecteur était fausse d'un facteur exactement 2. Garder 19 revient à publier une
+valeur dont on sait qu'elle est double de la bonne.
+
+**Décision révisée** : 18 dans le code. Le papier doit passer son total annoncé
+de 173 à 166 et refaire l'exemple, ou bien assumer par écrit que la dix-neuvième
+composante est une redite d'une composante de relation — auquel cas l'ablation
+de la §10.7 doit être retirée, car elle ne peut pas échouer.
 
 ### 1.5 L'incrément est faux au moment précis qu'on veut détecter
 

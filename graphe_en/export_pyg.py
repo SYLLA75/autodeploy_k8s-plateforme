@@ -159,10 +159,37 @@ def _transform(row: list, stats: list[dict] | None, columns: list[str],
     return out, present
 
 
+def _check_scaler(snapshots: list[dict], scaler: dict) -> None:
+    """
+    Refuse a scaling fitted on a different set of columns.
+
+    The statistics are applied BY POSITION, one per component. A scaler fitted
+    before a component was added or removed therefore lines up against the
+    wrong columns and rescales every one of them silently — no crash, no
+    warning, just wrong numbers all the way to training. Each entry records the
+    name it was fitted on, so the mismatch is caught here instead.
+    """
+    for kind in KINDS:
+        expected = snapshots[0]["nodes"][kind]["columns"]
+        fitted = [s["column"] for s in scaler.get(kind, [])]
+        if fitted != expected:
+            raise SystemExit(
+                f"the saved scaling does not match the current {kind} vector\n"
+                f"    fitted on : {len(fitted)} components "
+                f"({', '.join(fitted) or 'none'})\n"
+                f"    needed    : {len(expected)} components "
+                f"({', '.join(expected)})\n"
+                f"    fit it again on a healthy campaign "
+                f"(export.scaler: fit), or delete the file")
+
+
 def convert(snapshots: list[dict], scaler: dict | None, missing: str,
             reverse: bool, device: str):
     import torch
     from torch_geometric.data import HeteroData
+
+    if scaler:
+        _check_scaler(snapshots, scaler)
 
     fillers = {}
     if missing == "mean":

@@ -1,7 +1,7 @@
 """
 The values carried by each node.
 
-    instance   19 numbers
+    instance   18 numbers
     queue       6 numbers
     host        5 numbers
 
@@ -35,9 +35,30 @@ THREE DELIBERATE DEPARTURES FROM THE PAPER, each of them measured:
   3. A consumed message emits two identical spans; they are deduplicated,
      otherwise the consume rate doubles.
 
-REPORTED, NOT FIXED: component 4 of the instance vector and component 1 of the
-consumption relation are the same quantity. It appears twice in the
-representation, and a model would weight it twice. The paper must choose.
+TWO CORRECTIONS TO THE CONSUMED-MESSAGE COUNT, both measured:
+
+  A. process_rate IS GONE FROM THE INSTANCE VECTOR. It was component 4 there
+     and component 1 of the consumption relation — the same quantity written
+     twice, so a model weighted it twice. Worse, the two copies disagreed by a
+     factor of exactly 2.00 over all 48 readings of the healthy campaign,
+     because the vector counted spans while the relation counted messages.
+
+     The quantity now lives on the consumption relation alone, where it
+     belongs: a rate of messages from one queue to one replica. A node needing
+     it sums its incoming consumption edges, which is what message passing
+     does anyway. Checked before removing: no replica had a non-zero
+     process_rate without a consumption edge, so nothing is lost.
+
+     This is also what makes the paper's own ablation testable. Section 10.7
+     predicts that removing the consumption relations degrades attribution;
+     while the rate stayed in the vector that prediction could not fail.
+
+  B. process_time NOW MEASURES HANDLING, NOT DELIVERY. The two spans of a
+     consumed message are not copies: one is the broker handing the message
+     over the wire, the other the application listener handling it. Mixing
+     them put two populations in one distribution and reported a median of
+     0.283 ms where the true handling median was 6.201 ms. See
+     otlp.consumed_messages.
 
 WHAT ETA IS WORTH. The paper corrects span counts by the sampling rate eta. The
 chain is set to keep every trace (OTEL_TRACES_SAMPLER=parentbased_always_on), so
@@ -51,12 +72,11 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from nodes import Node, collect, directory
-from otlp import CONSUMER, SERVER, Sample
+from otlp import SERVER, Sample, consumed_messages
 from windows import Window
 
 INSTANCE_COLUMNS = [
     "process_time_p50", "process_time_p95", "process_time_p99",
-    "process_rate",
     "request_time_p50", "request_time_p95", "request_time_p99",
     "error_ratio",
     "cpu_throttle_ratio", "cpu_rate",
@@ -72,8 +92,14 @@ HOST_COLUMNS = ["cpu_pressure", "memory_pressure", "io_pressure",
 COLUMNS = {"instance": INSTANCE_COLUMNS, "queue": QUEUE_COLUMNS,
            "host": HOST_COLUMNS}
 
-# Where the slope operator writes, per node kind: (source column, target column)
-SLOPE_SLOTS = {"instance": (10, 11), "queue": (0, 1)}
+# Where the slope operator writes, per node kind: (source column, target column).
+# Held BY NAME and resolved to positions here. They used to be written as bare
+# indices, which meant that removing one column silently shifted them and wrote
+# the slope into a neighbouring column instead.
+SLOPE_BY_NAME = {"instance": ("memory_used", "memory_slope"),
+                 "queue": ("backlog", "backlog_slope")}
+SLOPE_SLOTS = {kind: (COLUMNS[kind].index(src), COLUMNS[kind].index(dst))
+               for kind, (src, dst) in SLOPE_BY_NAME.items()}
 
 
 # ------------------------------------------------------------ the operators
@@ -199,10 +225,11 @@ def _samples_by_pod(window: Window, book: dict) -> dict[str, list[Sample]]:
 
 
 def instance_vector(node: Node, window: Window, samples: list[Sample],
-                    width_s: float, eta: float,
-                    quantiles: tuple) -> Vector:
+                    width_s: float, quantiles: tuple) -> Vector:
     spans = [s for s in window.spans if s.pod_uid == node.key]
-    processing = [s for s in spans if s.kind == CONSUMER]
+    # One entry per consumed message, and the span that describes the replica
+    # handling it rather than the broker delivering it.
+    processing = consumed_messages(spans)
     serving = [s for s in spans if s.kind == SERVER]
     http = [s for s in spans if "http.response.status_code" in s.attributes]
     failed = [s for s in http if s.attributes.get("error.type")]
@@ -217,7 +244,6 @@ def instance_vector(node: Node, window: Window, samples: list[Sample],
     serving_ms = [s.duration_ns / 1e6 for s in serving]
 
     v: list[float | None] = [quantile(processing_ms, q) for q in quantiles]
-    v.append(ratio(len(processing) / eta, width_s) if spans or samples else None)
     v += [quantile(serving_ms, q) for q in quantiles]
     v.append(ratio(len(failed), len(http)) if http else None)
 
@@ -304,7 +330,7 @@ def compute(windows: list[Window], namespace: str | None, width_s: float,
         for key, node in found.items():
             if node.kind == "instance":
                 vectors[key] = instance_vector(node, w, per_pod.get(key, []),
-                                               width_s, eta, quantiles)
+                                               width_s, quantiles)
             elif node.kind == "queue":
                 vectors[key] = queue_vector(node, w, width_s, eta)
             else:
