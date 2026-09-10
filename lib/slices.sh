@@ -90,7 +90,7 @@ slices_create_infra() {
             --experiment "$EXPERIMENT_NAME" \
             --image "$OS_IMAGE" --flavor "$MASTER_FLAVOR" \
             --duration "$DURATION" --count=1 --wait \
-            "${ip_opt[@]}" --ssh-key-file "$WINDOWS_SSH_PUB_KEY"; then
+            "${ip_opt[@]}" --ssh-key-file "$SSH_SOURCE_PUB_KEY"; then
         warn "La création du master a renvoyé une erreur (déjà existant ?). On poursuit."
     fi
 
@@ -100,7 +100,7 @@ slices_create_infra() {
                 --experiment "$EXPERIMENT_NAME" \
                 --image "$OS_IMAGE" --flavor "$WORKER_FLAVOR" \
                 --duration "$DURATION" --count="$workers" --wait \
-                "${ip_opt[@]}" --ssh-key-file "$WINDOWS_SSH_PUB_KEY"; then
+                "${ip_opt[@]}" --ssh-key-file "$SSH_SOURCE_PUB_KEY"; then
             warn "La création des workers a renvoyé une erreur (déjà existants ?). On poursuit."
         fi
     fi

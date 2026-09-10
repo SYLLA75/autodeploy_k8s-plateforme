@@ -71,8 +71,8 @@ if [ "$MODE" = "apps-only" ]; then
     [ -n "${MASTER_IP:-}" ] || die "IP du master introuvable : passe --master-ip <ip>."
 
     if [ ! -f "$SSH_PRIV_KEY" ]; then
-        [ -f "$WINDOWS_SSH_PRIV_KEY" ] || die "Clé SSH introuvable ($SSH_PRIV_KEY et $WINDOWS_SSH_PRIV_KEY)."
-        cp "$WINDOWS_SSH_PRIV_KEY" "$SSH_PRIV_KEY"; chmod 600 "$SSH_PRIV_KEY"
+        [ -f "$SSH_SOURCE_PRIV_KEY" ] || die "Clé SSH introuvable ($SSH_PRIV_KEY et $SSH_SOURCE_PRIV_KEY)."
+        cp "$SSH_SOURCE_PRIV_KEY" "$SSH_PRIV_KEY"; chmod 600 "$SSH_PRIV_KEY"
     fi
 
     banner "Désinstallation des applications : $APPS_TO_REMOVE"
