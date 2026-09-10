@@ -35,7 +35,14 @@ source "$ROOT/lib/cluster.sh"
 #
 # La redirection n'est posée qu'une fois : JOURNAL_FICHIER marque le passage, sinon
 # la relance à travers « tee » créerait une boucle infinie de processus.
-if [ -z "${JOURNAL_FICHIER:-}" ] && [ "${JOURNAL_OFF:-0}" != "1" ]; then
+# Accepte 1, true, yes, on — en majuscules ou non. Se limiter à « 1 » laisserait
+# JOURNAL_OFF=true sans effet, en silence : l'utilisateur croirait avoir coupé le
+# journal alors qu'il continue d'être écrit.
+_journal_coupe=0
+case "$(printf %s "${JOURNAL_OFF:-0}" | tr 'A-Z' 'a-z')" in
+    1|true|yes|on|oui) _journal_coupe=1 ;;
+esac
+if [ -z "${JOURNAL_FICHIER:-}" ] && [ "$_journal_coupe" != "1" ]; then
     mkdir -p "$ROOT/journaux"
     JOURNAL_FICHIER="$ROOT/journaux/deploy-$(date +%Y%m%d-%H%M%S).log"
     export JOURNAL_FICHIER

@@ -30,7 +30,14 @@
 #  JOURNAL_OFF=1 désactive.
 # ==============================================================================
 
-if [ -z "${JOURNAL_FICHIER:-}" ] && [ "${JOURNAL_OFF:-0}" != "1" ]; then
+# Accepte 1, true, yes, on — en majuscules ou non. Se limiter à « 1 » laisserait
+# JOURNAL_OFF=true sans effet, en silence : l'utilisateur croirait avoir coupé le
+# journal alors qu'il continue d'être écrit.
+_journal_coupe=0
+case "$(printf %s "${JOURNAL_OFF:-0}" | tr 'A-Z' 'a-z')" in
+    1|true|yes|on|oui) _journal_coupe=1 ;;
+esac
+if [ -z "${JOURNAL_FICHIER:-}" ] && [ "$_journal_coupe" != "1" ]; then
     _journal_base="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/journaux"
     mkdir -p "$_journal_base" 2>/dev/null || _journal_base="/tmp"
     JOURNAL_FICHIER="$_journal_base/${JOURNAL_NOM:-script}-$(date +%Y%m%d-%H%M%S).log"

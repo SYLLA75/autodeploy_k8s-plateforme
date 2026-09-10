@@ -19,7 +19,14 @@ source "$ROOT/lib/cluster.sh"
 # Journal d'exécution : ce qui a été détruit mérite une trace, et une destruction
 # interrompue laisse un état partiel qu'il faut pouvoir reconstituer.
 # JOURNAL_OFF=1 désactive.
-if [ -z "${JOURNAL_FICHIER:-}" ] && [ "${JOURNAL_OFF:-0}" != "1" ]; then
+# Accepte 1, true, yes, on — en majuscules ou non. Se limiter à « 1 » laisserait
+# JOURNAL_OFF=true sans effet, en silence : l'utilisateur croirait avoir coupé le
+# journal alors qu'il continue d'être écrit.
+_journal_coupe=0
+case "$(printf %s "${JOURNAL_OFF:-0}" | tr 'A-Z' 'a-z')" in
+    1|true|yes|on|oui) _journal_coupe=1 ;;
+esac
+if [ -z "${JOURNAL_FICHIER:-}" ] && [ "$_journal_coupe" != "1" ]; then
     mkdir -p "$ROOT/journaux" 2>/dev/null || true
     JOURNAL_FICHIER="$ROOT/journaux/destroy-$(date +%Y%m%d-%H%M%S).log"
     export JOURNAL_FICHIER
