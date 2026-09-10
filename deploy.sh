@@ -160,6 +160,7 @@ if [ "$MODE" = "check" ]; then
 
     step 2 4 "CLI SLICES et authentification"
     slices_activate
+    slices_ensure_experiment
     if slices bi flavor list >/dev/null 2>&1; then ok "Jeton SLICES valide."
     else err "Jeton SLICES invalide ou expiré → slices auth login"; CHECK_FAIL=1; fi
 
@@ -355,6 +356,8 @@ slices_ensure_auth
 
 # --- [3/8] Réservation des VMs -----------------------------------------------
 step 3 "$TOTAL_STEPS" "Réservation de l'infrastructure"
+# L'expérience doit exister avant qu'on puisse y lister ou créer quoi que ce soit.
+slices_ensure_experiment
 if slices_infra_exists; then
     # Réutiliser n'a de sens que si la topologie existante correspond au besoin.
     # Sinon on partirait sur un cluster amputé (ex. 0 worker) sans le voir.

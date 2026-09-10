@@ -165,7 +165,7 @@ Ce qu'il faut adapter :
 
 | variable | pourquoi |
 |----------|----------|
-| `EXPERIMENT_NAME` | un nom à vous ; deux personnes ne peuvent pas partager une expérience |
+| `EXPERIMENT_NAME` | un nom à vous ; elle est créée automatiquement si elle n'existe pas |
 | `SSH_SOURCE_PRIV_KEY` / `_PUB_KEY` | les chemins des clés de l'étape 1 |
 | `SITE_ID` | le site SLICES où vous avez des droits |
 | `DURATION` | `3h` pour un essai, `3d` pour une campagne |
@@ -348,6 +348,7 @@ nœud de contrôle disparaissent avec lui.
 
 | symptôme | cause la plus fréquente |
 |----------|------------------------|
+| `Impossible de lister les ressources` | l'expérience n'existe pas ; `deploy.sh` la crée maintenant tout seul |
 | `Connection timed out` sur le nœud de contrôle | le bastion n'est pas utilisé — vérifier que `inventory.ini` existe |
 | `nacos-0 Init:Error` en boucle | élection MySQL bloquée ; voir RECOMMANDATIONS.md, correctif 1 |
 | pods `Pending`, `Insufficient memory` | trop peu de workers ; `PROFILE_TT_WORKERS` doit valoir 7 |

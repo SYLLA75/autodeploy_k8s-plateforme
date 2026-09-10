@@ -47,6 +47,47 @@ slices_ensure_auth() {
 # ------------------------------------------------------------------------------
 # Renvoie 0 si l'expérience possède déjà au moins un nœud master joignable
 # ------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# S'assurer que l'expérience existe
+# ------------------------------------------------------------------------------
+# Une ressource ne peut pas être créée dans une expérience qui n'existe pas, et
+# la lister échoue avec un code 1 indistinguable d'une vraie panne. Le script
+# s'arrêtait alors sur « Impossible de lister les ressources », en laissant
+# croire à un problème d'accès, alors qu'il suffisait de créer l'expérience.
+#
+# Elle est donc créée si elle manque. C'est un objet purement administratif :
+# un nom, une durée, aucune ressource. La créer ne consomme aucun quota.
+#
+# Le format JSON rend une réponse exploitable : un tableau vide quand le nom
+# n'existe pas, et le code de sortie vaut 0 dans les deux cas — d'où la
+# nécessité de regarder le contenu et non le code.
+slices_ensure_experiment() {
+    local out rc=0
+    out=$(slices experiment list --name "$EXPERIMENT_NAME" --format json 2>/dev/null) || rc=$?
+    if [ "$rc" -ne 0 ]; then
+        die "Impossible d'interroger les expériences (code $rc).
+   Vérifie l'authentification :  slices auth show"
+    fi
+
+    if grep -q "\"friendly_name\": \"$EXPERIMENT_NAME\"" <<<"$out"; then
+        local fin
+        fin=$(grep -oP '"expires_at":\s*"\K[^"]+' <<<"$out" | head -1)
+        ok "Expérience « $EXPERIMENT_NAME » existante (expire le ${fin:-?})."
+        return 0
+    fi
+
+    # L'expérience doit vivre au moins aussi longtemps que ses ressources.
+    local duree="${EXPERIMENT_DURATION:-$DURATION}"
+    log "Expérience « $EXPERIMENT_NAME » inexistante — création (durée $duree)…"
+    if ! slices experiment create "$EXPERIMENT_NAME" --duration "$duree" \
+            --description "Créée par autodeploy_k8s" >/dev/null 2>&1; then
+        die "Création de l'expérience « $EXPERIMENT_NAME » impossible.
+   À faire à la main :  slices experiment create $EXPERIMENT_NAME --duration $duree
+   Vérifie aussi que vous avez les droits sur un projet :  slices experiment list"
+    fi
+    ok "Expérience « $EXPERIMENT_NAME » créée (durée $duree)."
+}
+
 slices_infra_exists() {
     # La CLI intercale « ansible_ssh_port=22 » entre le nom et ansible_ssh_host :
     #   master ansible_ssh_port=22 ansible_ssh_host=1.2.3.4 ansible_ssh_user=ubuntu
