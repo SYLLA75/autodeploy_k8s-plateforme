@@ -16,12 +16,53 @@ Linux, ou Windows avec WSL 2. Les commandes ci-dessous supposent Ubuntu.
 
 ```bash
 sudo apt update
-sudo apt install -y git python3 python3-venv python3-pip openssh-client rsync
+sudo apt install -y git python3 python3-venv python3-pip openssh-client curl
 python3 --version      # 3.10 minimum ; 3.12 recommandé
 ```
 
-Ni `kubectl`, ni `helm`, ni Ansible ne sont nécessaires **sur votre poste** :
-`deploy.sh` les installe sur le nœud de contrôle, et clone Kubespray lui-même.
+C'est tout. En particulier, **ne sont PAS nécessaires sur votre poste** :
+
+| outil | pourquoi |
+|-------|----------|
+| `kubectl` | tous les appels passent par `ssh master "kubectl …"` |
+| `helm` | installé sur le nœud de contrôle par `deploy.sh` |
+| Ansible | installé dans `kubespray/venv-kubespray/` par le script |
+| Docker | les images sont tirées par les machines, pas par vous |
+| `rsync` | `scp` suffit |
+
+`python3-venv` est vérifié explicitement au démarrage : sans lui, Kubespray ne
+peut pas créer son environnement, et le script s'arrête avec la commande à taper.
+
+### Place disque
+
+| | |
+|---|---|
+| `kubespray/` + son environnement | ~ 600 Mo |
+| environnement Python du constructeur de graphe | ~ 1,2 Go (PyTorch) |
+| une campagne rapatriée | 200 Mo à 1 Go |
+| **prévoir** | **5 Go confortables** |
+
+Sans l'export PyTorch (`pytorch_geometric: false`), l'environnement du
+constructeur tombe à ~ 80 Mo.
+
+### Flux réseau sortants
+
+Depuis votre poste :
+
+| destination | pourquoi |
+|-------------|----------|
+| `bastion2.slices-be.eu:22` | seul accès aux machines — elles n'ont pas d'adresse publique |
+| API SLICES (HTTPS) | réservation des machines |
+| `github.com` (HTTPS) | clonage de Kubespray |
+| PyPI (HTTPS) | installation des bibliothèques Python |
+| votre magasin d'objets (HTTPS) | rapatriement des mesures |
+
+Les machines réservées ont leurs propres accès sortants — dépôts Helm, Maven
+Central, registres d'images. Vous n'avez rien à ouvrir pour elles.
+
+> Si `deploy.sh` échoue en annonçant que les machines sont injoignables, la
+> cause la plus fréquente est un filtrage sortant sur le port 22, ou une adresse
+> IP publique non déclarée auprès de SLICES.
 
 ---
 
