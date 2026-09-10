@@ -170,25 +170,33 @@ def cut(spans: list[Span], samples: list[Sample], width_s: float, step_s: float,
     everything = [boxes[k] for k in sorted(boxes)]
     covered = [w for w in everything
                if w.start_ns >= first_ns and w.end_ns <= last_ns]
-    kept = covered[margin:-margin] if margin and len(covered) > 2 * margin else (
+    trimmed = covered[margin:-margin] if margin and len(covered) > 2 * margin else (
         [] if margin else covered)
 
     dropped_limit = 0
-    if limit and len(kept) > limit:
-        dropped_limit = len(kept) - limit
-        kept = kept[:limit]
+    kept = trimmed
+    if limit and len(trimmed) > limit:
+        dropped_limit = len(trimmed) - limit
+        kept = trimmed[:limit]
 
+    # Each reason is attributed to the step that actually applied it. They used
+    # to share one label, so a window cut off by windows.max was reported as
+    # discarded by the edge margin — a setting the run may not even use.
     kept_ids = {id(w) for w in kept}
+    trimmed_ids = {id(w) for w in trimmed}
     covered_ids = {id(w) for w in covered}
     discarded = [(w, "outside data coverage") for w in everything
                  if id(w) not in covered_ids]
-    discarded += [(w, "edge margin") for w in covered if id(w) not in kept_ids]
+    discarded += [(w, "edge margin") for w in covered
+                  if id(w) not in trimmed_ids]
+    discarded += [(w, "over windows.max") for w in trimmed
+                  if id(w) not in kept_ids]
     discarded.sort(key=lambda x: x[0].index)
 
     report = {
         "built": len(everything),
         "dropped_coverage": len(everything) - len(covered),
-        "dropped_margin": len(covered) - len(kept) - dropped_limit,
+        "dropped_margin": len(covered) - len(trimmed),
         "dropped_limit": dropped_limit,
         "kept": len(kept),
         "data_from_ns": first_ns, "data_to_ns": last_ns,

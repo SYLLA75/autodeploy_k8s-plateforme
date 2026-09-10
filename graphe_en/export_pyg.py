@@ -180,7 +180,7 @@ def _check_scaler(snapshots: list[dict], scaler: dict) -> None:
                 f"    needed    : {len(expected)} components "
                 f"({', '.join(expected)})\n"
                 f"    fit it again on a healthy campaign "
-                f"(export.scaler: fit), or delete the file")
+                f"(export.scaler: write), or delete the file")
 
 
 def convert(snapshots: list[dict], scaler: dict | None, missing: str,

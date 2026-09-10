@@ -158,6 +158,18 @@ def load(path: Path) -> Settings:
             raise ConfigError(f"range.{key} must be HH:MM, got {value!r}")
         rng[key] = value
 
+    def _minutes(text: str) -> int:
+        h, m = text.split(":")
+        return int(h) * 60 + int(m)
+
+    if _minutes(rng["from"]) >= _minutes(rng["to"]):
+        raise ConfigError(
+            f"range.from ({rng['from']}) is not before range.to ({rng['to']})\n"
+            f"  a range is read inside ONE day and cannot cross midnight:\n"
+            f"  the store is walked under a single date prefix, so a range\n"
+            f"  from 22:00 to 02:00 would silently match nothing\n"
+            f"  split a campaign that spans midnight into two runs")
+
     w = merged["windows"]
     if float(w["width_s"]) <= 0:
         raise ConfigError("windows.width_s must be positive")

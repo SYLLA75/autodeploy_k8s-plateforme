@@ -255,6 +255,28 @@ def is_counter(name: str) -> bool:
     return name.endswith("_total") or name.endswith("_seconds_total")
 
 
+def failed(span: Span) -> bool:
+    """
+    Whether a request failed.
+
+    The response code decides; error.type answers for spans that carry no code.
+
+    Two sites used to answer this question differently: the instance vector
+    looked only at error.type, the calls relation looked at the code first. The
+    same request could therefore count as failed on the edge and healthy on the
+    node. Invisible on a healthy campaign — both read zero, 82 113 HTTP spans
+    with not one failure — and it would have surfaced exactly during the fault
+    injections, which is when the answer matters.
+    """
+    code = span.attributes.get("http.response.status_code")
+    if code is None:
+        return bool(span.attributes.get("error.type"))
+    try:
+        return int(code) >= 400
+    except (TypeError, ValueError):
+        return bool(span.attributes.get("error.type"))
+
+
 def published_messages(spans: list[Span]) -> list[Span]:
     """
     Spans that publish a message, one per message.

@@ -72,7 +72,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from nodes import Node, collect, directory
-from otlp import SERVER, Sample, consumed_messages
+from otlp import SERVER, Sample, consumed_messages, failed
 from windows import Window
 
 INSTANCE_COLUMNS = [
@@ -143,15 +143,23 @@ def slope(series: list[float | None], horizon: int) -> float | None:
 
     The only operator that leaves the window: it describes a slow drift that a
     single window cannot see.
+
+    A MISSING WINDOW IS A HOLE, NOT A SHORTENING. Dropping the absent values
+    and treating what remains as consecutive compresses the x axis and inflates
+    the trend: [10, None, 30] then reads as +20 per window where the real drift
+    is +10. Each value therefore keeps its position in the series.
+
+    This matters exactly when it is least visible. A node vanishes from a
+    window when its pod is recreated, when collection is paused, or when a
+    replica is blocked — which is one of the faults to be injected.
     """
-    y = [v for v in series[-horizon:] if v is not None]
-    if len(y) < 2:
+    points = [(i, v) for i, v in enumerate(series[-horizon:]) if v is not None]
+    if len(points) < 2:
         return None
-    n = len(y)
-    mx = (n - 1) / 2
-    my = sum(y) / n
-    top = sum((i - mx) * (v - my) for i, v in enumerate(y))
-    bottom = sum((i - mx) ** 2 for i in range(n))
+    mx = sum(i for i, _ in points) / len(points)
+    my = sum(v for _, v in points) / len(points)
+    top = sum((i - mx) * (v - my) for i, v in points)
+    bottom = sum((i - mx) ** 2 for i, _ in points)
     return top / bottom if bottom else None
 
 
@@ -232,7 +240,8 @@ def instance_vector(node: Node, window: Window, samples: list[Sample],
     processing = consumed_messages(spans)
     serving = [s for s in spans if s.kind == SERVER]
     http = [s for s in spans if "http.response.status_code" in s.attributes]
-    failed = [s for s in http if s.attributes.get("error.type")]
+    # Same test as the calls relation — see otlp.failed.
+    broken = [s for s in http if failed(s)]
 
     def metric(name: str) -> list[Sample]:
         return _one_level_only([s for s in samples if s.name == name])
@@ -245,7 +254,7 @@ def instance_vector(node: Node, window: Window, samples: list[Sample],
 
     v: list[float | None] = [quantile(processing_ms, q) for q in quantiles]
     v += [quantile(serving_ms, q) for q in quantiles]
-    v.append(ratio(len(failed), len(http)) if http else None)
+    v.append(ratio(len(broken), len(http)) if http else None)
 
     v.append(ratio(_sum_increase(metric("container_cpu_cfs_throttled_periods_total")),
                    _sum_increase(metric("container_cpu_cfs_periods_total"))))

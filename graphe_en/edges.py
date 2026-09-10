@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 
 from features import quantile, ratio
 from nodes import Node
-from otlp import SERVER, Span
+from otlp import SERVER, Span, failed
 from windows import Window
 
 CALL_COLUMNS = ["call_rate", "latency_p50", "latency_p95", "latency_p99",
@@ -59,17 +59,6 @@ class Edge:
     target: str                  # key of the destination node
     columns: list[str] = field(default_factory=list)
     values: list[float | None] = field(default_factory=list)
-
-
-def _failed(span: Span) -> bool:
-    """A span failed when its response code is 400 or above."""
-    code = span.attributes.get("http.response.status_code")
-    if code is None:
-        return bool(span.attributes.get("error.type"))
-    try:
-        return int(code) >= 400
-    except (TypeError, ValueError):
-        return False
 
 
 def build(window: Window, nodes: dict[str, Node], width_s: float,
@@ -101,7 +90,7 @@ def build(window: Window, nodes: dict[str, Node], width_s: float,
         edges.append(Edge("calls", source, target, CALL_COLUMNS, [
             ratio(len(group) / eta, width_s),
             *[quantile(latencies, q) for q in quantiles],
-            ratio(sum(1 for s in group if _failed(s)), len(group)),
+            ratio(sum(1 for s in group if failed(s)), len(group)),
         ]))
 
     for relation, group, towards_queue in (
