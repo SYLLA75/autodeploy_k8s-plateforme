@@ -115,10 +115,24 @@ copie ailleurs :
 | ce qui a changé | ce qu'il faut faire |
 |---|---|
 | `apps/*.sh` | `git pull && ./deploy.sh --push-scripts` |
+| `apps/loadgen/locustfile.py` | `--push-scripts`, **puis réinstaller le générateur** |
 | `graphe_en/`, `deploy.sh`, `lib/`, la documentation | `git pull` suffit |
 
 Dans le doute, lance la commande complète : recopier des fichiers identiques ne
 coûte rien.
+
+### Les parcours de trafic ont un piège de plus
+
+`locustfile.py` ne vit pas dans l'image du générateur : il est envoyé dans une
+ressource de configuration **au moment de l'installation**. Le copier sur le
+master ne suffit donc pas — le générateur qui tourne garde l'ancienne version,
+sans rien signaler.
+
+```bash
+ssh master 'bash ~/autodeploy/apps/loadgen.sh uninstall && bash ~/autodeploy/apps/loadgen.sh install'
+```
+
+Deux minutes. C'est le seul moyen de recharger les parcours.
 
 ---
 
@@ -241,8 +255,14 @@ bash ~/autodeploy/apps/loadgen.sh isolate workers6
 Sans trafic, l'application ne fait rien : les services ne s'appellent pas et les
 files restent vides.
 
-**Vérification** : la page de pilotage doit répondre, et le taux d'échec être à
-zéro. Voir l'étape 9 pour l'accès.
+**Vérification**, après deux minutes de trafic :
+
+```bash
+bash ~/autodeploy/apps/loadgen.sh bilan
+```
+
+Chaque parcours doit avoir des appels et presque aucun échec. Un parcours à zéro
+appel est aussi grave qu'un parcours qui échoue — voir « Avant chaque campagne ».
 
 ---
 
