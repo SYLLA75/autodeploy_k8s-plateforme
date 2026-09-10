@@ -97,14 +97,28 @@ Les scripts de `apps/` vivent à deux endroits :
 déploiement, et rien ne le signale : les scripts s'exécutent sans se plaindre,
 dans leur ancienne version.
 
-Après chaque `git pull` sur le nœud de contrôle, rafraîchis-la :
+Le geste à retenir, en une seule commande, depuis la racine du dépôt sur le nœud
+de contrôle :
 
 ```bash
-./deploy.sh --push-scripts
+git pull && ./deploy.sh --push-scripts
 ```
 
 Ça ne déploie rien, ne redémarre rien, ne touche pas aux applications. Ça recopie
-les fichiers de `apps/` sur le master, et c'est tout — quelques secondes.
+les fichiers de `apps/` sur le master, et c'est tout — quelques secondes. Sans
+danger même pendant une campagne de mesure en cours.
+
+**Quand est-ce nécessaire ?** Uniquement si le `git pull` a modifié quelque chose
+dans `apps/`. Le reste du dépôt s'exécute sur le nœud de contrôle et n'a pas de
+copie ailleurs :
+
+| ce qui a changé | ce qu'il faut faire |
+|---|---|
+| `apps/*.sh` | `git pull && ./deploy.sh --push-scripts` |
+| `graphe_en/`, `deploy.sh`, `lib/`, la documentation | `git pull` suffit |
+
+Dans le doute, lance la commande complète : recopier des fichiers identiques ne
+coûte rien.
 
 ---
 
