@@ -44,6 +44,7 @@ arête ni message.
 """
 import os
 import random
+import time
 from datetime import datetime, timedelta
 
 from locust import HttpUser, task, constant_pacing, events
@@ -72,6 +73,11 @@ PLACE_PAIRS = [
     ("shanghai", "suzhou"),
 ]
 
+# Durée après laquelle un voyageur se reconnecte, sans attendre l'expiration.
+# Le jeton de train-ticket vit une heure ; vingt minutes laissent une marge large
+# et le coût est négligeable — une connexion par voyageur toutes les 20 minutes.
+SESSION_TTL = float(os.getenv("TT_SESSION_TTL_SECONDS", "1200"))
+
 
 def _date_du_jour() -> str:
     """Aujourd'hui : le service refuse toute date antérieure."""
@@ -93,9 +99,19 @@ class Voyageur(HttpUser):
         self._connexion()
 
     def _connexion(self):
-        """Connexion. Sans jeton, la plupart des parcours sont refusés."""
+        """
+        Connexion. Sans jeton, la plupart des parcours sont refusés.
+
+        L'EN-TÊTE EST EFFACÉ D'ABORD. Il vit sur la SESSION, pas sur la requête :
+        sans cet effacement, la requête de reconnexion emporte elle-même le jeton
+        périmé, le serveur la rejette, et plus aucune connexion ne peut aboutir.
+        Constaté sur une campagne entière — « JWT expired at 02:27:17Z, current
+        time 03:50:21Z » — pendant laquelle ts-auth-service a répondu 100 %
+        d'erreurs et aucun parcours n'est allé au-delà de sa première ligne.
+        """
         self.token = None
         self.uid = None
+        self.client.headers.pop("Authorization", None)
         # Le premier appel pose les témoins de session attendus par la suite.
         self.client.get("/api/v1/verifycode/generate", name="00 code de vérification")
         r = self.client.post(
@@ -109,20 +125,33 @@ class Voyageur(HttpUser):
             self.uid = data.get("userId")
             if self.token:
                 self.client.headers.update({"Authorization": f"Bearer {self.token}"})
+                self.connecte_a = time.monotonic()
         except Exception:
             pass
 
     # ------------------------------------------------------------------ jeton
-    # Le jeton de connexion EXPIRE. Sans renouvellement, tous les appels
-    # authentifiés basculent en 403 au bout d'un moment, et le générateur cesse
-    # de produire du trafic utile : il produit des refus.
+    # Le jeton de connexion EXPIRE, et c'est un piège grave pour ce travail : le
+    # taux d'échec est une grandeur portée par le nœud d'instance. Un jeton périmé
+    # le ferait grimper sans qu'aucune anomalie n'ait été injectée, et l'on
+    # attribuerait à l'application un défaut qui vient du générateur.
     #
-    # C'est un piège grave pour ce travail, parce que le taux d'échec est une
-    # grandeur portée par le nœud d'instance. Un jeton expiré ferait grimper ce
-    # taux sans qu'aucune anomalie n'ait été injectée, et l'on attribuerait à
-    # l'application un défaut qui vient du générateur.
+    # LE RENOUVELLEMENT EST PRÉVENTIF, PAS RÉACTIF. La version précédente
+    # attendait un 401 ou un 403 pour se reconnecter. Or l'application ne répond
+    # ni l'un ni l'autre : l'exception de jeton périmé remonte jusqu'à Tomcat, qui
+    # rend un 500. Le garde-fou existait donc mais ne se déclenchait jamais.
+    #
+    # Réagir au 500 serait pire encore : pendant une injection de panne, les 500
+    # sont attendus, et le générateur se reconnecterait sans cesse en plein
+    # milieu de la mesure. On se reconnecte donc à l'heure, avant l'expiration,
+    # sans rien déduire du code de réponse.
+    def _session_fraiche(self):
+        """Reconnexion préventive, avant que le jeton n'expire."""
+        age = time.monotonic() - getattr(self, "connecte_a", 0.0)
+        if self.token is None or age > SESSION_TTL:
+            self._connexion()
+
     def _verifier(self, r):
-        """Renouvelle la session si le serveur a refusé pour cause de jeton."""
+        """Filet de sécurité : un refus explicite déclenche une reconnexion."""
         if r is not None and r.status_code in (401, 403):
             self._connexion()
             return False
@@ -132,6 +161,7 @@ class Voyageur(HttpUser):
     @task(3)
     def chercher_un_train(self):
         """Le parcours le plus courant : consulter les trains disponibles."""
+        self._session_fraiche()
         depart, arrivee = random.choice(PLACE_PAIRS)
         r = self.client.post(
             "/api/v1/travelservice/trips/left",
@@ -154,6 +184,7 @@ class Voyageur(HttpUser):
         choisir un repas, puis réserver. C'est cette chaîne qui produit les
         relations d'appel entre services dans le graphe.
         """
+        self._session_fraiche()
         if not self.uid:
             return
         depart, arrivee = random.choice(PLACE_PAIRS)
@@ -243,6 +274,7 @@ class Voyageur(HttpUser):
         avec un consommateur connecté qui n'a jamais rien à faire. Or les deux
         files sont nécessaires pour montrer qu'elles sont mesurées séparément.
         """
+        self._session_fraiche()
         self._verifier(self.client.get(
             "/api/v1/notifyservice/test_send_mq",
             name="60 déclencher un courriel",
