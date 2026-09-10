@@ -1,199 +1,272 @@
 #!/bin/bash
 # ==============================================================================
-#  campagne.sh — enregistrer les conditions d'une campagne de mesure
+#  campagne.sh — piloter et enregistrer une campagne de mesure
 # ==============================================================================
 #
-#  POURQUOI CE SCRIPT
+#  CE QUE FAIT CE SCRIPT
 #
-#  Les réglages d'ANALYSE sont déjà notés tout seuls : graphe_en écrit un
-#  manifest.json complet, et origin.json donne la clé de chaque fichier brut.
-#  Quelqu'un qui reçoit ces deux fichiers peut refaire exactement la même
-#  analyse.
+#  Une campagne, c'est une suite d'actions datées appliquées à un système qu'on
+#  mesure. Ce script les applique lui-même, au lieu qu'on les tape à la main :
 #
-#  Ce qui n'était noté nulle part, c'est la CONDITION EXPÉRIMENTALE : cette
-#  campagne est-elle la référence saine, ou une injection ? Quelle charge a été
-#  appliquée, et à quels instants ? L'information vivait sur le master —
-#  c'est-à-dire sur la machine que destroy.sh efface.
+#      démarrer la collecte
+#      appliquer le profil de charge, palier par palier
+#      arrêter la collecte
+#      calculer la fenêtre exploitable
+#      écrire le compte rendu
 #
-#  D'OÙ VIENT LE PROFIL DE CHARGE
+#  POURQUOI UN PILOTE PLUTÔT QUE DES COMMANDES À LA MAIN
 #
-#  D'un seul fichier : journaux/paliers.tsv, écrit par loadgen.sh à chaque
-#  changement CONFIRMÉ par Locust. Format fixe, données seules.
+#  Trois raisons, par ordre d'importance.
 #
-#  Ce script ne lit AUCUN texte affiché. Reconstituer un profil en relisant des
-#  phrases obligerait à en connaître la formulation exacte : un mot changé, et
-#  l'analyse casse sans rien signaler.
+#  1. Les instants deviennent exacts. À la main, un palier dure « à peu près
+#     quinze minutes ». La frontière entre deux niveaux de charge sert
+#     d'étiquette aux fenêtres de mesure : floue de deux minutes, les fenêtres
+#     autour deviennent ambiguës.
 #
-#  Le registre s'accumule sur toute la vie du cluster. Seuls les paliers de la
-#  fenêtre exploitable sont retenus, plus celui qui était en vigueur au début —
-#  sans lui on ignorerait la charge de départ.
+#  2. On ne peut plus oublier. Le geste qui applique un palier est celui qui
+#     l'enregistre. Il ne peut exister ni palier sans trace, ni trace sans
+#     palier.
 #
-#  Usage (depuis le nœud de contrôle, à la fin d'une campagne) :
-#      ./campagne.sh noter <nom> [--type saine|panne] [--cause <nom>]
+#  3. Une campagne d'injection durera cinq heures. Personne ne reste devant.
+#
+#  POURQUOI SUR LE NŒUD DE CONTRÔLE, ET PAS SUR LE MASTER
+#
+#  Parce que le compte rendu naît là où il doit vivre. Le master est jetable —
+#  destroy.sh l'efface, et avec lui tout ce qu'il portait. Écrire ici supprime
+#  l'étape « rapatrier à la fin », donc supprime l'oubli possible.
+#
+#  Le réseau n'est pas un risque : le pilote dort, puis lance une commande
+#  courte. Si elle échoue, l'échec est écrit dans le compte rendu au lieu d'être
+#  passé sous silence.
+#
+#  À LANCER SOUS TMUX. La campagne dure des heures ; une session SSH qui tombe
+#  emporterait le pilote avec elle.
+#
+#  Usage :
+#      tmux new -s campagne
+#      ./campagne.sh <nom> --profil "10:15,25:15,10:15,40:15"
+#
+#  Le profil se lit « voyageurs:minutes », séparés par des virgules.
+#
+#  Options :
+#      --profil <p>      obligatoire — les paliers à appliquer
+#      --type <t>        saine (défaut) ou panne
+#      --cause <c>       obligatoire si --type panne
+#      --sans-collecte   ne pilote pas la collecte (elle est déjà en route)
+#      --marge <min>     marge écartée de chaque côté (défaut : celle de collecte.sh)
 #
 #  Variables reconnues :
-#    CAMPAGNE_SSH      (défaut: master)                cible ssh du master
-#    CAMPAGNE_DISTANT  (défaut: /home/ubuntu/autodeploy) racine du projet là-bas
+#      CAMPAGNE_SSH      (défaut: master)
+#      CAMPAGNE_DISTANT  (défaut: /home/ubuntu/autodeploy)
 # ==============================================================================
 set -uo pipefail
 
 RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CIBLE_SSH="${CAMPAGNE_SSH:-master}"
+CIBLE="${CAMPAGNE_SSH:-master}"
 DISTANT="${CAMPAGNE_DISTANT:-/home/ubuntu/autodeploy}"
+
+[ -f "$RACINE/apps/journal.sh" ] && JOURNAL_NOM="campagne" . "$RACINE/apps/journal.sh"
 
 say()  { echo "  [campagne] $*"; }
 ok()   { echo "  [campagne] OK  $*"; }
 warn() { echo "  [campagne] ATTENTION: $*" >&2; }
 fail() { echo "  [campagne] ERREUR: $*" >&2; exit 1; }
+maintenant() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
-# secondes depuis l'époque, ou rien si la date est illisible
-epoque() { date -u -d "$1" +%s 2>/dev/null; }
+# Chaque action du déroulé est ajoutée ici au fur et à mesure, jamais à la fin :
+# si le pilote est interrompu, ce qui a déjà eu lieu reste écrit.
+DEROULE=""
+noter_action() { DEROULE="${DEROULE}  - { instant: $(maintenant), $* }
+"; }
+
+# ------------------------------------------------------------------------------
+distant() { ssh "$CIBLE" "JOURNAL_OFF=1 bash '$DISTANT/apps/$1' ${*:2}" 2>&1; }
 
 usage() {
-    cat <<EOF
-
-  campagne.sh — enregistrer les conditions d'une campagne de mesure
-
-    ./campagne.sh noter <nom> [--type saine|panne] [--cause <nom>]
-
-  Exemples :
-    ./campagne.sh noter saine-01
-    ./campagne.sh noter panne-cpu-01 --type panne --cause machine_saturee
-
-  Écrit campagnes/<nom>/campagne.yaml et y rapatrie les journaux du master,
-  qui disparaîtraient avec le cluster.
-
-EOF
+    sed -n '/^#  Usage :/,/^# ===/p' "$0" | sed 's/^#\s\?//' | head -n -1
+    exit 2
 }
 
-noter() {
-    local nom="${1:-}" type="saine" cause=""
-    shift || true
-    [ -n "$nom" ] || fail "Donne un nom : $0 noter saine-01"
-    case "$nom" in *[!A-Za-z0-9._-]*) fail "Nom invalide : « $nom » (lettres, chiffres, . _ -)" ;; esac
+# ------------------------------------------------------------------------------
+NOM=""; PROFIL=""; TYPE="saine"; CAUSE=""; COLLECTE=1; MARGE=""
+[ $# -gt 0 ] || usage
+NOM="$1"; shift
+case "$NOM" in -*|'') usage ;; *[!A-Za-z0-9._-]*) fail "Nom invalide : « $NOM »" ;; esac
 
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            --type)  type="${2:-}"; shift 2 ;;
-            --cause) cause="${2:-}"; shift 2 ;;
-            *) fail "Option inconnue : $1" ;;
-        esac
-    done
-    case "$type" in saine|panne) ;; *) fail "--type accepte « saine » ou « panne »" ;; esac
-    [ "$type" != "panne" ] || [ -n "$cause" ] || fail "--type panne exige --cause <nom>"
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --profil)        PROFIL="${2:-}"; shift 2 ;;
+        --type)          TYPE="${2:-}"; shift 2 ;;
+        --cause)         CAUSE="${2:-}"; shift 2 ;;
+        --marge)         MARGE="${2:-}"; shift 2 ;;
+        --sans-collecte) COLLECTE=0; shift ;;
+        -h|--help)       usage ;;
+        *) fail "Option inconnue : $1" ;;
+    esac
+done
 
-    local dossier="$RACINE/campagnes/$nom"
-    [ -d "$dossier" ] && warn "« $nom » existe déjà — le contenu sera remplacé."
-    mkdir -p "$dossier/journaux" || fail "Impossible de créer $dossier"
+[ -n "$PROFIL" ] || fail "Le profil est obligatoire : --profil \"10:15,25:15\""
+case "$TYPE" in saine|panne) ;; *) fail "--type accepte « saine » ou « panne »" ;; esac
+[ "$TYPE" != "panne" ] || [ -n "$CAUSE" ] || fail "--type panne exige --cause <nom>"
 
-    ssh -o BatchMode=yes "$CIBLE_SSH" true 2>/dev/null \
-        || fail "Master injoignable via « ssh $CIBLE_SSH ». Le cluster est-il debout ?"
+# ------------------------------------------------------ lecture du profil
+# Refusé tôt et en entier : découvrir une faute de frappe à la troisième heure
+# d'une campagne coûte la campagne.
+PALIERS=(); TOTAL=0
+IFS=',' read -ra MORCEAUX <<< "$PROFIL"
+for m in "${MORCEAUX[@]}"; do
+    m="${m// /}"
+    [ -n "$m" ] || continue
+    case "$m" in
+        *:*) ;;
+        *) fail "Palier « $m » : il faut « voyageurs:minutes », par exemple 25:15" ;;
+    esac
+    v="${m%%:*}"; d="${m##*:}"
+    case "$v" in ''|*[!0-9]*) fail "Palier « $m » : « $v » n'est pas un nombre de voyageurs" ;; esac
+    case "$d" in ''|*[!0-9]*) fail "Palier « $m » : « $d » n'est pas un nombre de minutes" ;; esac
+    [ "$v" -gt 0 ] || fail "Palier « $m » : au moins un voyageur"
+    [ "$d" -gt 0 ] || fail "Palier « $m » : au moins une minute"
+    PALIERS+=("$v:$d"); TOTAL=$((TOTAL + d))
+done
+[ "${#PALIERS[@]}" -gt 0 ] || fail "Profil vide."
 
-    # ------------------------------------------------------- la fenêtre mesurée
-    say "Lecture de la plage exploitable…"
-    local fenetre etat
-    fenetre=$(ssh "$CIBLE_SSH" "JOURNAL_OFF=1 bash '$DISTANT/apps/collecte.sh' fenetre" 2>&1)
-    say "Lecture de l'état du cluster…"
-    etat=$(ssh "$CIBLE_SSH" "JOURNAL_OFF=1 bash '$DISTANT/apps/collecte.sh' etat" 2>&1)
+DOSSIER="$RACINE/campagnes/$NOM"
+[ -d "$DOSSIER" ] && warn "« $NOM » existe déjà — son contenu sera remplacé."
+mkdir -p "$DOSSIER/journaux" || fail "Impossible de créer $DOSSIER"
 
-    local plage_date plage_de plage_a
-    plage_date=$(printf '%s\n' "$fenetre" | grep -oP '^\s+date:\s+\K[0-9-]+'   | head -1)
-    plage_de=$(printf '%s\n' "$fenetre"   | grep -oP '^\s+from:\s+"\K[0-9:]+' | head -1)
-    plage_a=$(printf '%s\n' "$fenetre"    | grep -oP '^\s+to:\s+"\K[0-9:]+'   | head -1)
+# ------------------------------------------------------------ le plan annoncé
+echo
+say "Campagne « $NOM »  ·  type : $TYPE${CAUSE:+  ·  cause : $CAUSE}"
+say "Master : $CIBLE"
+echo
+say "Profil demandé :"
+for p in "${PALIERS[@]}"; do
+    printf "      %4s voyageurs pendant %3s minutes\n" "${p%%:*}" "${p##*:}"
+done
+say "Durée totale : $TOTAL minutes ($(printf '%dh%02d' $((TOTAL/60)) $((TOTAL%60))))"
+[ "$COLLECTE" = "1" ] && say "La collecte sera démarrée puis arrêtée par ce script." \
+                      || say "La collecte n'est PAS pilotée (--sans-collecte)."
+echo
+say "Départ dans 10 secondes — Ctrl-C pour annuler."
+sleep 10
+echo
 
-    local debut_s fin_s
-    debut_s=$(epoque "${plage_date} ${plage_de}")
-    fin_s=$(epoque "${plage_date} ${plage_a}")
+# ------------------------------------------------------------------ préparation
+ssh -o BatchMode=yes "$CIBLE" true 2>/dev/null \
+    || fail "Master injoignable via « ssh $CIBLE ». Le cluster est-il debout ?"
+etat_avant=$(distant collecte.sh etat)
+noter_action "action: etat_initial"
 
-    # ------------------------------------------------------- le profil de charge
-    say "Lecture du registre des paliers…"
-    local registre
-    registre=$(ssh "$CIBLE_SSH" "cat '$DISTANT/journaux/paliers.tsv'" 2>/dev/null)
-
-    local lignes=() avant="" retenus=0 hors=0
-    if [ -n "$registre" ] && [ -n "$debut_s" ] && [ -n "$fin_s" ]; then
-        while IFS=$'\t' read -r instant n _spawn _cible origine; do
-            case "${instant:-}" in ''|'#'*) continue ;; esac
-            local s; s=$(epoque "$instant") || continue
-            [ -n "$s" ] || continue
-            if [ "$s" -le "$debut_s" ]; then
-                # Le dernier palier antérieur est la charge en vigueur au début.
-                avant="  - { instant: $instant, voyageurs: $n, origine: ${origine:-inconnue}, note: en_vigueur_au_debut }"
-            elif [ "$s" -le "$fin_s" ]; then
-                lignes+=("  - { instant: $instant, voyageurs: $n, origine: ${origine:-inconnue} }")
-            else
-                hors=$((hors + 1))
-            fi
-        done <<< "$registre"
-        [ -n "$avant" ] && retenus=$((retenus + 1))
-        retenus=$((retenus + ${#lignes[@]}))
-    fi
-
-    # ----------------------------------------------------------------- le fichier
-    local sortie="$dossier/campagne.yaml"
-    {
-        echo "# Conditions expérimentales — écrit par campagne.sh, ne pas éditer à la main."
-        echo "# Les réglages d'analyse sont ailleurs : graphe_en/runs/<date>/graph/manifest.json"
-        echo
-        echo "campagne: $nom"
-        echo "type: $type"
-        [ -n "$cause" ] && echo "cause: $cause"
-        echo "note_le: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-        echo
-        echo "plage_exploitable:"
-        echo "  date: ${plage_date:-inconnue}"
-        echo "  from: \"${plage_de:-?}\""
-        echo "  to:   \"${plage_a:-?}\""
-        echo
-        echo "# Source : journaux/paliers.tsv, écrit par loadgen.sh après confirmation"
-        echo "# de Locust. Seuls les paliers de la fenêtre sont retenus, plus celui qui"
-        echo "# était en vigueur au début."
-        echo "profil_de_charge:"
-        if [ -z "$registre" ]; then
-            echo "  []   # registre absent sur le master"
-        elif [ "$retenus" -eq 0 ]; then
-            echo "  []   # aucun palier dans la fenêtre"
-        else
-            [ -n "$avant" ] && echo "$avant"
-            printf '%s\n' "${lignes[@]}"
-        fi
-        echo
-        echo "# Sortie verbatim de « collecte.sh fenetre » :"
-        printf '%s\n' "$fenetre" | sed 's/^/#   /'
-        echo
-        echo "# Sortie verbatim de « collecte.sh etat » :"
-        printf '%s\n' "$etat" | sed 's/^/#   /'
-    } > "$sortie"
-
-    # ------------------------------------------- les journaux, avant destroy.sh
-    say "Rapatriement des journaux du master…"
-    scp -q -r "$CIBLE_SSH:$DISTANT/journaux/." "$dossier/journaux/" 2>/dev/null \
-        && ok "journaux copiés dans campagnes/$nom/journaux/" \
-        || warn "Copie des journaux impossible — ils resteront sur le master."
-
-    echo
-    ok "campagne « $nom » enregistrée dans campagnes/$nom/campagne.yaml"
-    say "  paliers retenus : $retenus"
-    [ "$hors" -gt 0 ] && say "  paliers hors fenêtre, non retenus : $hors"
-    [ -z "$registre" ] && warn "  registre des paliers absent : le générateur n'a jamais été installé,"
-    [ -z "$registre" ] && warn "  ou loadgen.sh est antérieur au registre. Les journaux copiés restent"
-    [ -z "$registre" ] && warn "  la seule trace de la charge appliquée."
-    echo
-    if [ -n "$plage_de" ]; then
-        say "À recopier dans graphe_en/config.yaml :"
-        echo
-        echo "    range:"
-        echo "      date:       $plage_date"
-        echo "      from:       \"$plage_de\""
-        echo "      to:         \"$plage_a\""
-        echo
+if [ "$COLLECTE" = "1" ]; then
+    say "Démarrage de la collecte…"
+    if sortie=$(distant collecte.sh demarrer); then
+        ok "collecte démarrée"
+        noter_action "action: collecte_demarree"
     else
-        warn "Plage exploitable illisible — voir la sortie verbatim dans le fichier."
+        printf '%s\n' "$sortie" | sed 's/^/      /' >&2
+        fail "Impossible de démarrer la collecte."
     fi
-    say "Ce dossier est à committer : c'est la provenance de tes données."
-}
+fi
 
-case "${1:-}" in
-    noter) shift; noter "$@" ;;
-    *)     usage ;;
-esac
+# --------------------------------------------------------------- les paliers
+echo
+rates=0; echoues=0; i=0
+for p in "${PALIERS[@]}"; do
+    i=$((i + 1)); v="${p%%:*}"; d="${p##*:}"
+    say "[$i/${#PALIERS[@]}] $v voyageurs pendant $d minutes"
+    if sortie=$(distant loadgen.sh scale "$v"); then
+        printf '%s\n' "$sortie" | sed 's/^/      /'
+        noter_action "action: charge, voyageurs: $v, resultat: confirme"
+        rates=$((rates + 1))
+    else
+        printf '%s\n' "$sortie" | sed 's/^/      /' >&2
+        warn "Palier $v non confirmé — la campagne continue, l'échec est enregistré."
+        noter_action "action: charge, voyageurs: $v, resultat: NON_CONFIRME"
+        echoues=$((echoues + 1))
+    fi
+    say "      … $d minutes d'attente (fin vers $(date -u -d "+$d minutes" '+%H:%M') UTC)"
+    sleep $((d * 60))
+done
+echo
+
+# ----------------------------------------------------------------- clôture
+if [ "$COLLECTE" = "1" ]; then
+    say "Arrêt de la collecte…"
+    distant collecte.sh arreter >/dev/null && ok "collecte arrêtée" \
+        || warn "L'arrêt de la collecte a échoué — vérifie avec collecte.sh etat."
+    noter_action "action: collecte_arretee"
+fi
+
+say "Calcul de la fenêtre exploitable…"
+fenetre=$(distant collecte.sh fenetre ${MARGE:+--marge "$MARGE"})
+etat_apres=$(distant collecte.sh etat)
+
+plage_date=$(printf '%s\n' "$fenetre" | grep -oP '^\s+date:\s+\K[0-9-]+'   | head -1)
+plage_de=$(printf '%s\n' "$fenetre"   | grep -oP '^\s+from:\s+"\K[0-9:]+' | head -1)
+plage_a=$(printf '%s\n' "$fenetre"    | grep -oP '^\s+to:\s+"\K[0-9:]+'   | head -1)
+
+say "Rapatriement du registre des paliers et des journaux…"
+registre=$(ssh "$CIBLE" "cat '$DISTANT/journaux/paliers.tsv'" 2>/dev/null)
+scp -q -r "$CIBLE:$DISTANT/journaux/." "$DOSSIER/journaux/" 2>/dev/null \
+    && ok "journaux copiés" || warn "copie des journaux impossible"
+
+# ------------------------------------------------------------- le compte rendu
+sortie_yaml="$DOSSIER/campagne.yaml"
+{
+    echo "# Conditions expérimentales — écrit par campagne.sh, ne pas éditer à la main."
+    echo "# Les réglages d'analyse sont ailleurs : graphe_en/runs/<date>/graph/manifest.json"
+    echo
+    echo "campagne: $NOM"
+    echo "type: $TYPE"
+    [ -n "$CAUSE" ] && echo "cause: $CAUSE"
+    echo "pilote_le: $(maintenant)"
+    echo
+    echo "profil_demande: \"$PROFIL\""
+    echo "duree_prevue_min: $TOTAL"
+    echo "paliers_confirmes: $rates"
+    echo "paliers_non_confirmes: $echoues"
+    echo
+    echo "plage_exploitable:"
+    echo "  date: ${plage_date:-inconnue}"
+    echo "  from: \"${plage_de:-?}\""
+    echo "  to:   \"${plage_a:-?}\""
+    echo
+    echo "# Ce que le pilote a fait, dans l'ordre."
+    echo "deroule:"
+    printf '%s' "$DEROULE"
+    echo
+    echo "# Registre écrit par loadgen.sh après vérification de la charge RÉELLE."
+    echo "# instant_demande / instant_effectif encadrent la montée, pendant laquelle"
+    echo "# la charge n'est ni l'ancienne ni la nouvelle."
+    echo "paliers_mesures: |"
+    if [ -n "$registre" ]; then printf '%s\n' "$registre" | sed 's/^/  /'
+    else echo "  (registre absent sur le master)"; fi
+    echo
+    echo "# Sortie verbatim de « collecte.sh fenetre » :"
+    printf '%s\n' "$fenetre" | sed 's/^/#   /'
+    echo
+    echo "# État du cluster AVANT :"
+    printf '%s\n' "$etat_avant" | sed 's/^/#   /'
+    echo
+    echo "# État du cluster APRÈS :"
+    printf '%s\n' "$etat_apres" | sed 's/^/#   /'
+} > "$sortie_yaml"
+
+echo
+ok "campagne « $NOM » terminée"
+say "  compte rendu : campagnes/$NOM/campagne.yaml"
+say "  paliers      : $rates confirmé(s), $echoues non confirmé(s)"
+[ "$echoues" -gt 0 ] && warn "  des paliers n'ont pas abouti — voir « deroule » dans le compte rendu"
+echo
+if [ -n "$plage_de" ]; then
+    say "À recopier dans graphe_en/config.yaml :"
+    echo
+    echo "    range:"
+    echo "      date:       $plage_date"
+    echo "      from:       \"$plage_de\""
+    echo "      to:         \"$plage_a\""
+    echo
+else
+    warn "Plage exploitable illisible — voir la sortie verbatim dans le compte rendu."
+fi
+say "Ce dossier est à committer : c'est la provenance de tes données."

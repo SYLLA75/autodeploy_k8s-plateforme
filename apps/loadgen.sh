@@ -22,7 +22,9 @@
 #      correspondrait à rien de réel.
 #
 #   Usage (depuis le master) :
-#       bash ~/autodeploy/apps/loadgen.sh install|uninstall|status|urls|scale <n>
+#       bash ~/autodeploy/apps/loadgen.sh install|uninstall|status|urls
+#       bash ~/autodeploy/apps/loadgen.sh scale <n>     changer la charge
+#       bash ~/autodeploy/apps/loadgen.sh voyageurs     combien tournent vraiment
 #
 #   Variables d'environnement reconnues :
 #     LG_NAMESPACE     (défaut: loadgen)        espace du générateur
@@ -147,35 +149,64 @@ EOF
 
     # Le palier de départ compte autant que les suivants : sans lui, un profil de
     # charge commencerait dans le vide et on ignorerait la charge initiale.
-    consigner_palier "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$USERS" "demarrage"
+    local t0; t0=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    consigner_palier "$t0" "$t0" "$USERS" "$USERS" "demarrage"
     status_app
     urls_app
 }
 
 # ------------------------------------------------------------------------------
-# consigner_palier <instant_utc> <voyageurs> <origine>
+# Le registre des paliers
 # ------------------------------------------------------------------------------
-# Écrit le palier dans un fichier MACHINE, en plus de l'afficher.
+# Écrit dans un fichier MACHINE, en plus de l'affichage.
 #
 # Reconstituer un profil de charge en relisant l'affichage obligerait à analyser
-# des phrases françaises : changer un mot d'affichage casserait l'analyse, sans
-# rien signaler. Ce fichier a un format fixe, ne contient que des données, et
-# n'est écrit qu'après confirmation — ce qui s'y trouve a donc réellement eu lieu.
+# des phrases françaises : un mot changé, et l'analyse casse sans rien signaler.
+# Ce fichier a un format fixe et ne contient que des données.
 #
-# Il s'accumule sur toute la vie du cluster ; c'est au lecteur de ne retenir que
-# les paliers de la fenêtre qui l'intéresse.
+# DEUX INSTANTS, PAS UN. Une montée de 10 à 40 voyageurs prend une trentaine de
+# secondes : Locust les démarre au rythme de spawn_rate par seconde. Entre les
+# deux, la charge n'est ni l'ancienne ni la nouvelle. Les fenêtres de mesure qui
+# tombent là sont ambiguës, et il faut pouvoir les écarter — d'où l'instant de la
+# demande ET celui où la charge visée est réellement atteinte.
+#
+# DEUX NOMBRES, PAS UN. Ce qui est demandé, et ce qui est observé. Ils diffèrent
+# quand la montée échoue en route, et c'est l'observé qui décrit l'expérience.
 # ------------------------------------------------------------------------------
 REGISTRE="$(cd "$SCRIPT_DIR/.." && pwd)/journaux/paliers.tsv"
+COLONNES='# instant_demande\tinstant_effectif\tvoyageurs_observes\tvoyageurs_demandes\tspawn_rate\tcible\torigine'
 
 consigner_palier() {
-    local instant="$1" n="$2" origine="$3"
+    local demande="$1" effectif="$2" observes="$3" vises="$4" origine="$5"
     if [ ! -f "$REGISTRE" ]; then
         mkdir -p "$(dirname "$REGISTRE")" 2>/dev/null
-        printf '# instant_utc\tvoyageurs\tspawn_rate\tcible\torigine\n' > "$REGISTRE" 2>/dev/null
+        printf "$COLONNES\n" > "$REGISTRE" 2>/dev/null
     fi
-    printf '%s\t%s\t%s\t%s\t%s\n' "$instant" "$n" "$SPAWN_RATE" "$TARGET_NS" "$origine" \
-        >> "$REGISTRE" 2>/dev/null \
-        || warn "Palier appliqué mais non consigné dans $REGISTRE"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$demande" "$effectif" "$observes" "$vises" "$SPAWN_RATE" "$TARGET_NS" "$origine" \
+        >> "$REGISTRE" 2>/dev/null || warn "Palier appliqué mais non consigné dans $REGISTRE"
+}
+
+# ------------------------------------------------------------------------------
+# locust_pod / voyageurs_actuels — parler à Locust
+# ------------------------------------------------------------------------------
+# L'image locustio/locust est bâtie sur python-slim : elle ne contient NI wget NI
+# curl. Tout passe donc par python, seul interpréteur dont la présence est
+# garantie. Une version antérieure appelait wget et échouait systématiquement,
+# sans que rien ne le montre — la sortie partait dans /dev/null.
+# ------------------------------------------------------------------------------
+locust_pod() {
+    kubectl get pods -n "$NAMESPACE" -l app=locust --no-headers \
+        -o custom-columns=:metadata.name 2>/dev/null | head -1
+}
+
+voyageurs_actuels() {
+    local pod="$1"
+    kubectl exec -n "$NAMESPACE" "$pod" -- python -c "
+import json, urllib.request
+d = json.loads(urllib.request.urlopen('http://localhost:8089/stats/requests', timeout=10).read().decode())
+print(d.get('user_count', ''))
+" 2>/dev/null | tr -d '[:space:]'
 }
 
 # ------------------------------------------------------------------------------
@@ -183,22 +214,19 @@ consigner_palier() {
 # ------------------------------------------------------------------------------
 # C'est le geste qui produit la première cause candidate : une hausse de charge
 # parfaitement légitime, où la file se remplit alors que rien n'est en panne.
-# L'instant du changement doit être noté : c'est lui qui sert d'étiquette.
+#
+# Le changement n'est déclaré fait que lorsque Locust MONTRE le bon nombre de
+# voyageurs. Qu'il réponde « Swarming started » prouve seulement que la requête a
+# été acceptée.
 # ------------------------------------------------------------------------------
 scale_app() {
     local n="${1:-}"
     [ -n "$n" ] || fail "Indique un nombre de voyageurs : $0 scale 25"
     case "$n" in ''|*[!0-9]*) fail "Nombre de voyageurs invalide : « $n »" ;; esac
-    local pod
-    pod=$(kubectl get pods -n "$NAMESPACE" -l app=locust --no-headers -o custom-columns=:metadata.name | head -1)
+    local pod; pod=$(locust_pod)
     [ -n "$pod" ] || fail "Générateur introuvable. Lance d'abord : $0 install"
 
-    # L'appel passe par python et non par wget. L'image locustio/locust est
-    # bâtie sur python-slim : elle ne contient NI wget NI curl. La première
-    # version appelait wget, échouait donc systématiquement, et la sortie
-    # partait dans /dev/null — on ne voyait jamais le « wget: not found ».
-    # « set -e » est actif : une affectation dont la commande échoue ferait sortir
-    # le script sans rien afficher. La forme « if ... ; then » neutralise cela.
+    local demande; demande=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     local sortie code=0
     if ! sortie=$(kubectl exec -n "$NAMESPACE" "$pod" -- python -c "
 import json, urllib.parse, urllib.request
@@ -211,22 +239,40 @@ except Exception:
 " 2>&1); then
         code=1
     fi
-
-    # L'instant n'est écrit QU'APRÈS confirmation. L'ordre inverse laissait dans
-    # le journal la trace d'un changement qui n'avait pas eu lieu, et ce journal
-    # sert d'étiquette aux fenêtres de mesure.
     if [ "$code" -ne 0 ]; then
         warn "Le changement a échoué, la charge est inchangée :"
         printf '%s\n' "$sortie" | sed 's/^/      /' >&2
         return 1
     fi
-    local instant
-    instant=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    say "Demande envoyée à $demande — Locust répond : $sortie"
 
-    consigner_palier "$instant" "$n" "demande"
-    say "Passage à $n voyageurs — instant : $instant"
-    say "Locust répond : $sortie"
-    say "Consigné dans $REGISTRE"
+    # La montée est progressive. On attend qu'elle aboutisse, avec une limite
+    # large : n voyageurs au rythme de spawn_rate par seconde, plus une marge.
+    local limite=$(( 30 + n )) reste observe="" effectif=""
+    reste=$limite
+    say "Vérification de la charge réelle (jusqu'à ${limite}s)…"
+    while [ "$reste" -gt 0 ]; do
+        observe=$(voyageurs_actuels "$pod")
+        if [ "$observe" = "$n" ]; then
+            effectif=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            break
+        fi
+        sleep 5
+        reste=$((reste - 5))
+    done
+
+    if [ -n "$effectif" ]; then
+        consigner_palier "$demande" "$effectif" "$observe" "$n" "demande"
+        say "Charge confirmée : $n voyageurs à $effectif"
+        say "Consigné dans $REGISTRE"
+        return 0
+    fi
+
+    warn "Locust a accepté, mais la charge observée reste « ${observe:-illisible} »"
+    warn "au lieu de $n après ${limite}s. Le palier est consigné avec la valeur"
+    warn "OBSERVÉE : c'est elle qui décrit l'expérience, pas celle demandée."
+    consigner_palier "$demande" "" "${observe:-inconnu}" "$n" "demande_non_aboutie"
+    return 1
 }
 
 uninstall_app() {
@@ -286,6 +332,7 @@ case "${1:-status}" in
     status)    status_app ;;
     urls)      urls_app ;;
     scale)     shift; scale_app "${1:-}" ;;
+    voyageurs) voyageurs_actuels "$(locust_pod)" ;;
     isolate)   shift; isolate_app "${1:-}" ;;
-    *) echo "Usage: $0 {install|uninstall|status|urls|scale <n>|isolate <nœud>}" >&2; exit 2 ;;
+    *) echo "Usage: $0 {install|uninstall|status|urls|scale <n>|voyageurs|isolate <nœud>}" >&2; exit 2 ;;
 esac
