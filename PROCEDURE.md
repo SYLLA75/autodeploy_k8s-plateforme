@@ -122,63 +122,6 @@ coûte rien.
 
 ---
 
-## Lancer une campagne de mesure
-
-Une campagne n'est pas une suite de commandes tapées à la main : c'est un
-**profil de charge appliqué à des instants exacts**, enregistré au fur et à
-mesure. Un seul script s'en charge, **depuis le nœud de contrôle**.
-
-```bash
-tmux new -s campagne
-./campagne.sh saine-01 --profil "10:15,25:15,10:15,40:15"
-```
-
-Le profil se lit « voyageurs:minutes ». Ci-dessus : une heure, quatre paliers.
-
-Le script démarre la collecte, applique chaque palier, **vérifie que la charge a
-réellement changé**, attend, puis arrête la collecte, calcule la fenêtre
-exploitable et écrit `campagnes/saine-01/campagne.yaml`.
-
-**Sous `tmux`** : la campagne dure des heures, une session SSH qui tombe
-emporterait le pilote avec elle.
-
-### Pourquoi un pilote plutôt que des commandes à la main
-
-| | à la main | avec le pilote |
-|---|---|---|
-| présence | il faut être là à chaque palier | tu lances et tu pars |
-| instants | « à peu près quinze minutes » | exacts |
-| oubli | un palier sans trace, ou l'inverse | impossible : même geste |
-
-Le deuxième point décide de la qualité des étiquettes. La frontière entre deux
-niveaux de charge sert à étiqueter les fenêtres de mesure ; floue de deux
-minutes, les fenêtres autour deviennent ambiguës.
-
-### Ce que « confirmé » veut dire
-
-Que Locust réponde « Swarming started » prouve seulement que la requête a été
-acceptée. Le pilote **relit le nombre de voyageurs réellement actifs** jusqu'à ce
-qu'il corresponde. Un palier qui n'aboutit pas est enregistré comme tel, avec la
-valeur observée — la campagne continue, mais elle ne ment pas.
-
-Le compte rendu note **deux instants par palier** : celui de la demande, et
-celui où la charge visée est atteinte. Entre les deux la charge monte
-progressivement ; ces fenêtres-là sont à écarter au moment d'étiqueter.
-
-### Pour une campagne de panne
-
-```bash
-./campagne.sh panne-cpu-01 --profil "10:30" --type panne --cause machine_saturee
-```
-
-*(l'injection elle-même n'est pas encore pilotée — à venir)*
-
-Le dossier `campagnes/<nom>/` est à committer : c'est la provenance de tes
-données. Il contient le compte rendu et les journaux du master, qui
-disparaîtraient avec le cluster.
-
----
-
 ## Étape 3 — Poser la chaîne de mesure
 
 **Où** : sur le master · **Durée** : 5 à 10 minutes
@@ -365,6 +308,76 @@ d'aujourd'hui.
 
 ---
 
+## Étape 11 — Lancer une campagne de mesure
+
+Une campagne n'est pas une suite de commandes tapées à la main : c'est un
+**profil de charge appliqué à des instants exacts**, enregistré au fur et à
+mesure. Un seul script s'en charge, **depuis le nœud de contrôle**.
+
+```bash
+tmux new -s campagne
+./campagne.sh saine-01 --profil "10:15,25:15,10:15,40:15"
+```
+
+Le profil se lit « voyageurs:minutes ». Ci-dessus : une heure, quatre paliers.
+
+Le pilote prend en charge **tout le cycle**, y compris les deux bouts de la
+collecte :
+
+```
+   1. démarre la collecte           collecte.sh demarrer
+   2. pour chaque palier            loadgen.sh scale <n>
+        vérifie la charge réelle
+        attend la durée demandée
+   3. arrête la collecte            collecte.sh arreter
+   4. calcule la fenêtre            collecte.sh fenetre
+   5. écrit le compte rendu         campagnes/saine-01/campagne.yaml
+```
+
+Tu n'as donc **rien à démarrer ni à arrêter toi-même**. Si la collecte tourne
+déjà, le pilote la reprend sans dommage. Si elle est déjà pilotée par ailleurs,
+`--sans-collecte` lui dit de ne pas y toucher.
+
+**Sous `tmux`** : la campagne dure des heures, une session SSH qui tombe
+emporterait le pilote avec elle.
+
+### Pourquoi un pilote plutôt que des commandes à la main
+
+| | à la main | avec le pilote |
+|---|---|---|
+| présence | il faut être là à chaque palier | tu lances et tu pars |
+| instants | « à peu près quinze minutes » | exacts |
+| oubli | un palier sans trace, ou l'inverse | impossible : même geste |
+
+Le deuxième point décide de la qualité des étiquettes. La frontière entre deux
+niveaux de charge sert à étiqueter les fenêtres de mesure ; floue de deux
+minutes, les fenêtres autour deviennent ambiguës.
+
+### Ce que « confirmé » veut dire
+
+Que Locust réponde « Swarming started » prouve seulement que la requête a été
+acceptée. Le pilote **relit le nombre de voyageurs réellement actifs** jusqu'à ce
+qu'il corresponde. Un palier qui n'aboutit pas est enregistré comme tel, avec la
+valeur observée — la campagne continue, mais elle ne ment pas.
+
+Le compte rendu note **deux instants par palier** : celui de la demande, et
+celui où la charge visée est atteinte. Entre les deux la charge monte
+progressivement ; ces fenêtres-là sont à écarter au moment d'étiqueter.
+
+### Pour une campagne de panne
+
+```bash
+./campagne.sh panne-cpu-01 --profil "10:30" --type panne --cause machine_saturee
+```
+
+*(l'injection elle-même n'est pas encore pilotée — à venir)*
+
+Le dossier `campagnes/<nom>/` est à committer : c'est la provenance de tes
+données. Il contient le compte rendu et les journaux du master, qui
+disparaîtraient avec le cluster.
+
+---
+
 ## Détruire
 
 **Où** : sur ton PC
@@ -423,6 +436,10 @@ Recréer une grappe coûte 45 à 60 minutes. Laisser la collecte tourner en cont
 remplit le magasin de données que personne ne regardera — environ 107 Mo par
 heure une fois compressées. On garde donc la grappe debout, et on n'enregistre
 que pendant les fenêtres qui comptent.
+
+**Pendant une campagne, tu n'as pas à t'en occuper** : le pilote de l'étape 11
+allume et éteint la collecte lui-même. Les commandes ci-dessous servent entre
+deux campagnes, ou pour vérifier.
 
 ```bash
 ssh master
