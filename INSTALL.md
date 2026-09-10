@@ -270,7 +270,7 @@ Le journal et `tmux` sont complémentaires, pas redondants : `tmux` garde le
 Sans journal, un script mort ne laisse rien — ni où il en était, ni pourquoi il
 s'est arrêté.
 
-`DEPLOY_NO_LOG=1` désactive le journal.
+`JOURNAL_OFF=1` désactive le journal.
 
 **Tous les scripts longs tiennent un journal**, pas seulement `deploy.sh` :
 
@@ -284,8 +284,17 @@ s'est arrêté.
 
 Le journal de `collecte.sh` a une valeur particulière : il garde l'heure exacte
 à laquelle l'enregistrement a démarré et s'est arrêté — une information dont
-dépend la plage à rapatrier. `JOURNAL_OFF=1` désactive pour les scripts du nœud
-de contrôle.
+dépend la plage à rapatrier. **Pour désactiver**, la même variable partout : `JOURNAL_OFF=1`.
+
+```bash
+JOURNAL_OFF=1 ./deploy.sh --app train-ticket                  # depuis votre poste
+JOURNAL_OFF=1 bash ~/autodeploy/apps/train-ticket.sh install  # sur le nœud de contrôle
+```
+
+`JOURNAL_OFF=1` peut aussi être posé dans `.env`, mais **uniquement pour
+`deploy.sh` et `destroy.sh`** : ce sont les seuls à lire ce fichier. Les scripts
+du nœud de contrôle ne le voient pas, il faut le leur passer en ligne de
+commande.
 
 ---
 

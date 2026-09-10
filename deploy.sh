@@ -33,18 +33,18 @@ source "$ROOT/lib/cluster.sh"
 # Cela ne remplace pas tmux, qui garde le PROCESSUS en vie ; c'est
 # complémentaire : le journal garde la TRACE même si le processus meurt.
 #
-# La redirection n'est posée qu'une fois : DEPLOY_LOG marque le passage, sinon
+# La redirection n'est posée qu'une fois : JOURNAL_FICHIER marque le passage, sinon
 # la relance à travers « tee » créerait une boucle infinie de processus.
-if [ -z "${DEPLOY_LOG:-}" ] && [ "${DEPLOY_NO_LOG:-0}" != "1" ]; then
+if [ -z "${JOURNAL_FICHIER:-}" ] && [ "${JOURNAL_OFF:-0}" != "1" ]; then
     mkdir -p "$ROOT/journaux"
-    DEPLOY_LOG="$ROOT/journaux/deploy-$(date +%Y%m%d-%H%M%S).log"
-    export DEPLOY_LOG
-    echo "  journal : $DEPLOY_LOG"
-    echo "  suivi depuis une autre connexion :  tail -f $DEPLOY_LOG"
+    JOURNAL_FICHIER="$ROOT/journaux/deploy-$(date +%Y%m%d-%H%M%S).log"
+    export JOURNAL_FICHIER
+    echo "  journal : $JOURNAL_FICHIER"
+    echo "  suivi depuis une autre connexion :  tail -f $JOURNAL_FICHIER"
     echo
     # exec redirige le script lui-même : pas de sous-processus, donc le code de
     # sortie et les signaux restent ceux du script.
-    exec > >(tee -a "$DEPLOY_LOG") 2>&1
+    exec > >(tee -a "$JOURNAL_FICHIER") 2>&1
 fi
 
 # ------------------------------------------------------------------------------

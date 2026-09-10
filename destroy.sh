@@ -16,6 +16,18 @@ source "$ROOT/lib/slices.sh"
 # shellcheck source=lib/cluster.sh
 source "$ROOT/lib/cluster.sh"
 
+# Journal d'exécution : ce qui a été détruit mérite une trace, et une destruction
+# interrompue laisse un état partiel qu'il faut pouvoir reconstituer.
+# JOURNAL_OFF=1 désactive.
+if [ -z "${JOURNAL_FICHIER:-}" ] && [ "${JOURNAL_OFF:-0}" != "1" ]; then
+    mkdir -p "$ROOT/journaux" 2>/dev/null || true
+    JOURNAL_FICHIER="$ROOT/journaux/destroy-$(date +%Y%m%d-%H%M%S).log"
+    export JOURNAL_FICHIER
+    echo "  journal : $JOURNAL_FICHIER"
+    exec > >(tee -a "$JOURNAL_FICHIER") 2>&1
+fi
+
+
 usage() {
     cat <<'EOF'
 autodeploy_k8s — destruction
