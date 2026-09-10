@@ -378,6 +378,71 @@ disparaîtraient avec le cluster.
 
 ---
 
+## Étape 12 — Construire le graphe et les figures
+
+**Où** : sur le nœud de contrôle · **Durée** : quelques minutes
+
+La première fois seulement, créer le fichier de réglages et l'environnement :
+
+```bash
+cd graphe_en
+cp config.example.yaml config.yaml && chmod 600 config.yaml
+python3 -m venv .venv
+```
+
+Laisse `access_key` et `secret_key` vides dans `config.yaml` : ils sont lus dans
+`.env.secrets`, qui n'a pas à être recopié.
+
+Ensuite, à chaque campagne, reporter la plage rendue par le pilote — **rien
+d'autre ne change** :
+
+```yaml
+range:
+  date:       2026-09-10
+  from:       "18:24"
+  to:         "19:20"
+```
+
+```bash
+set -a; . ../.env.secrets; set +a
+./.venv/bin/python run.py
+```
+
+Le premier lancement installe torch et le reste **dans le venv uniquement**. Sur
+un interpréteur système le script refuse et affiche la commande à taper :
+installer des paquets dans le Python de la machine casserait ses propres outils.
+
+**Ce que tu obtiens** :
+
+```
+   runs/<horodatage>/
+       run.log                 tout ce que le terminal a affiché
+       raw/                    les archives rapatriées, et leur provenance
+       graph/  manifest.json   réglages, provenance, dimensions
+               window_*.json   un cliché par fenêtre
+               graph.pt        les tenseurs PyTorch Geometric
+       figures/                deux vues SVG par fenêtre
+```
+
+Pour refaire les figures sans retélécharger :
+
+```bash
+./.venv/bin/python run.py --render-only runs/<horodatage>
+```
+
+### Trois réglages à ne pas toucher entre deux campagnes
+
+| | |
+|---|---|
+| `windows.width_s` et `step_s` | changer la largeur rendrait la référence et les pannes incomparables |
+| `export.scaler` | `write` sur la campagne saine, `apply` sur toutes les autres |
+
+Laisser `write` pendant une panne ferait apprendre au modèle que la panne **est**
+la normale : elle définirait sa propre moyenne, et l'anomalie disparaîtrait
+d'elle-même.
+
+---
+
 ## Détruire
 
 **Où** : sur ton PC
