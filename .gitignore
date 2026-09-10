@@ -42,6 +42,3 @@ echelle_saine.json
 .venv/
 __pycache__/
 *.pyc
-
-# --- Artefacts Windows (WSL) --------------------------------------------------
-*:Zone.Identifier

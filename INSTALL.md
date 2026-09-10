@@ -12,7 +12,7 @@ contrôle de la grappe.
 
 **Où** : sur votre poste · **Durée** : 5 minutes
 
-Linux, ou Windows avec WSL 2. Les commandes ci-dessous supposent Ubuntu.
+Ubuntu 22.04 ou 24.04 — poste de travail, serveur, ou machine virtuelle.
 
 ```bash
 sudo apt update
@@ -93,15 +93,9 @@ Rien n'oblige à réutiliser la clé d'une autre machine : une paire neuve, cré
 là où vous lancez le déploiement, convient parfaitement. C'est même préférable —
 une clé privée ne se recopie pas de machine en machine.
 
-> **Sous WSL**, la clé vit souvent côté Windows :
->
-> ```
-> SSH_SOURCE_PRIV_KEY="/mnt/c/Users/VOTRE_NOM/.ssh/id_rsa"
-> ```
->
-> Un fichier sous `/mnt/c/` est en 0777 et `ssh` refuse une clé privée aussi
-> ouverte. Les scripts en font une copie en 0600 dans `~/.ssh/` ; ne pointez pas
-> directement `ssh -i` sur `/mnt/c/`.
+> Le script travaille sur une **copie** de la clé, en `chmod 600`, dans
+> `~/.ssh/id_rsa_slices`. OpenSSH refuse une clé privée dont les droits sont
+> trop ouverts ; la copie garantit les bons droits sans toucher à l'originale.
 
 ---
 

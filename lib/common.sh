@@ -77,11 +77,17 @@ load_env() {
     : "${DURATION:?DURATION manquant dans .env}"
     # La paire de clés SOURCE : celle que le script recopie en 0600 avant de
     # s'en servir, et dont il enregistre la partie publique sur les machines
-    # créées. Elle n'a rien de spécifique à Windows — le nom d'origine
-    # (WINDOWS_SSH_*) faisait chercher au mauvais endroit sur une machine Linux.
-    # Les anciens noms restent acceptés pour ne casser aucun .env existant.
-    SSH_SOURCE_PRIV_KEY="${SSH_SOURCE_PRIV_KEY:-${WINDOWS_SSH_PRIV_KEY:-}}"
-    SSH_SOURCE_PUB_KEY="${SSH_SOURCE_PUB_KEY:-${WINDOWS_SSH_PUB_KEY:-}}"
+    # créées.
+    #
+    # Un .env antérieur nomme ces variables WINDOWS_SSH_*. Elles sont reprises,
+    # avec un avertissement : ce nom datait d'une version antérieure du projet et
+    # faisait chercher la clé au mauvais endroit.
+    if [ -z "${SSH_SOURCE_PRIV_KEY:-}" ] && [ -n "${WINDOWS_SSH_PRIV_KEY:-}" ]; then
+        warn "WINDOWS_SSH_PRIV_KEY / WINDOWS_SSH_PUB_KEY sont d'anciens noms."
+        warn "  Renomme-les en SSH_SOURCE_PRIV_KEY / SSH_SOURCE_PUB_KEY dans .env."
+        SSH_SOURCE_PRIV_KEY="$WINDOWS_SSH_PRIV_KEY"
+        SSH_SOURCE_PUB_KEY="${WINDOWS_SSH_PUB_KEY:-}"
+    fi
     : "${SSH_SOURCE_PRIV_KEY:?SSH_SOURCE_PRIV_KEY manquant dans .env}"
     : "${SSH_SOURCE_PUB_KEY:?SSH_SOURCE_PUB_KEY manquant dans .env}"
 

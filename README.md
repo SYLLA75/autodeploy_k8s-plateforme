@@ -58,15 +58,16 @@ Ce dépôt automatise la chaîne complète suivante :
 6. **Exposer** les interfaces web et afficher les URLs prêtes à l'emploi.
 7. **Tout détruire** proprement en une commande, poste local compris.
 
-Le tout est piloté depuis un poste **Windows + WSL2** (mais fonctionne sur un
-Linux natif : seuls les chemins de clés SSH changent).
+Le tout est piloté depuis une machine **Ubuntu** — poste de travail, serveur, ou
+machine virtuelle. Cette machine ne fait que piloter : elle n'exécute ni
+Kubernetes, ni conteneur.
 
 ---
 
 ## 2. Architecture
 
 ```
-   POSTE LOCAL (WSL2 / Ubuntu)                     SLICES-RI — site be-gent1-bi-vm1
+   MACHINE DE PILOTAGE (Ubuntu)                     SLICES-RI — site be-gent1-bi-vm1
  ┌───────────────────────────────────┐          ┌──────────────────────────────────────────┐
  │  ./deploy.sh                      │          │                                          │
  │   ├── lib/common.sh   utilitaires │  CLI     │   ┌────────────────────────────────────┐ │
@@ -81,7 +82,7 @@ Linux natif : seuls les chemins de clés SSH changent).
  │  ~/.ssh/config  → alias master,   │          │   │  ~20 pods       │ ~50 pods         │ │
  │                   workers0…N      │          │   └────────────────────────────────────┘ │
  └───────────────────────────────────┘          └──────────────────────────────────────────┘
-         navigateur Windows ──── http://<IP master>:30080  (otel-demo)
+         navigateur ─────────── http://<IP master>:30080  (otel-demo)
                               └── http://<IP master>:32677  (train-ticket)
                               └── ou tunnel SSH si les ports sont filtrés
 ```
@@ -103,7 +104,7 @@ Linux natif : seuls les chemins de clés SSH changent).
 
 ```mermaid
 flowchart TD
-    A["1. Clé SSH<br/>copie /mnt/c → ~/.ssh, chmod 600"] --> B["2. Auth SLICES<br/>venv + slices auth login"]
+    A["1. Clé SSH<br/>copie de travail en chmod 600"] --> B["2. Auth SLICES<br/>venv + slices auth login"]
     B --> C["3. Réservation<br/>1 master + N workers"]
     C --> D["4. Inventaire Kubespray<br/>+ attente SSH réelle"]
     D --> E["5. Kubespray<br/>ansible-playbook cluster.yml"]
@@ -114,7 +115,7 @@ flowchart TD
 
 | Étape | Ce qui se passe | Durée typique |
 |:--:|---|---|
-| 1 | La clé privée Windows est copiée dans `~/.ssh/id_rsa_slices` et passée en `chmod 600`. **Nécessaire** : un fichier monté depuis `/mnt/c` ne peut pas recevoir des droits assez restrictifs, et OpenSSH refuse alors la clé. | < 1 s |
+| 1 | La clé privée est copiée dans `~/.ssh/id_rsa_slices` et passée en `chmod 600`. Travailler sur une copie garantit les droits qu'OpenSSH exige, quel que soit l'endroit d'où vient la clé d'origine. | < 1 s |
 | 2 | Activation du venv `~/slices-venv`, puis **test réel** du jeton (un simple `auth.json` présent ne prouve pas qu'il est encore valide — il expire). Si besoin, `slices auth login` est lancé. | 1 s à 1 min |
 | 3 | `slices bi create master` puis `create workers`, avec l'option officielle **`--wait`** qui rend tout sondage inutile. Sans `--public-ipv4` par défaut : les VMs n'ont qu'une adresse privée, accessibles par le jump host. Si l'expérience contient déjà des VMs, la topologie est vérifiée avant réutilisation. | 2-5 min |
 | 4 | `slices bi list --format ansible` → génération de `inventory.ini` avec les groupes `[all]`, `[kube_control_plane]`, `[etcd]`, `[kube_node]`, `[k8s_cluster:children]`. Puis **attente active** que `sshd` réponde sur chaque VM. | 1-5 min |
@@ -131,7 +132,7 @@ flowchart TD
 
 ### 4.1 Poste local
 
-- **Windows 10/11 avec WSL2** (Ubuntu 22.04 ou 24.04), ou un Linux natif.
+- **Ubuntu 22.04 ou 24.04.**
 - Paquets système :
 
 ```bash
@@ -165,23 +166,27 @@ slices bi list --experiment <nom>        # ressources d'une expérience
 
 ### 4.3 Clés SSH
 
-Le script utilise **une paire de clés RSA** générée côté Windows et partagée
-entre le poste et toutes les VMs.
-
-Depuis PowerShell (Windows) :
-
-```powershell
-ssh-keygen -t rsa -b 4096 -f $env:USERPROFILE\.ssh\id_rsa
-```
-
-Puis renseigner les chemins **vus depuis WSL** dans `.env` :
+Le script a besoin d'**une paire de clés** : il enregistre la partie publique
+sur chaque machine créée, et se connecte avec la partie privée.
 
 ```bash
-WINDOWS_SSH_PRIV_KEY="/mnt/c/Users/<ton_utilisateur>/.ssh/id_rsa"
-WINDOWS_SSH_PUB_KEY="/mnt/c/Users/<ton_utilisateur>/.ssh/id_rsa.pub"
+ssh-keygen -t ed25519 -f ~/.ssh/id_rsa -N ""
 ```
 
-Sur un Linux natif, pointe simplement vers `~/.ssh/id_rsa` et `~/.ssh/id_rsa.pub`.
+Puis dans `.env` :
+
+```bash
+SSH_SOURCE_PRIV_KEY="/home/<ton_utilisateur>/.ssh/id_rsa"
+SSH_SOURCE_PUB_KEY="/home/<ton_utilisateur>/.ssh/id_rsa.pub"
+```
+
+La clé **privée** est le fichier **sans** `.pub`. C'est la confusion la plus
+fréquente : un dossier `~/.ssh/` qui ne contient que des `.pub` n'a pas de clé
+privée, et le déploiement s'arrête dès la première étape.
+
+Rien n'oblige à réutiliser la clé d'une autre machine : une paire neuve, créée
+là où tu lances le déploiement, convient. C'est même préférable — une clé privée
+ne se recopie pas de machine en machine.
 
 ---
 
@@ -288,9 +293,9 @@ bloquer** et laisse Kubespray retenter, exactement comme le script initial.
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `WINDOWS_SSH_PRIV_KEY` / `WINDOWS_SSH_PUB_KEY` | `/mnt/c/Users/…` | **À adapter à ton poste.** |
+| `SSH_SOURCE_PRIV_KEY` / `SSH_SOURCE_PUB_KEY` | `/home/…/.ssh/id_rsa` | **À adapter.** La privée n'a pas de `.pub`. |
 | `SLICES_VENV` | `$HOME/slices-venv` | venv contenant la CLI `slices`. |
-| `SSH_PRIV_KEY` | `$HOME/.ssh/id_rsa_slices` | Copie Linux de la clé privée. |
+| `SSH_PRIV_KEY` | `$HOME/.ssh/id_rsa_slices` | Copie de travail, en `chmod 600`. |
 | `INVENTORY_FILE` | `inventory.ini` | Inventaire Ansible généré. |
 | `REMOTE_WORKDIR` | `/home/ubuntu/autodeploy` | Dossier de travail créé sur le master. |
 | `SSH_WAIT_TIMEOUT` | `900` | Attente maximale, par VM, du démarrage de `sshd`. Certaines VMs SLICES mettent plus de 7 minutes à finir leur cloud-init. |
@@ -493,7 +498,7 @@ ou
 ssh master 'curl -s ifconfig.me'
 ```
 
-Puis, dans le navigateur Windows :
+Puis, dans ton navigateur :
 
 - OpenTelemetry Demo → `http://<IP_MASTER>:30080/`
 - Train Ticket → `http://<IP_MASTER>:32677`
@@ -514,13 +519,13 @@ Le tunnel n'ouvre **aucun port** sur Internet : tout passe par la connexion SSH
 existante (port 22). C'est la méthode recommandée si le fabric SLICES filtre les
 ports, et la plus sûre en général.
 
-Depuis WSL, dans un terminal que tu laisses ouvert :
+Dans un terminal que tu laisses ouvert :
 
 ```bash
 ssh -N -L 8080:localhost:30080 -L 8081:localhost:32677 -L 8082:localhost:30467 master
 ```
 
-Puis, dans le navigateur **Windows** :
+Puis, dans ton navigateur :
 
 | URL locale | Application |
 |---|---|
@@ -528,14 +533,14 @@ Puis, dans le navigateur **Windows** :
 | <http://localhost:8081> | Train Ticket |
 | <http://localhost:8082> | Passerelle API Train Ticket |
 
-> 💡 WSL2 relaie automatiquement les ports en écoute vers Windows :
-> un tunnel ouvert dans WSL est directement joignable sur `localhost` côté Windows.
-
-Variante **PowerShell** (sans WSL), avec la clé Windows :
-
-```powershell
-ssh -N -L 8080:localhost:30080 -i $env:USERPROFILE\.ssh\id_rsa ubuntu@<IP_MASTER>
-```
+> **Si tu pilotes depuis une machine distante**, le tunnel s'ouvre sur *elle*,
+> pas sur le poste où se trouve ton navigateur. Enchaîne alors deux sauts :
+>
+> ```bash
+> ssh -N -L 8080:localhost:8080 utilisateur@machine-de-pilotage
+> ```
+>
+> après avoir ouvert le premier tunnel sur la machine de pilotage.
 
 Pour lancer le tunnel en arrière-plan et le couper ensuite :
 
@@ -812,7 +817,8 @@ peut en effet interrompre la suppression sans le signaler par son code de retour
 |---|---|---|
 | `Something is wrong with your user credentials` | Jeton SLICES expiré | `source ~/slices-venv/bin/activate && slices auth login` |
 | `Slices CLI core is not installed` | CLI appelée sans activer le venv | `source ~/slices-venv/bin/activate` avant toute commande `slices` |
-| `Permissions 0777 for 'id_rsa' are too open` | Clé lue directement depuis `/mnt/c` | Normal : le script en fait une copie en `chmod 600`. Si l'erreur persiste, vérifie `SSH_PRIV_KEY`. |
+| `Permissions 0777 for 'id_rsa' are too open` | Droits trop ouverts sur la clé privée | `chmod 600` sur la clé désignée par `SSH_SOURCE_PRIV_KEY`. Le script travaille sur une copie en 0600, mais lit d'abord l'originale. |
+| `Clé privée introuvable` | `~/.ssh/` ne contient que des `.pub` | Créer la paire : `ssh-keygen -t ed25519 -f ~/.ssh/id_rsa -N ""`. La clé privée est le fichier **sans** `.pub`. |
 | Kubespray échoue sur `Wait for the apiserver to be running` | VMs pas encore prêtes, ou nœud sous-dimensionné | Relance `./deploy.sh` (ré-entrant : il réutilise les VMs et le clone Kubespray) |
 | Kubespray : `Failed to connect to the host via ssh` | Cache SSH d'Ansible périmé | `rm -rf ~/.ansible/cp/*` puis relance |
 | Pods en `Pending`, `Insufficient memory` | Cluster trop petit | Augmente `WORKER_COUNT`/`WORKER_FLAVOR`, ou déploie une seule application |

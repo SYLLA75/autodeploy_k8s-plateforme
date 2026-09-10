@@ -328,8 +328,7 @@ manque_cle() {
     err "      SSH_SOURCE_PRIV_KEY=\"$HOME/.ssh/id_rsa\""
     err "      SSH_SOURCE_PUB_KEY=\"$HOME/.ssh/id_rsa.pub\""
     err ""
-    err "  Sous WSL, la clé vit souvent côté Windows :"
-    err "      SSH_SOURCE_PRIV_KEY=\"/mnt/c/Users/VOTRE_NOM/.ssh/id_rsa\""
+    err "  La clé PRIVÉE est le fichier SANS .pub."
     exit 1
 }
 [ -f "$SSH_SOURCE_PRIV_KEY" ] || manque_cle "privée"  "$SSH_SOURCE_PRIV_KEY"
@@ -343,8 +342,8 @@ case "$SSH_SOURCE_PRIV_KEY" in
 esac
 head -1 "$SSH_SOURCE_PRIV_KEY" | grep -q "PRIVATE KEY" \
     || die "SSH_SOURCE_PRIV_KEY ne contient pas une clé privée : $SSH_SOURCE_PRIV_KEY"
-# Copie côté Linux : les permissions d'un fichier monté depuis /mnt/c ne peuvent
-# pas être restreintes à 600, ce que SSH exige.
+# On travaille sur une COPIE, en 0600. OpenSSH refuse une clé privée dont les
+# droits sont trop ouverts, et l'originale n'est pas forcément modifiable.
 cp "$SSH_SOURCE_PRIV_KEY" "$SSH_PRIV_KEY"
 chmod 600 "$SSH_PRIV_KEY"
 ok "Clé privée sécurisée dans $SSH_PRIV_KEY"
