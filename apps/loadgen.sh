@@ -225,7 +225,14 @@ print(d.get('user_count', ''))
 bilan_app() {
     local pod; pod=$(locust_pod)
     [ -n "$pod" ] || fail "Générateur introuvable. Lance d'abord : $0 install"
-    kubectl exec -n "$NAMESPACE" "$pod" -- python -c "
+
+    # Les parcours ATTENDUS viennent du fichier de scénarios, pas de Locust : un
+    # parcours qui n'a jamais tourné n'a aucune ligne de statistiques, donc
+    # comparer Locust à lui-même ne peut pas le voir.
+    local attendus=""
+    [ -f "$LOCUSTFILE" ] && attendus=$(grep -oP 'name="\K[^"]+' "$LOCUSTFILE" | sort -u | paste -sd'|')
+
+    kubectl exec -n "$NAMESPACE" "$pod" -- env ATTENDUS="$attendus" python -c "
 import json, urllib.request
 d = json.loads(urllib.request.urlopen('http://localhost:8089/stats/requests', timeout=10).read().decode())
 print()
@@ -248,6 +255,14 @@ for s in sorted(d.get('stats', []), key=lambda x: x.get('name') or ''):
     if souci:
         mauvais += 1
     print('  %-34s %8d %8d %7.1f%%%s' % (nom[:34], n, e, 100 * taux, souci))
+
+import os
+attendus = [x for x in os.environ.get('ATTENDUS', '').split('|') if x]
+vus = {(s.get('name') or '') for s in d.get('stats', [])}
+absents = [a for a in attendus if a not in vus]
+for a in absents:
+    print('  %-34s %8s %8s %7s   <<< JAMAIS EXÉCUTÉ' % (a[:34], '-', '-', '-'))
+    mauvais += 1
 print()
 if mauvais:
     print('  %d parcours en défaut — NE LANCE PAS DE CAMPAGNE.' % mauvais)
