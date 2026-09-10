@@ -79,9 +79,24 @@ PLACE_PAIRS = [
 SESSION_TTL = float(os.getenv("TT_SESSION_TTL_SECONDS", "1200"))
 
 
-def _date_du_jour() -> str:
-    """Aujourd'hui : le service refuse toute date antérieure."""
-    return datetime.now().strftime("%Y-%m-%d")
+# Nombre de jours d'avance pour la recherche de trains.
+JOURS_AVANCE = int(os.getenv("TT_JOURS_AVANCE", "1"))
+
+
+def _date_de_depart() -> str:
+    """
+    La date cherchée : demain par défaut, jamais aujourd'hui.
+
+    Le service refuse les dates passées, mais il écarte aussi les trains dont
+    l'heure de départ est déjà dépassée. Chercher « aujourd'hui » rend donc une
+    liste vide dès la fin de journée — mesuré : 0 trajet le 10 au soir, 1 à 3 le
+    lendemain, pour les mêmes gares.
+
+    Le parcours de réservation s'arrête alors sur cette liste vide, sans erreur
+    et sans trace : le générateur produit du trafic le matin et cesse d'alimenter
+    la file le soir, sans que rien ne le signale.
+    """
+    return (datetime.now() + timedelta(days=JOURS_AVANCE)).strftime("%Y-%m-%d")
 
 
 @events.quitting.add_listener
@@ -166,7 +181,7 @@ class Voyageur(HttpUser):
         r = self.client.post(
             "/api/v1/travelservice/trips/left",
             json={
-                "departureTime": _date_du_jour(),
+                "departureTime": _date_de_depart(),
                 "startPlace": depart,
                 "endPlace": arrivee,
             },
@@ -188,7 +203,7 @@ class Voyageur(HttpUser):
         if not self.uid:
             return
         depart, arrivee = random.choice(PLACE_PAIRS)
-        date = _date_du_jour()
+        date = _date_de_depart()
 
         r = self.client.post(
             "/api/v1/travelservice/trips/left",
