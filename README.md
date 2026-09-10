@@ -64,7 +64,9 @@ En bref, une fois installé :
 puis les étapes de `PROCEDURE.md`, et enfin :
 
 ```bash
-cd graphe_en && python3 run.py        # des données brutes aux figures
+cd graphe_en
+python3 -m venv .venv                 # la première fois seulement
+./.venv/bin/python run.py             # des données brutes aux figures
 ```
 
 ---

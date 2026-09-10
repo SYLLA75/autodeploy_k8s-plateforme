@@ -262,7 +262,7 @@ Toute la sortie est dupliquée dans un journal, annoncé au démarrage :
 Depuis une autre connexion :
 
 ```bash
-tail -f ~/autodeploy_k8s/journaux/deploy-*.log
+tail -f ~/autodeploy_k8s-plateforme/journaux/deploy-*.log
 ```
 
 Le journal et `tmux` sont complémentaires, pas redondants : `tmux` garde le

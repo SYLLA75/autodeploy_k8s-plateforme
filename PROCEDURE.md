@@ -16,14 +16,14 @@ Deux fichiers doivent exister sur ton PC, dans `~/autodeploy_k8s` :
 la bonne application :
 
 ```bash
-grep '^APPS=' ~/autodeploy_k8s/.env
+grep '^APPS=' ~/autodeploy_k8s-plateforme/.env
 ```
 
 **`.env.secrets`** — les identifiants du magasin d'objets. Ce fichier est ignoré
 par git, il ne doit **jamais** être committé.
 
 ```bash
-cat ~/autodeploy_k8s/.env.secrets
+cat ~/autodeploy_k8s-plateforme/.env.secrets
 ```
 
 Tu dois y voir `OBS_S3_ENDPOINT`, `OBS_S3_BUCKET`, `OBS_S3_ACCESS_KEY`,
@@ -75,7 +75,7 @@ Sept machines, et 56 pods.
 **Où** : sur ton PC · **Durée** : une seconde
 
 ```bash
-scp ~/autodeploy_k8s/.env.secrets master:/home/ubuntu/autodeploy/.env.secrets
+scp ~/autodeploy_k8s-plateforme/.env.secrets master:/home/ubuntu/autodeploy/.env.secrets
 ssh master 'chmod 600 /home/ubuntu/autodeploy/.env.secrets'
 ```
 

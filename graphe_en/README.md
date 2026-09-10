@@ -4,7 +4,8 @@ Builds a heterogeneous temporal graph from OpenTelemetry archives: from the
 object store to the figure, in one command.
 
 ```bash
-python3 run.py
+python3 -m venv .venv        # la première fois seulement
+./.venv/bin/python run.py
 ```
 
 Everything is set in `config.yaml`. Nothing is hard-coded elsewhere.
