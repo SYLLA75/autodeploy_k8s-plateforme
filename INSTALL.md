@@ -416,10 +416,10 @@ nœud de contrôle disparaissent avec lui.
 |----------|------------------------|
 | `Impossible de lister les ressources` | l'expérience n'existe pas ; `deploy.sh` la crée maintenant tout seul |
 | `Connection timed out` sur le nœud de contrôle | le bastion n'est pas utilisé — vérifier que `inventory.ini` existe |
-| `nacos-0 Init:Error` en boucle | élection MySQL bloquée ; voir RECOMMANDATIONS.md, correctif 1 |
+| `nacos-0 Init:Error` en boucle | élection MySQL bloquée ; voir notes/RECOMMANDATIONS.md, correctif 1 |
 | pods `Pending`, `Insufficient memory` | trop peu de workers ; `PROFILE_TT_WORKERS` doit valoir 7 |
 | `0 publishes, 0 consumes` dans les figures | la plage précède le démarrage du trafic ; utiliser `collecte.sh fenetre` |
-| un pod `Pending` avec `PersistentVolume's node affinity` | un volume local est resté sur un nœud interdit ; voir RECOMMANDATIONS.md, correctifs 4 et 5 |
+| un pod `Pending` avec `PersistentVolume's node affinity` | un volume local est resté sur un nœud interdit ; voir notes/RECOMMANDATIONS.md, correctifs 4 et 5 |
 
-**RECOMMANDATIONS.md** recense les huit défauts rencontrés et corrigés, avec ce
+**notes/RECOMMANDATIONS.md** recense les huit défauts rencontrés et corrigés, avec ce
 qui a été observé pour chacun.

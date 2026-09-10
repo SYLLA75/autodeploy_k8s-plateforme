@@ -780,7 +780,7 @@ install_app() {
     status_app
     urls_app
     echo
-    say "Étape suivante : instrumenter les services applicatifs (voir OBSERVABILITE.md)."
+    say "Étape suivante : instrumenter les services applicatifs (voir notes/OBSERVABILITE.md)."
     say "Point d'envoi des traces, à poser sur chaque service :"
     say "    OTEL_EXPORTER_OTLP_ENDPOINT=http://\$(NODE_IP):4318"
 }

@@ -55,9 +55,9 @@ span de traitement est désormais seul retenu.
 **Reste à faire dans le papier** : reprendre l'exemple chiffré, et corriger le
 tableau des composantes.
 
-**Reste à faire dans `graphe/`** (chaîne française) : elle porte encore les deux
-défauts, `valeurs.py` ligne 213 comptant les spans sans déduplication ni
-séparation des rôles.
+**La chaîne française `graphe/` a été supprimée du dépôt** plutôt que corrigée :
+elle portait les deux mêmes défauts et n'était plus utilisée. L'historique git la
+conserve si besoin.
 
 ### 1.3 L'exemple chiffré se contredit d'un facteur dix
 

@@ -24,8 +24,6 @@ valid_vms.txt
 # Une campagne pèse des centaines de mégaoctets. Elle se rapatrie depuis le
 # magasin d'objets, elle ne se versionne pas.
 graphe_en/runs/
-graphe/donnees/
-graphe/graphes/
 *.pt
 
 # --- Artefacts d'une campagne précise -----------------------------------------
