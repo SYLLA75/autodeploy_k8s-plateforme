@@ -136,12 +136,20 @@ install_app() {
                --set "controllerManager.tolerations[0].operator=Equal"
                --set "controllerManager.tolerations[0].value=observability"
                --set "controllerManager.tolerations[0].effect=NoSchedule"
-               --set "chaosDaemon.tolerations[0].key=dedicated"
-               --set "chaosDaemon.tolerations[0].operator=Equal"
-               --set "chaosDaemon.tolerations[0].value=observability"
-               --set "chaosDaemon.tolerations[0].effect=NoSchedule")
+               )
         say "Contrôleur placé sur le nœud de mesure « $OBS_NODE »."
     fi
+
+    # Le démon TOLÈRE TOUT. C'est un agent de nœud, comme le collecteur de
+    # mesures : il ne peut agir que sur la machine où il tourne, donc un nœud
+    # sans démon est un nœud qu'aucune injection ne peut atteindre.
+    #
+    # Une liste de tolérances remplace celle du chart, elle ne s'y ajoute pas.
+    # Nommer une tolérance précise — celle du nœud de mesure, par exemple —
+    # effacerait donc celles que le chart prévoyait pour le plan de contrôle, et
+    # le démon disparaîtrait du master sans que rien ne le dise. « Exists » sans
+    # clé couvre tous les cas, présents et à venir.
+    args+=(--set "chaosDaemon.tolerations[0].operator=Exists")
 
     say "Installation…"
     $HELM upgrade --install chaos-mesh chaos-mesh/chaos-mesh "${args[@]}" || \
@@ -210,9 +218,14 @@ isolate_app() {
         || warn "contrôleur introuvable — Chaos Mesh est-il installé ?"
 
     # Le démon reste sur TOUS les nœuds : il ne peut agir que là où il tourne.
+    #
+    # « Exists » sans clé, et non la tolérance du nœud de mesure : un patch de
+    # tolérances REMPLACE la liste, il ne s'y ajoute pas. Poser ici la seule
+    # tolérance « dedicated » effacerait celle du plan de contrôle, et le démon
+    # disparaîtrait du master — constaté, 7 démons pour 8 nœuds.
     kubectl -n "$NAMESPACE" patch daemonset chaos-daemon \
-        -p "{\"spec\":{\"template\":{\"spec\":{\"tolerations\":$tol}}}}" >/dev/null 2>&1 \
-        && say "tolérance ajoutée au démon (il reste sur tous les nœuds)"
+        -p '{"spec":{"template":{"spec":{"tolerations":[{"operator":"Exists"}]}}}}' >/dev/null 2>&1 \
+        && say "démon : tolère tous les nœuds"
     echo
     status_app
 }
