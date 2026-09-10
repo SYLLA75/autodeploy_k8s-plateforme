@@ -158,13 +158,40 @@ EOF
 scale_app() {
     local n="${1:-}"
     [ -n "$n" ] || fail "Indique un nombre de voyageurs : $0 scale 25"
+    case "$n" in ''|*[!0-9]*) fail "Nombre de voyageurs invalide : « $n »" ;; esac
     local pod
     pod=$(kubectl get pods -n "$NAMESPACE" -l app=locust --no-headers -o custom-columns=:metadata.name | head -1)
     [ -n "$pod" ] || fail "Générateur introuvable. Lance d'abord : $0 install"
+
+    # L'appel passe par python et non par wget. L'image locustio/locust est
+    # bâtie sur python-slim : elle ne contient NI wget NI curl. La première
+    # version appelait wget, échouait donc systématiquement, et la sortie
+    # partait dans /dev/null — on ne voyait jamais le « wget: not found ».
+    # « set -e » est actif : une affectation dont la commande échoue ferait sortir
+    # le script sans rien afficher. La forme « if ... ; then » neutralise cela.
+    local sortie code=0
+    if ! sortie=$(kubectl exec -n "$NAMESPACE" "$pod" -- python -c "
+import json, urllib.parse, urllib.request
+corps = urllib.parse.urlencode({'user_count': $n, 'spawn_rate': $SPAWN_RATE}).encode()
+reponse = urllib.request.urlopen('http://localhost:8089/swarm', corps, timeout=15).read().decode()
+try:
+    print(json.loads(reponse).get('message', reponse))
+except Exception:
+    print(reponse[:200])
+" 2>&1); then
+        code=1
+    fi
+
+    # L'instant n'est écrit QU'APRÈS confirmation. L'ordre inverse laissait dans
+    # le journal la trace d'un changement qui n'avait pas eu lieu, et ce journal
+    # sert d'étiquette aux fenêtres de mesure.
+    if [ "$code" -ne 0 ]; then
+        warn "Le changement a échoué, la charge est inchangée :"
+        printf '%s\n' "$sortie" | sed 's/^/      /' >&2
+        return 1
+    fi
     say "Passage à $n voyageurs — instant : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    kubectl exec -n "$NAMESPACE" "$pod" -- \
-        sh -c "wget -qO- --post-data='user_count=${n}&spawn_rate=${SPAWN_RATE}' http://localhost:8089/swarm" \
-        >/dev/null 2>&1 && say "Fait." || warn "Le changement a échoué — vérifie la page web."
+    say "Locust répond : $sortie"
 }
 
 uninstall_app() {
