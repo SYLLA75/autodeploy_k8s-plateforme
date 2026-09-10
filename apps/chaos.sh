@@ -140,15 +140,8 @@ install_app() {
         say "Contrôleur placé sur le nœud de mesure « $OBS_NODE »."
     fi
 
-    # Le démon TOLÈRE TOUT. C'est un agent de nœud, comme le collecteur de
-    # mesures : il ne peut agir que sur la machine où il tourne, donc un nœud
-    # sans démon est un nœud qu'aucune injection ne peut atteindre.
-    #
-    # Une liste de tolérances remplace celle du chart, elle ne s'y ajoute pas.
-    # Nommer une tolérance précise — celle du nœud de mesure, par exemple —
-    # effacerait donc celles que le chart prévoyait pour le plan de contrôle, et
-    # le démon disparaîtrait du master sans que rien ne le dise. « Exists » sans
-    # clé couvre tous les cas, présents et à venir.
+    # Le démon tolère tout : il ne peut agir que sur la machine où il tourne, et
+    # une liste de tolérances remplace celle du chart au lieu de s'y ajouter.
     args+=(--set "chaosDaemon.tolerations[0].operator=Exists")
 
     say "Installation…"
@@ -167,10 +160,8 @@ install_app() {
 # ------------------------------------------------------------------------------
 # status — prêt à injecter, ou seulement démarré ?
 # ------------------------------------------------------------------------------
-# Trois choses distinctes, et il en faut trois. Les pods « Running » ne suffisent
-# pas : sans les définitions de ressources, aucune injection n'est possible ; et
-# un démon absent d'un nœud rend ce nœud inatteignable, sans que rien ne le dise
-# avant l'injection ratée.
+# Trois conditions, toutes nécessaires : les définitions d'injection, le
+# contrôleur, et un démon sur chaque nœud — un nœud sans démon est inatteignable.
 # ------------------------------------------------------------------------------
 status_app() {
     echo
@@ -188,9 +179,8 @@ status_app() {
     ctrl=$(kubectl get pods -n "$NAMESPACE" -l app.kubernetes.io/component=controller-manager \
            --no-headers 2>/dev/null | grep -c "Running")
 
-    # La valeur d'abord : « printf » aligne sur les OCTETS, et un libellé accentué
-    # en compte plus qu'il n'affiche de caractères. Mettre le nombre en tête évite
-    # des colonnes qui se décalent selon les accents.
+    # La valeur d'abord : « printf » aligne sur les octets, et un libellé accentué
+    # en compte plus qu'il n'affiche de caractères.
     printf "     %-7s %s\n" "$crds"              "types d'injection disponibles"
     printf "     %-7s %s\n" "$ctrl"              "contrôleur(s) en marche"
     printf "     %-7s %s\n" "$demons/$noeuds"    "démons — un par nœud"
@@ -217,12 +207,8 @@ isolate_app() {
         && say "contrôleur épinglé sur « $node »" \
         || warn "contrôleur introuvable — Chaos Mesh est-il installé ?"
 
-    # Le démon reste sur TOUS les nœuds : il ne peut agir que là où il tourne.
-    #
-    # « Exists » sans clé, et non la tolérance du nœud de mesure : un patch de
-    # tolérances REMPLACE la liste, il ne s'y ajoute pas. Poser ici la seule
-    # tolérance « dedicated » effacerait celle du plan de contrôle, et le démon
-    # disparaîtrait du master — constaté, 7 démons pour 8 nœuds.
+    # Le démon reste sur tous les nœuds. « Exists » sans clé, car un patch de
+    # tolérances remplace la liste au lieu de s'y ajouter.
     kubectl -n "$NAMESPACE" patch daemonset chaos-daemon \
         -p '{"spec":{"template":{"spec":{"tolerations":[{"operator":"Exists"}]}}}}' >/dev/null 2>&1 \
         && say "démon : tolère tous les nœuds"
