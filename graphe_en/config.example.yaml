@@ -1,0 +1,85 @@
+# ---------------------------------------------------------------------------
+# otel-graph — everything the pipeline needs, in one file.
+#
+#   cp config.example.yaml config.yaml     then edit config.yaml
+#   python3 run.py                         run with it
+#
+# config.yaml is git-ignored: it holds credentials and the exact time range of
+# one campaign, neither of which belongs in a repository.
+#
+# Nothing is hard-coded elsewhere. An unknown key is reported as an error
+# rather than ignored, so a typo cannot silently have no effect.
+# ---------------------------------------------------------------------------
+
+source:
+  endpoint:   https://s3.slices-be.eu
+  bucket:     ilabt.imec.be-project-cloud-resilience
+  prefix:     otel-data
+  region:     us-east-1
+  # Leave the two keys empty to read them from OBS_S3_ACCESS_KEY and
+  # OBS_S3_SECRET_KEY instead. A secret written here eventually gets committed.
+  access_key: ""
+  secret_key: ""
+
+range:
+  date:       "today"        # or "today"
+  from:       "00:00"
+  to:         "23:59"
+  # Fetch one window more on each side than the period to analyse: the outermost
+  # windows are only partially covered by the data and are discarded.
+  max_files:  400               # refuse to download more than this
+
+windows:
+  width_s:    60                # what one window covers
+  step_s:     60                # how far the next window starts; = width means
+                                # back-to-back, less means overlapping
+  max:        null              # optional cap on the number of windows kept
+  edge_margin: 0                # extra windows discarded at each end, on top of
+                                # the coverage test, which is normally enough
+
+graph:
+  namespace:     train-ticket   # keep only this namespace; null keeps everything.
+                                # Hosts are never filtered: a host carries pods
+                                # from several namespaces and that sharing is
+                                # itself a possible explanation for a fault.
+  slope_horizon: 3              # H, how many consecutive windows the slope spans
+  sampling_rate: 1.0            # eta, the fraction of traces kept by the collector
+  quantiles:     [0.50, 0.95, 0.99]
+
+export:
+  pytorch_geometric: true       # also write a .pt file
+  missing:  mask                # mask | mean | zero — how absent values are filled
+                                # mask is safest: fills 0 and records where the
+                                # hole was. zero alone would turn an unknown rate
+                                # into a null rate, i.e. an invented fault.
+  scaler:   write               # write | apply | none
+                                # write: compute the scaling on THIS campaign
+                                #        (only correct on the healthy baseline)
+                                # apply: reuse a scaling computed elsewhere
+  scaler_file: scaler.json
+  device:   cpu                 # cpu | cuda | auto — where tensors are built.
+                                # The file always stores CPU tensors so it can be
+                                # reloaded anywhere; move to GPU at training time.
+  add_reverse_edges: false      # add inverse relations, a modelling choice
+
+figures:
+  enabled:    true
+  windows:    all               # draw every window. A list draws only those:
+                                # [1, 5, -1] is the first, the fifth and the last
+  queue:      food_delivery     # the queue the close-up view centres on
+  views:      [queue, full]     # one figure per view, per window:
+                                #   queue - the queue and who touches it
+                                #   full  - every node of the namespace
+                                # Setting queue to null leaves only the full view.
+  format:     [svg]             # svg | pdf | png, one or several.
+                                # svg and pdf keep the drawing as geometry: it
+                                # enlarges without pixels and its text stays
+                                # selectable. png is a flat image, useful for a
+                                # quick look or a slide.
+  node_value: cpu_rate          # which instance component fills the node
+  host_value: cpu_busy          # which host component fills the square
+  dpi:        170               # applies to png only
+
+runtime:
+  auto_install: true            # install missing packages, virtual env only
+  output_dir:   runs            # one timestamped directory per run

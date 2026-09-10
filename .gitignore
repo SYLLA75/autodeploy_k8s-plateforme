@@ -1,0 +1,47 @@
+# ==============================================================================
+#  Ce qui ne doit jamais entrer dans le dépôt
+# ==============================================================================
+
+# --- Secrets et configuration locale ------------------------------------------
+# .env porte le nom de l'expérience SLICES et les chemins de clés ; .env.secrets
+# les identifiants du magasin d'objets. Partir de .env.example.
+.env
+.env.secrets
+.env.local
+# Contient les identifiants MinIO en clair et la plage d'une campagne précise.
+# Partir de graphe_en/config.example.yaml.
+graphe_en/config.yaml
+
+# --- Généré à l'exécution -----------------------------------------------------
+kubespray/
+inventory.ini
+raw_inventory.txt
+valid_vms.txt
+.check_vms.txt
+
+# --- Données de campagne ------------------------------------------------------
+# Une campagne pèse des centaines de mégaoctets. Elle se rapatrie depuis le
+# magasin d'objets, elle ne se versionne pas.
+graphe_en/runs/
+graphe/donnees/
+graphe/graphes/
+*.pt
+
+# --- Artefacts d'une campagne précise -----------------------------------------
+# La mise à l'échelle est calée sur UNE campagne saine ; la recopier ailleurs
+# fausserait silencieusement les résultats.
+scaler.json
+echelle_saine.json
+
+# --- Images produites par le code ---------------------------------------------
+*.png
+*.svg
+*.pdf
+
+# --- Python -------------------------------------------------------------------
+.venv/
+__pycache__/
+*.pyc
+
+# --- Artefacts Windows (WSL) --------------------------------------------------
+*:Zone.Identifier

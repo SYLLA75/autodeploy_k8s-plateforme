@@ -1,0 +1,72 @@
+# ==============================================================================
+# Les compteurs exportés vers le magasin d'objets, et EUX SEULS.
+#
+# La grappe produit plus de cent mille séries. Celles qui figurent ici sont les
+# seules envoyées vers le magasin : les autres restent dans la base locale et
+# disparaissent avec la réservation.
+#
+# POUR AJOUTER UN COMPTEUR : écris son nom sur une ligne, puis relance
+#     bash apps/observability.sh tune
+#
+# POUR TOUT EXPORTER : mets une seule ligne contenant   .*
+#     (attention au volume : plusieurs gigaoctets par heure)
+#
+# Une ligne = un nom exact. Les lignes vides et celles commençant par # sont
+# ignorées. Aucune expression régulière à écrire.
+#
+# ATTENTION — le filtre ne vaut que pour l'avenir. Un compteur ajouté ici
+# aujourd'hui n'existera pas dans les données déjà exportées.
+# ==============================================================================
+
+
+# ---- Nœud MACHINE ------------------------------------------------- 5 valeurs
+# Les trois premiers sont les temps d'attente au niveau du noyau : ce sont eux
+# qui distinguent une machine réellement en contention d'une machine simplement
+# chargée. Sans eux, la troisième cause candidate n'a plus de discriminant.
+node_pressure_cpu_waiting_seconds_total
+node_pressure_memory_waiting_seconds_total
+node_pressure_io_waiting_seconds_total
+node_memory_MemAvailable_bytes
+node_cpu_seconds_total
+
+
+# ---- Nœud COPIE DE SERVICE, ressources --------------------------- 6 valeurs
+# Le premier se lit en rapport avec le second : « combien de fois freiné, sur
+# combien d'occasions ». Seul, le numérateur ne veut rien dire.
+container_cpu_cfs_throttled_periods_total
+container_cpu_cfs_periods_total
+container_cpu_usage_seconds_total
+container_memory_working_set_bytes
+container_spec_memory_limit_bytes
+container_spec_cpu_quota
+
+
+# ---- Nœud COPIE DE SERVICE, transport ---------------------------- 4 valeurs
+# Le dernier sert de référence aux trois autres : des paquets perdus ne veulent
+# rien dire sans le volume reçu.
+container_network_receive_packets_dropped_total
+container_network_transmit_packets_dropped_total
+container_network_receive_errors_total
+container_network_receive_bytes_total
+
+
+# ---- Nœud COPIE DE SERVICE, redémarrages -------------------------- 1 valeur
+kube_pod_container_status_restarts_total
+
+
+# ---- LE PONT entre les deux mondes -------------------------------- 1 valeur
+# Les compteurs de conteneur sont étiquetés « namespace + nom de pod ».
+# L'identité du graphe est « nom de service + identifiant unique ».
+# Ce compteur est le seul à porter les deux à la fois. Sans lui, aucun chiffre
+# de ressource ne peut être rattaché à un rond.
+kube_pod_info
+
+
+# ---- Nœud FILE DE MESSAGES ---------------------------------------- 4 valeurs
+# Le premier porte le symptôme : le tas qui attend.
+# Rappel : le courtier ne donne PAS les débits par file. Ceux-là se comptent
+# depuis les traces, pas ici.
+rabbitmq_queue_messages_ready
+rabbitmq_queue_messages_unacked
+rabbitmq_queue_consumers
+rabbitmq_queue_messages
