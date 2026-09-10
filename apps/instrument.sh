@@ -29,6 +29,12 @@
 # ==============================================================================
 set -euo pipefail
 
+# Journal d'exécution : la sortie est dupliquée dans un fichier, consultable
+# depuis une autre connexion si celle-ci tombe. JOURNAL_OFF=1 désactive.
+_ici="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "$_ici/journal.sh" ] && JOURNAL_NOM="instrument" . "$_ici/journal.sh"
+
+
 NAMESPACE="${INST_NAMESPACE:-train-ticket}"
 PREFIX="${INST_PREFIX:-ts-}"
 

@@ -272,6 +272,21 @@ s'est arrêté.
 
 `DEPLOY_NO_LOG=1` désactive le journal.
 
+**Tous les scripts longs tiennent un journal**, pas seulement `deploy.sh` :
+
+| script | où | journal |
+|--------|-----|---------|
+| `deploy.sh`, `destroy.sh` | votre poste | `journaux/deploy-<date>.log` |
+| `apps/train-ticket.sh` | nœud de contrôle | `~/autodeploy/journaux/train-ticket-<date>.log` |
+| `apps/observability.sh` | nœud de contrôle | `~/autodeploy/journaux/observability-<date>.log` |
+| `apps/instrument.sh`, `loadgen.sh`, `collecte.sh` | nœud de contrôle | idem, préfixés par leur nom |
+| `graphe_en/run.py` | votre poste | `runs/<date>/run.log` |
+
+Le journal de `collecte.sh` a une valeur particulière : il garde l'heure exacte
+à laquelle l'enregistrement a démarré et s'est arrêté — une information dont
+dépend la plage à rapatrier. `JOURNAL_OFF=1` désactive pour les scripts du nœud
+de contrôle.
+
 ---
 
 ## Étape 6 — Poser la chaîne de mesure

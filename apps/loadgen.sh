@@ -37,6 +37,12 @@
 # ==============================================================================
 set -euo pipefail
 
+# Journal d'exécution : la sortie est dupliquée dans un fichier, consultable
+# depuis une autre connexion si celle-ci tombe. JOURNAL_OFF=1 désactive.
+_ici="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "$_ici/journal.sh" ] && JOURNAL_NOM="loadgen" . "$_ici/journal.sh"
+
+
 NAMESPACE="${LG_NAMESPACE:-loadgen}"
 TARGET_NS="${LG_TARGET_NS:-train-ticket}"
 TARGET_SVC="${LG_TARGET_SVC:-ts-gateway-service}"
