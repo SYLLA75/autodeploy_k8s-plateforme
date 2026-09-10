@@ -190,15 +190,19 @@ done
 echo
 
 # ----------------------------------------------------------------- clôture
+# La fenêtre AVANT l'arrêt. collecte.sh fenetre lit la date de démarrage de la
+# passerelle pour savoir où la plage commence ; passerelle arrêtée, il n'a plus
+# rien à lire et refuse de répondre. L'ordre inverse rendait « plage illisible »
+# à la fin d'une campagne par ailleurs réussie.
+say "Calcul de la fenêtre exploitable…"
+fenetre=$(distant collecte.sh fenetre ${MARGE:+--marge "$MARGE"})
+
 if [ "$COLLECTE" = "1" ]; then
     say "Arrêt de la collecte…"
     distant collecte.sh arreter >/dev/null && ok "collecte arrêtée" \
         || warn "L'arrêt de la collecte a échoué — vérifie avec collecte.sh etat."
     noter_action "action: collecte_arretee"
 fi
-
-say "Calcul de la fenêtre exploitable…"
-fenetre=$(distant collecte.sh fenetre ${MARGE:+--marge "$MARGE"})
 etat_apres=$(distant collecte.sh etat)
 
 plage_date=$(printf '%s\n' "$fenetre" | grep -oP '^\s+date:\s+\K[0-9-]+'   | head -1)
@@ -268,5 +272,7 @@ if [ -n "$plage_de" ]; then
     echo
 else
     warn "Plage exploitable illisible — voir la sortie verbatim dans le compte rendu."
+    warn "Repli : la plage se calcule depuis « deroule » du compte rendu,"
+    warn "  collecte_demarree + 2 min  →  collecte_arretee − 2 min."
 fi
 say "Ce dossier est à committer : c'est la provenance de tes données."
