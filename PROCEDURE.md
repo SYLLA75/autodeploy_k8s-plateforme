@@ -122,6 +122,31 @@ coûte rien.
 
 ---
 
+## À la fin de chaque campagne — noter les conditions
+
+Les réglages d'analyse sont enregistrés tout seuls (`graphe_en/runs/<date>/graph/manifest.json`).
+Ce qui ne l'est pas, c'est **la condition expérimentale** : campagne saine ou
+injection, quel profil de charge, à quels instants. Cette information vit dans
+les journaux du master — la machine que `destroy.sh` efface.
+
+Depuis le nœud de contrôle, quand la campagne est finie :
+
+```bash
+./campagne.sh noter saine-01
+./campagne.sh noter panne-cpu-01 --type panne --cause machine_saturee
+```
+
+Ça écrit `campagnes/<nom>/campagne.yaml`, rapatrie les journaux du master, et
+affiche la plage à recopier dans `graphe_en/config.yaml`.
+
+**Un changement de charge non confirmé par Locust est écarté**, pas recopié : le
+journal peut contenir la trace d'un changement qui a échoué, et une étiquette
+fausse vaut moins que pas d'étiquette du tout.
+
+Ce dossier est à committer — c'est la provenance de tes données.
+
+---
+
 ## Étape 3 — Poser la chaîne de mesure
 
 **Où** : sur le master · **Durée** : 5 à 10 minutes
