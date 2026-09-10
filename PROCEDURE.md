@@ -243,6 +243,59 @@ kubectl exec -n train-ticket $R -- rabbitmqctl list_queues name consumers
 
 ---
 
+## Étape 6 bis — L'injecteur de pannes
+
+**Où** : sur le master · **Durée** : 5 minutes
+
+```bash
+bash ~/autodeploy/apps/chaos.sh install
+bash ~/autodeploy/apps/chaos.sh isolate workers6
+```
+
+**À installer AVANT la campagne de référence, même si tu n'injectes rien tout de
+suite.** Le démon tourne sur chaque nœud, y compris ceux qu'on mesure. Son coût
+est faible mais réel, et il doit être présent des deux côtés — référence saine et
+campagnes de panne. Sinon la différence entre les deux contient son coût à lui,
+mêlé à celui de la panne, et le modèle apprendrait « Chaos Mesh présent = panne ».
+
+**Vérification** :
+
+```bash
+bash ~/autodeploy/apps/chaos.sh status
+```
+
+```
+     3       types d'injection disponibles
+     1       contrôleur(s) en marche
+     8/8     démons — un par nœud
+
+  [chaos] OK  prêt à injecter
+```
+
+Les trois lignes comptent. Des pods « Running » ne suffisent pas : sans les
+définitions d'injection rien n'est possible, et **un nœud sans démon ne peut pas
+être touché** — ce qui ne se verrait qu'au moment de l'injection ratée.
+
+### Pourquoi un outil plutôt que des commandes
+
+Les quatre causes s'injectent toutes à la main. Deux le font mal :
+
+| cause | à la main | avec Chaos Mesh |
+|---|---|---|
+| bloquer une réplique | `SIGSTOP` fait échouer la sonde de vivacité, Kubernetes redémarre le pod | le conteneur devient inerte pour une durée choisie, la sonde ne s'en mêle pas |
+| ralentir un service | baisser la limite CPU déclenche un redémarrage roulant — **nouveaux nœuds dans le graphe** | la charge est injectée dans le cgroup existant, sans redémarrage |
+
+Et une raison qui n'est pas technique : « injecté avec Chaos Mesh 2.x » se
+vérifie, « injecté par un script maison » se croit sur parole.
+
+### À figer
+
+L'installation affiche la version du chart. Reporte-la dans `.env` —
+`CHAOS_VERSION=…` — sans quoi une réinstallation dans six mois prendra une autre
+version, et l'expérience ne sera plus rejouable.
+
+---
+
 ## Étape 7 — Le générateur de trafic
 
 **Où** : sur le master · **Durée** : 2 minutes
