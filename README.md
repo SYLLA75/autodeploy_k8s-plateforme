@@ -188,11 +188,30 @@ Sur un Linux natif, pointe simplement vers `~/.ssh/id_rsa` et `~/.ssh/id_rsa.pub
 ## 5. Installation
 
 ```bash
-git clone https://github.com/SYLLA75/autodeploy_k8s.git
+git clone <URL_DU_DEPOT> autodeploy_k8s
 cd autodeploy_k8s
 cp .env.example .env      # puis édite .env (voir §6)
-chmod +x deploy.sh destroy.sh
 ```
+
+**Le nom du dossier compte.** Toute la documentation désigne le projet par
+`autodeploy_k8s`, et les scripts déposent leur copie de travail dans
+`/home/ubuntu/autodeploy` sur le nœud de contrôle. Cloner sous un autre nom
+fonctionne, mais oblige à adapter les commandes des autres fichiers.
+
+C'est pourquoi le nom de dossier est donné explicitement à `git clone` : il n'a
+pas à suivre celui du dépôt distant, qui peut porter un nom différent.
+
+Aucun `chmod` n'est nécessaire : les droits d'exécution sont enregistrés dans le
+dépôt. Pour le vérifier :
+
+```bash
+git ls-files -s deploy.sh destroy.sh apps/*.sh
+```
+
+Un `100755` en tête de ligne signifie que le fichier est exécutable.
+
+**Mise en route complète, d'une machine neuve aux figures** : voir
+[INSTALL.md](INSTALL.md).
 
 ---
 
