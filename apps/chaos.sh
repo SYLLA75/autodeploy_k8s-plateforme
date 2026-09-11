@@ -8,22 +8,23 @@
 #  Les quatre causes étudiées peuvent toutes s'injecter à la main. Deux le font
 #  mal, et c'est ce qui décide :
 #
-#    bloquer une réplique   Un SIGSTOP sur le processus fait échouer la sonde de
-#                           vivacité, et Kubernetes redémarre le pod au bout de
-#                           quelques dizaines de secondes. La panne ne dure pas
-#                           assez. Chaos Mesh remplace le conteneur par une image
-#                           inerte pour une durée choisie : le pod reste
-#                           « Running », la sonde ne s'en mêle pas.
-#
 #    ralentir un service    Baisser la limite CPU déclenche un redémarrage
 #                           roulant. Nouveaux pods, nouveaux identifiants, donc
 #                           NOUVEAUX NŒUDS dans le graphe : le redémarrage se
 #                           mélange à la panne qu'on voulait mesurer. Chaos Mesh
-#                           injecte la charge dans le cgroup existant, sans
-#                           redémarrer quoi que ce soit.
+#                           agit dans le pod existant — retard réseau, charge
+#                           CPU — sans redémarrer quoi que ce soit.
+#
+#    saturer un hôte        Il faut une charge qui occupe TOUS les cœurs pour
+#                           une durée exacte, et qui s'arrête d'elle-même.
+#                           Chaos Mesh porte la durée dans l'objet injecté.
 #
 #  Et une raison qui n'est pas technique : « injecté avec Chaos Mesh 2.x » se
 #  vérifie, « injecté par un script maison » se croit sur parole.
+#
+#  Le blocage d'une réplique, lui, n'a pas besoin de Chaos Mesh : un SIGSTOP
+#  suffit, les pods de train-ticket n'ayant pas de sonde de vivacité. C'est
+#  apps/panne.sh qui injecte les quatre causes ; ce script-ci installe l'outil.
 #
 #  À INSTALLER AVANT LA CAMPAGNE DE RÉFÉRENCE
 #

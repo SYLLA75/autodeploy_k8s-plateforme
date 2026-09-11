@@ -282,11 +282,15 @@ Les quatre causes s'injectent toutes à la main. Deux le font mal :
 
 | cause | à la main | avec Chaos Mesh |
 |---|---|---|
-| bloquer une réplique | `SIGSTOP` fait échouer la sonde de vivacité, Kubernetes redémarre le pod | le conteneur devient inerte pour une durée choisie, la sonde ne s'en mêle pas |
-| ralentir un service | baisser la limite CPU déclenche un redémarrage roulant — **nouveaux nœuds dans le graphe** | la charge est injectée dans le cgroup existant, sans redémarrage |
+| ralentir un service | baisser la limite CPU déclenche un redémarrage roulant — **nouveaux nœuds dans le graphe** | le retard est posé dans le pod existant, sans redémarrage |
+| saturer un hôte | une charge qu'il faut lancer, puis penser à arrêter | la durée est portée par l'objet injecté : il s'arrête seul |
 
 Et une raison qui n'est pas technique : « injecté avec Chaos Mesh 2.x » se
 vérifie, « injecté par un script maison » se croit sur parole.
+
+Bloquer une réplique n'en a pas besoin : un `SIGSTOP` suffit, les pods de
+train-ticket n'ayant pas de sonde de vivacité. Les quatre injections sont
+faites par `apps/panne.sh` (étape 11) ; `chaos.sh` installe seulement l'outil.
 
 ### À figer
 
@@ -409,6 +413,17 @@ connexion avait expiré, tous les parcours s'arrêtaient à leur première ligne
 L'application tournait, les pods étaient `Running`, la collecte écrivait dans le
 magasin. Rien ne le montrait — sauf ce tableau.
 
+Et une vérification de deux secondes : les instants du compte rendu viennent
+de deux horloges, celle du nœud de contrôle et celle du master. Les deux
+doivent être tenues par NTP, sinon les étiquettes ne s'alignent pas sur les
+mesures.
+
+```bash
+timedatectl show -p NTPSynchronized; ssh master timedatectl show -p NTPSynchronized
+```
+
+Les deux doivent répondre `NTPSynchronized=yes`.
+
 ---
 
 ## Étape 11 — Lancer une campagne de mesure
@@ -431,10 +446,12 @@ collecte :
    1. démarre la collecte           collecte.sh demarrer
    2. pour chaque palier            loadgen.sh scale <n>
         vérifie la charge réelle
-        attend la durée demandée
-   3. arrête la collecte            collecte.sh arreter
+        attend la minute prévue
+   3. s'il y a une panne            panne.sh injecter … / retirer
+        à la minute dite, pour la durée dite
    4. calcule la fenêtre            collecte.sh fenetre
-   5. écrit le compte rendu         campagnes/saine-01/campagne.yaml
+   5. arrête la collecte            collecte.sh arreter
+   6. écrit le compte rendu         campagnes/saine-01/campagne.yaml
 ```
 
 Tu n'as donc **rien à démarrer ni à arrêter toi-même**. Si la collecte tourne
@@ -467,17 +484,97 @@ Le compte rendu note **deux instants par palier** : celui de la demande, et
 celui où la charge visée est atteinte. Entre les deux la charge monte
 progressivement ; ces fenêtres-là sont à écarter au moment d'étiqueter.
 
-### Pour une campagne de panne
-
-```bash
-./campagne.sh panne-cpu-01 --profil "10:30" --type panne --cause machine_saturee
-```
-
-*(l'injection elle-même n'est pas encore pilotée — à venir)*
-
 Le dossier `campagnes/<nom>/` est à committer : c'est la provenance de tes
 données. Il contient le compte rendu et les journaux du master, qui
 disparaîtraient avec le cluster.
+
+### Une campagne de panne
+
+Le fil qu'on casse est toujours le même : `ts-food-service` dépose dans
+`food_delivery`, les trois répliques de `ts-delivery-service` retirent. Quatre
+causes font grossir le tas, chacune pour une raison différente :
+
+| `--panne` | ce qui est fait | avec quoi | ce qu'on s'attend à voir *(pas encore mesuré)* |
+|---|---|---|---|
+| `charge` | plus de voyageurs : on dépose plus vite qu'on ne retire | `loadgen.sh scale` | `publish_rate` ↑, `consume_rate` plafonne, `backlog` ↑ ; tout le reste sain |
+| `lenteur` | les 3 répliques attendent 1 s de plus à chaque échange avec leur base | Chaos Mesh, retard réseau entre ces pods et `tsdb-mysql` | `process_time_p50` ↑ sur les 3 répliques, cpu normal, hôtes normaux, `backlog` ↑ |
+| `hote` | un pod voisin, hors du graphe, occupe tous les cœurs de l'hôte d'UNE réplique | Chaos Mesh, stress CPU sur ce voisin | `cpu_pressure` ↑ sur cet hôte seul ; la réplique qui y vit ralentit, les 2 autres vont bien ; les autres services de cet hôte aussi |
+| `blocage` | une seule réplique est gelée, sans être tuée | `SIGSTOP` sur son processus Java | `consume_rate` 0 et cpu ≈ 0 sur elle, mémoire inchangée ; les 2 autres absorbent ; hôte normal ; après ~2 min le courtier ne compte plus que 2 consommateurs |
+
+Une campagne de panne est un profil de charge ordinaire sur lequel une
+injection est posée à une minute donnée :
+
+```bash
+tmux new -s campagne
+./campagne.sh lenteur-01 --profil "25:30" --panne lenteur --a 5 --duree 20
+```
+
+```
+   minute   0        5                        25       30
+            |--------|========================|--------|
+            25 voyageurs   panne « lenteur »   retour   fin
+```
+
+| option | rôle | défaut |
+|---|---|---|
+| `--panne <cause>` | `charge`, `lenteur`, `hote`, `blocage` | — |
+| `--a <min[,min…]>` | minute(s) de début, depuis le premier palier ; `--a 5,35,65` répète | — |
+| `--duree <min>` | durée de chaque injection | — |
+| `--intensite <n>` | voyageurs (`charge`) · ms de retard (`lenteur`) · cœurs réclamés par le voisin (`hote`) | 4 × la charge · 1000 · la moitié de l'hôte |
+| `--cible <x>` | nœud (`hote`) ou pod (`blocage`) | le moins chargé des hôtes portant une réplique · la première réplique |
+
+Le pilote décide **quand** ; `apps/panne.sh`, sur le master, décide **comment**
+et consigne **qui** a été touché. Le compte rendu reçoit en plus :
+
+```
+   panne:                  cause, intensité, cible, minutes de début, durée
+   pannes_mesurees:        le registre de panne.sh — qui, quand, avec quoi
+   # Témoins               file, consommateurs, charge des répliques et des
+                           hôtes : juste avant, au milieu, une minute après
+```
+
+**Chaque injection expire d'elle-même** sur le master : Chaos Mesh lève la
+sienne à l'échéance, la levée du gel est programmée dans le conteneur gelé, le
+retour de charge par un minuteur. Un pilote qui meurt ne laisse pas la panne
+derrière lui. Et `Ctrl-C` ne jette rien : l'injection est retirée, la collecte
+close, le compte rendu écrit avec ce qui a eu lieu.
+
+Avant toute campagne — saine comprise — le pilote refuse de partir si une
+panne est encore en place. Pour voir et nettoyer à la main :
+
+```bash
+ssh master 'bash ~/autodeploy/apps/panne.sh etat'
+ssh master 'bash ~/autodeploy/apps/panne.sh retirer'
+```
+
+### Dans quel ordre
+
+1. **Étalonner** : trouver la charge où les trois répliques saturent. À 0,3
+   message par seconde et 6 ms par message, il faudra peut-être beaucoup de
+   voyageurs — c'est justement ce qu'on mesure.
+
+   ```bash
+   ./campagne.sh etalonnage --profil "10:10,20:10,40:10,80:10,160:10"
+   ```
+
+2. **Un essai court par cause**, figures à l'appui, avant de dépenser des
+   heures : on vérifie que la trace attendue est visible.
+
+   ```bash
+   ./campagne.sh essai-blocage --profil "25:12" --panne blocage --a 3 --duree 5
+   ```
+
+3. **Les campagnes** : 5 min sain, 20 min panne, 5 min retour, trois fois,
+   dans l'ordre `charge`, `blocage`, `lenteur`, `hote` — du plus simple au plus
+   délicat.
+
+   ```bash
+   ./campagne.sh charge-01 --profil "25:90" --panne charge --a 5,35,65 --duree 20
+   ```
+
+L'intensité est un réglage d'expérience, pas une constante : celle qui produit
+la trace attendue est à lire dans les figures de l'essai, puis à figer dans le
+nom et le compte rendu de la campagne.
 
 ---
 
@@ -572,6 +669,11 @@ ssh master 'bash ~/autodeploy/apps/observability.sh verify'
 # faire monter la charge, et noter l'instant
 ssh master 'bash ~/autodeploy/apps/loadgen.sh scale 25'
 
+# une panne est-elle en place ? la lever ; relever la file et les répliques
+ssh master 'bash ~/autodeploy/apps/panne.sh etat'
+ssh master 'bash ~/autodeploy/apps/panne.sh retirer'
+ssh master 'bash ~/autodeploy/apps/panne.sh temoin'
+
 # état des files
 ssh master 'R=$(kubectl get pods -n train-ticket --no-headers | grep -i rabbit | head -1 | cut -d" " -f1); \
             kubectl exec -n train-ticket $R -- rabbitmqctl list_queues name messages consumers'
@@ -591,7 +693,11 @@ ssh master 'set -a; . ~/autodeploy/.env.secrets; set +a; \
 | `deploy.sh` | machines, Kubernetes, application |
 | `apps/observability.sh` | toute la chaîne de mesure · `install` `verify` `isolate` `tune` `urls` |
 | `apps/instrument.sh` | attacher l'observateur aux services · `install --all` |
-| `apps/loadgen.sh` | le trafic · `install` `scale <n>` `isolate` |
+| `apps/loadgen.sh` | le trafic · `install` `scale <n>` `bilan` `isolate` |
+| `apps/collecte.sh` | l'enregistrement · `demarrer` `arreter` `fenetre` `etat` |
+| `apps/chaos.sh` | l'injecteur de pannes · `install` `status` `isolate` |
+| `apps/panne.sh` | les quatre pannes · `verifier` `injecter` `retirer` `etat` `temoin` |
+| `campagne.sh` | une campagne entière depuis le nœud de contrôle — charge, panne, collecte, compte rendu |
 | `apps/metrics-keep.txt` | la liste des compteurs sauvegardés, un par ligne |
 | `destroy.sh` | tout libérer |
 

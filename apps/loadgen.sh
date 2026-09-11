@@ -37,6 +37,7 @@
 #     LG_PACING        (défaut: 5)              secondes entre deux parcours
 #     LG_IMAGE         (défaut: locustio/locust:2.32.4)
 #     LG_NODEPORT      (défaut: 30089)          port de la page de pilotage
+#     LG_ORIGINE       (défaut: demande)        qui demande le palier, dans le registre
 # ==============================================================================
 set -euo pipefail
 
@@ -173,9 +174,14 @@ EOF
 #
 # DEUX NOMBRES, PAS UN. Ce qui est demandé, et ce qui est observé. Ils diffèrent
 # quand la montée échoue en route, et c'est l'observé qui décrit l'expérience.
+#
+# L'ORIGINE dit qui a demandé le palier : « demarrage », « demande » (un
+# palier du profil), « panne » et « retour_panne » (posés par panne.sh). Une
+# hausse de charge injectée comme panne se distingue ainsi d'un palier ordinaire.
 # ------------------------------------------------------------------------------
 REGISTRE="$(cd "$SCRIPT_DIR/.." && pwd)/journaux/paliers.tsv"
 COLONNES='# instant_demande\tinstant_effectif\tvoyageurs_observes\tvoyageurs_demandes\tspawn_rate\tcible\torigine'
+ORIGINE="${LG_ORIGINE:-demande}"
 
 consigner_palier() {
     local demande="$1" effectif="$2" observes="$3" vises="$4" origine="$5"
@@ -327,7 +333,7 @@ except Exception:
     done
 
     if [ -n "$effectif" ]; then
-        consigner_palier "$demande" "$effectif" "$observe" "$n" "demande"
+        consigner_palier "$demande" "$effectif" "$observe" "$n" "$ORIGINE"
         say "Charge confirmée : $n voyageurs à $effectif"
         say "Consigné dans $REGISTRE"
         return 0
@@ -336,7 +342,7 @@ except Exception:
     warn "Locust a accepté, mais la charge observée reste « ${observe:-illisible} »"
     warn "au lieu de $n après ${limite}s. Le palier est consigné avec la valeur"
     warn "OBSERVÉE : c'est elle qui décrit l'expérience, pas celle demandée."
-    consigner_palier "$demande" "" "${observe:-inconnu}" "$n" "demande_non_aboutie"
+    consigner_palier "$demande" "" "${observe:-inconnu}" "$n" "${ORIGINE}_non_aboutie"
     return 1
 }
 

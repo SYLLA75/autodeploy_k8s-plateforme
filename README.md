@@ -27,8 +27,9 @@ C'est le principe d'organisation du dépôt : les fichiers sont rangés par
                             ▼
    ┌─ LE MASTER DU CLUSTER ─────────────────────────────────┐
    │   apps/*.sh      installent et pilotent l'application  │
-   │                  train-ticket · observability ·         │
-   │                  instrument · loadgen · collecte        │
+   │                  train-ticket · observability ·        │
+   │                  instrument · loadgen · collecte ·     │
+   │                  chaos · panne                         │
    └────────────────────────────────────────────────────────┘
 ```
 
@@ -90,6 +91,8 @@ python3 -m venv .venv                 # la première fois seulement
      instrument.sh          l'agent OpenTelemetry sur chaque service
      loadgen.sh             le générateur de trafic
      collecte.sh            allumer et éteindre l'enregistrement
+     chaos.sh               l'injecteur de pannes (Chaos Mesh)
+     panne.sh               les quatre pannes : injecter, retirer, consigner
      journal.sh             journal d'exécution, partagé par les précédents
 
    graphe_en/             s'exécute SUR LE NŒUD DE CONTRÔLE
