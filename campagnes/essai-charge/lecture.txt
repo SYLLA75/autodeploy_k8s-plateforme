@@ -1,0 +1,49 @@
+# Lecture du graphe construit par run.py — runs/20260912-221211
+# plage 2026-09-12 20:02 -> 20:10, fenêtres de 60 s
+# fenêtres gardées : 8
+
+queue: food_delivery    run: runs/20260912-221211
+window  start_utc                   backlog  backlog_slope   publish_rate   consume_rate rate_imbalance      consumers
+29820722  20:02:00                      1.000              -          3.650          3.650          0.000          3.000
+29820723  20:03:00                    118.000        117.000          6.367          4.167          2.200          3.000
+29820724  20:04:00                    308.000        153.500          7.467          4.250          3.217          3.000
+29820725  20:05:00                    457.000        169.500          7.033          4.250          2.783          3.000
+29820726  20:06:00                    627.000        159.500          6.767          4.217          2.550          3.000
+29820727  20:07:00                    800.000        171.500          7.133          4.233          2.900          3.000
+29820728  20:08:00                    813.000         93.000          4.050          4.200         -0.150          3.000
+29820729  20:09:00                    784.000         -8.000          3.717          4.250         -0.533          3.000
+
+instances containing 'delivery'    run: runs/20260912-221211
+window  start_utc            instance                                  process_time_p50  process_time_p95       error_ratio          cpu_rate       memory_used
+29820722  20:02:00             ts-delivery-service-79c46f4f45-bmgvs               705.654           847.079                 -             0.003         431792128
+29820722  20:02:00             ts-delivery-service-79c46f4f45-r5pwb               706.211           846.230                 -             0.003         424660992
+29820722  20:02:00             ts-delivery-service-79c46f4f45-tvmfl               705.601           708.232                 -             0.004         433704960
+29820722  20:02:00             ts-food-delivery-service-7cdc54dd4d-4jwk                 -                 -                 -             0.001         422182912
+29820723  20:03:00             ts-delivery-service-79c46f4f45-bmgvs               705.832           706.832                 -             0.003         431792128
+29820723  20:03:00             ts-delivery-service-79c46f4f45-r5pwb               706.093           707.368                 -             0.003         424660992
+29820723  20:03:00             ts-delivery-service-79c46f4f45-tvmfl               705.545           706.706                 -             0.002         433668096
+29820723  20:03:00             ts-food-delivery-service-7cdc54dd4d-4jwk                 -                 -                 -             0.001         422182912
+29820724  20:04:00             ts-delivery-service-79c46f4f45-bmgvs               705.646           706.493                 -             0.004         431890432
+29820724  20:04:00             ts-delivery-service-79c46f4f45-r5pwb               706.250           707.058                 -             0.003         424157184
+29820724  20:04:00             ts-delivery-service-79c46f4f45-tvmfl               705.502           706.247                 -             0.003         433541120
+29820724  20:04:00             ts-food-delivery-service-7cdc54dd4d-4jwk                 -                 -                 -             0.001         422473728
+29820725  20:05:00             ts-delivery-service-79c46f4f45-bmgvs               705.605           706.693                 -             0.002         431824896
+29820725  20:05:00             ts-delivery-service-79c46f4f45-r5pwb               705.876           707.149                 -             0.004         424161280
+29820725  20:05:00             ts-delivery-service-79c46f4f45-tvmfl               705.571           706.508                 -             0.003         433885184
+29820725  20:05:00             ts-food-delivery-service-7cdc54dd4d-4jwk                 -                 -                 -             0.001         422215680
+29820726  20:06:00             ts-delivery-service-79c46f4f45-bmgvs               705.868           706.899                 -             0.004         431652864
+29820726  20:06:00             ts-delivery-service-79c46f4f45-r5pwb               706.343           707.207                 -             0.004         424468480
+29820726  20:06:00             ts-delivery-service-79c46f4f45-tvmfl               705.876           706.856                 -             0.003         433885184
+29820726  20:06:00             ts-food-delivery-service-7cdc54dd4d-4jwk                 -                 -                 -             0.001         422215680
+29820727  20:07:00             ts-delivery-service-79c46f4f45-bmgvs               705.735           706.603                 -             0.002         431325184
+29820727  20:07:00             ts-delivery-service-79c46f4f45-r5pwb               706.316           707.318                 -             0.004         424288256
+29820727  20:07:00             ts-delivery-service-79c46f4f45-tvmfl               705.620           706.687                 -             0.004         432902144
+29820727  20:07:00             ts-food-delivery-service-7cdc54dd4d-4jwk                 -                 -                 -             0.001         422215680
+29820728  20:08:00             ts-delivery-service-79c46f4f45-bmgvs               705.802           706.931                 -             0.003         431427584
+29820728  20:08:00             ts-delivery-service-79c46f4f45-r5pwb               706.359           707.428                 -             0.004         423772160
+29820728  20:08:00             ts-delivery-service-79c46f4f45-tvmfl               705.689           706.879                 -             0.002         433131520
+29820728  20:08:00             ts-food-delivery-service-7cdc54dd4d-4jwk                 -                 -                 -             0.001         422215680
+29820729  20:09:00             ts-delivery-service-79c46f4f45-bmgvs               705.580           706.623                 -             0.003         431333376
+29820729  20:09:00             ts-delivery-service-79c46f4f45-r5pwb               705.717           706.744                 -             0.003         423780352
+29820729  20:09:00             ts-delivery-service-79c46f4f45-tvmfl               705.485           706.534                 -             0.003         432934912
+29820729  20:09:00             ts-food-delivery-service-7cdc54dd4d-4jwk                 -                 -                 -             0.001         422215680
