@@ -1,0 +1,11 @@
+# instant_demande	instant_effectif	action	cause	intensite	cible	outil	resultat
+2026-09-12T19:01:45Z		injection	blocage		ts-delivery-service-79c46f4f45-bmgvs@workers2	sigstop	NON_CONFIRMEE
+2026-09-12T19:08:32Z	2026-09-12T19:08:33Z	retrait	blocage		ts-delivery-service-79c46f4f45-bmgvs	sigstop	ok
+2026-09-12T19:12:57Z	2026-09-12T19:12:59Z	injection	blocage		ts-delivery-service-79c46f4f45-bmgvs@workers2	sigstop	confirmee
+2026-09-12T19:17:55Z	2026-09-12T19:17:56Z	retrait	blocage		ts-delivery-service-79c46f4f45-bmgvs	sigstop	ok
+2026-09-12T20:03:00Z	2026-09-12T20:03:29Z	injection	charge	50	locust	loadgen	confirmee
+2026-09-12T20:07:58Z	2026-09-12T20:08:26Z	retrait	charge	50	locust	loadgen	ok
+2026-09-12T20:31:55Z	2026-09-12T20:31:59Z	injection	lenteur	300	ts-delivery-service x3 -> app=tsdb-mysql	chaos-mesh/networkchaos	confirmee
+2026-09-12T20:36:53Z	2026-09-12T20:36:57Z	retrait	lenteur	300	ts-delivery-service (3 répliques) -> app=tsdb-mysql	chaos-mesh	ok
+2026-09-12T20:48:44Z		injection	hote	2	workers0	chaos-mesh/stresschaos	NON_CONFIRMEE
+2026-09-12T20:53:41Z	2026-09-12T20:53:41Z	retrait	hote	2	workers0	chaos-mesh	ok
