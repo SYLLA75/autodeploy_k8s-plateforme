@@ -593,15 +593,32 @@ python3 -m venv .venv
 Laisse `access_key` et `secret_key` vides dans `config.yaml` : ils sont lus dans
 `.env.secrets`, qui n'a pas à être recopié.
 
-Ensuite, à chaque campagne, reporter la plage rendue par le pilote — **rien
-d'autre ne change** :
+Ensuite, à chaque campagne, reporter la plage exploitable — **rien d'autre ne
+change**. Le pilote l'affiche à la fin, et elle est écrite dans le compte
+rendu, pour quand le terminal n'est plus là :
+
+```bash
+grep -A3 '^plage_exploitable' campagnes/<nom>/campagne.yaml
+```
+
+```
+plage_exploitable:
+  date: 2026-09-10
+  from: "18:24:00"
+  to:   "19:20:00"
+```
+
+À recopier dans `graphe_en/config.yaml` :
 
 ```yaml
 range:
   date:       2026-09-10
-  from:       "18:24"
-  to:         "19:20"
+  from:       "18:24:00"
+  to:         "19:20:00"
 ```
+
+(`collecte.sh fenetre` ne peut plus répondre une fois la collecte arrêtée : le
+compte rendu est la seule source après coup.)
 
 ```bash
 set -a; . ../.env.secrets; set +a
