@@ -7,6 +7,19 @@ refaire une erreur déjà faite.
 
 ---
 
+## 2026-09-12 — Le gel d'une réplique doit partir de la machine
+
+**Mesuré** (essai-blocage, première tentative) : `kill -STOP` envoyé depuis
+l'intérieur du conteneur à Java, processus 1 → état `S`, rien ne se passe.
+Le noyau fait ignorer au processus 1 d'un conteneur les signaux envoyés
+depuis son propre conteneur, STOP compris. Sur simulateur, ça passait.
+
+**Décision** : le signal part de la machine, par le démon Chaos Mesh du nœud
+(processus de la machine en vue) : le processus Java est retrouvé par
+l'identifiant du conteneur dans son cgroup, gelé, et la levée est programmée
+dans le démon. `verifier blocage` exige un démon sur le nœud de chaque
+réplique. L'essai est à refaire.
+
 ## 2026-09-12 — Référence saine-07 : la plateforme réglée se comporte comme calculé
 
 Campagne complète (10 / 25 / 20 voyageurs), `scaler.json` écrit dessus.

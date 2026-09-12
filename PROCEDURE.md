@@ -288,9 +288,12 @@ Les quatre causes s'injectent toutes à la main. Deux le font mal :
 Et une raison qui n'est pas technique : « injecté avec Chaos Mesh 2.x » se
 vérifie, « injecté par un script maison » se croit sur parole.
 
-Bloquer une réplique n'en a pas besoin : un `SIGSTOP` suffit, les pods de
-train-ticket n'ayant pas de sonde de vivacité. Les quatre injections sont
-faites par `apps/panne.sh` (étape 11) ; `chaos.sh` installe seulement l'outil.
+Bloquer une réplique tient en un `SIGSTOP` (les pods de train-ticket n'ont
+pas de sonde de vivacité), mais il doit partir **de la machine** : Java est le
+processus 1 de son conteneur, et le noyau lui fait ignorer les signaux venus
+de l'intérieur du conteneur. C'est le démon Chaos Mesh du nœud, qui voit les
+processus de la machine, qui l'envoie. Les quatre injections sont faites par
+`apps/panne.sh` (étape 11) ; `chaos.sh` installe seulement l'outil.
 
 ### À figer
 
@@ -669,7 +672,7 @@ causes font grossir le tas, chacune pour une raison différente :
 | `charge` | deux fois plus de voyageurs : on dépose plus vite qu'on ne retire | `loadgen.sh scale` | `publish_rate` ↑, `consume_rate` plafonne à 3,75/s, `backlog` ↑ ; tout le reste sain |
 | `lenteur` | les 3 répliques attendent 300 ms de plus à chaque échange avec leur base, en plus du réglage de base | Chaos Mesh, retard réseau entre ces pods et `tsdb-mysql` (remplace le réglage le temps de la panne, le repose après) | `process_time_p50` ↑ sur les 3 répliques, cpu normal, hôtes normaux, `backlog` ↑ |
 | `hote` | un pod voisin, hors du graphe, occupe tous les cœurs de l'hôte d'UNE réplique | Chaos Mesh, stress CPU sur ce voisin | `cpu_pressure` ↑ sur cet hôte seul ; la réplique qui y vit ralentit, les 2 autres vont bien ; les autres services de cet hôte aussi |
-| `blocage` | une seule réplique est gelée, sans être tuée | `SIGSTOP` sur son processus Java | `consume_rate` 0 et cpu ≈ 0 sur elle, mémoire inchangée ; les 2 autres absorbent ; hôte normal ; après ~2 min le courtier ne compte plus que 2 consommateurs |
+| `blocage` | une seule réplique est gelée, sans être tuée | `SIGSTOP` sur son processus Java, envoyé depuis la machine par le démon Chaos Mesh | `consume_rate` 0 et cpu ≈ 0 sur elle, mémoire inchangée ; les 2 autres absorbent ; hôte normal ; après ~2 min le courtier ne compte plus que 2 consommateurs |
 
 Une campagne de panne est un profil de charge ordinaire sur lequel une
 injection est posée à une minute donnée :

@@ -22,9 +22,11 @@
 #  Et une raison qui n'est pas technique : « injecté avec Chaos Mesh 2.x » se
 #  vérifie, « injecté par un script maison » se croit sur parole.
 #
-#  Le blocage d'une réplique, lui, n'a pas besoin de Chaos Mesh : un SIGSTOP
-#  suffit, les pods de train-ticket n'ayant pas de sonde de vivacité. C'est
-#  apps/panne.sh qui injecte les quatre causes ; ce script-ci installe l'outil.
+#  Le blocage d'une réplique tient en un SIGSTOP (les pods de train-ticket
+#  n'ont pas de sonde de vivacité), envoyé depuis la machine par le démon de
+#  Chaos Mesh — le processus 1 d'un conteneur ignore les signaux venus de
+#  l'intérieur. C'est apps/panne.sh qui injecte les quatre causes ; ce
+#  script-ci installe l'outil.
 #
 #  À INSTALLER AVANT LA CAMPAGNE DE RÉFÉRENCE
 #

@@ -22,7 +22,9 @@
 #                  il ne voit que l'hôte qui souffre.
 #
 #     blocage    une seule réplique ne répond plus, sans être tuée
-#                → SIGSTOP sur son processus Java
+#                → SIGSTOP sur son processus Java, envoyé depuis la machine
+#                  par le démon Chaos Mesh (le processus 1 d'un conteneur
+#                  ignore les signaux venus de l'intérieur)
 #
 #  POURQUOI SIGSTOP ET PAS CHAOS MESH POUR LE BLOCAGE
 #
@@ -36,8 +38,8 @@
 #  CHAQUE INJECTION EXPIRE D'ELLE-MÊME
 #
 #  La durée est portée par l'injection, pas par celui qui la lance : Chaos Mesh
-#  lève la sienne à l'échéance, la levée du gel est programmée dans le conteneur
-#  gelé, le retour de charge par un minuteur sur le master. Un pilote qui meurt
+#  lève la sienne à l'échéance, la levée du gel est programmée dans le démon
+#  du nœud, le retour de charge par un minuteur sur le master. Un pilote qui meurt
 #  ne laisse pas la panne derrière lui. « retirer » lève tout de suite ; sans
 #  injection en cours, il nettoie ce qui aurait pu rester.
 #
@@ -67,6 +69,7 @@
 #      PANNE_BASE_LABEL     (défaut: app=tsdb-mysql)       les pods de la base du consommateur
 #      PANNE_VOISIN_NS      (défaut: voisin)               espace du voisin bruyant
 #      PANNE_VOISIN_IMAGE   (défaut: busybox:1.36)
+#      CHAOS_NAMESPACE      (défaut: chaos-mesh)           où vivent les démons
 # ==============================================================================
 set -uo pipefail
 
@@ -173,14 +176,51 @@ conteneurs_touches() {   # <kind> <ns> <nom>
     kubectl get "$1" "$3" -n "$2" -o jsonpath='{.status.experiment.containerRecords[*].id}' 2>/dev/null | wc -w
 }
 
-# L'état d'un processus se lit dans /proc : « T » veut dire gelé. Le script
-# tourne dans le conteneur, avec le sh minimal qu'il contient.
-etat_java() {   # <pod> → une ligne « pid état » par processus Java
-    kubectl exec -n "$NS" "$1" -- sh -c '
+# ------------------------------------------------------------------------------
+# Geler une réplique : depuis la machine, jamais depuis le conteneur
+# ------------------------------------------------------------------------------
+# Java est le processus 1 de son conteneur, et le noyau fait ignorer au
+# processus 1 les signaux envoyés depuis l'intérieur de son propre conteneur,
+# STOP compris. Le signal doit venir de la machine. Le démon Chaos Mesh tourne
+# sur chaque nœud avec les processus de la machine en vue : c'est par lui
+# qu'on trouve le processus (par l'identifiant du conteneur dans son cgroup),
+# qu'on le gèle, et qu'on programme la levée.
+# ------------------------------------------------------------------------------
+CHAOS_NS="${CHAOS_NAMESPACE:-chaos-mesh}"
+
+demon_du_pod() {   # <pod> → le démon Chaos Mesh du nœud qui porte ce pod
+    local noeud; noeud=$(kubectl get pod "$1" -n "$NS" -o jsonpath='{.spec.nodeName}' 2>/dev/null)
+    [ -n "$noeud" ] || return 1
+    kubectl get pods -n "$CHAOS_NS" -l app.kubernetes.io/component=chaos-daemon \
+        --field-selector="spec.nodeName=$noeud,status.phase=Running" --no-headers \
+        -o custom-columns=:metadata.name 2>/dev/null | head -1
+}
+
+id_conteneur() {   # <pod> → l'identifiant du premier conteneur, sans son préfixe
+    kubectl get pod "$1" -n "$NS" -o jsonpath='{.status.containerStatuses[0].containerID}' 2>/dev/null | sed 's|^.*://||'
+}
+
+# sur_la_machine <pod> <script sh> [args…] — exécute le script dans le démon
+# du nœud, avec $1 = identifiant du conteneur puis les args
+sur_la_machine() {
+    local pod="$1" script="$2"; shift 2
+    local demon cid
+    demon=$(demon_du_pod "$pod") || return 1
+    [ -n "$demon" ] || return 1
+    cid=$(id_conteneur "$pod"); [ -n "$cid" ] || return 1
+    kubectl exec -n "$CHAOS_NS" "$demon" -- sh -c "$script" sh "$cid" "$@" 2>/dev/null
+}
+
+# Le script commun : les processus Java du conteneur, vus de la machine.
+PIDS_JAVA='cid="$1"; p=""
 for d in /proc/[0-9]*; do
-    [ -r "$d/comm" ] && read -r c < "$d/comm" 2>/dev/null && [ "$c" = java ] || continue
-    read -r _ _ s _ < "$d/stat" 2>/dev/null && echo "${d#/proc/} $s"
-done' 2>/dev/null
+    grep -qs "$cid" "$d/cgroup" || continue
+    read -r c < "$d/comm" 2>/dev/null && [ "$c" = java ] && p="$p ${d#/proc/}"
+done'
+
+etat_java() {   # <pod> → une ligne « pid état » par processus Java
+    sur_la_machine "$1" "$PIDS_JAVA"'
+for i in $p; do read -r _ _ s _ < /proc/$i/stat 2>/dev/null && echo "$i $s"; done'
 }
 
 # ------------------------------------------------------------------------------
@@ -220,7 +260,10 @@ verifier_app() {
             kubectl top nodes >/dev/null 2>&1 \
                 || warn "kubectl top nodes muet : l'hôte sera choisi par ordre alphabétique, pas par charge" ;;
         blocage)
-            [ "$n" -ge 2 ] || { warn "$n réplique de $CONSO : « les autres vont bien » n'existe pas — étape 6, --replicas=3"; problemes=1; } ;;
+            [ "$n" -ge 2 ] || { warn "$n réplique de $CONSO : « les autres vont bien » n'existe pas — étape 6, --replicas=3"; problemes=1; }
+            for h in $(repliques | cut -f2 | sort -u); do
+                demon_sur "$h" || { warn "pas de démon Chaos Mesh sur $h : le gel s'envoie depuis la machine, par lui — chaos.sh status"; problemes=1; }
+            done ;;
     esac
     [ "$problemes" = "0" ] && { ok "prêt pour « $cause »"; return 0; }
     warn "PAS prêt pour « $cause »"
@@ -381,22 +424,17 @@ injecter_blocage() {
     [ -n "$hote" ] || fail "« $cible » n'est pas une réplique en marche de $CONSO"
 
     say "cause  : blocage — la réplique $cible (sur $hote) est gelée pendant $duree min, les autres continuent"
-    say "outil  : SIGSTOP sur le processus Java, levée programmée dans le conteneur"
+    say "outil  : SIGSTOP sur le processus Java, envoyé depuis la machine par le démon Chaos Mesh ; levée programmée là aussi"
     local demande; demande=$(maintenant)
     ecrire_etat CAUSE=blocage OUTIL=sigstop "CIBLE=$cible" "POD=$cible" "HOTE=$hote" INTENSITE= \
                 "DEBUT=$demande" "DUREE=$duree"
     local sortie
-    sortie=$(kubectl exec -n "$NS" "$cible" -- sh -c '
-secondes="$1"; p=""
-for d in /proc/[0-9]*; do
-    [ -r "$d/comm" ] && read -r c < "$d/comm" 2>/dev/null && [ "$c" = java ] && p="$p ${d#/proc/}"
-done
-[ -n "$p" ] || p=1
+    sortie=$(sur_la_machine "$cible" "$PIDS_JAVA"'
+[ -n "$p" ] || { echo "aucun processus java dans le conteneur $cid"; exit 1; }
 kill -STOP $p || exit 1
-nohup sh -c "sleep $secondes; kill -CONT $p" >/dev/null 2>&1 &
+nohup sh -c "sleep $2; kill -CONT $p" >/dev/null 2>&1 &
 sleep 1
-for i in $p; do read -r _ _ s _ < /proc/$i/stat && echo "$i $s"; done
-' sh "$((duree * 60))" 2>&1)
+for i in $p; do read -r _ _ s _ < /proc/$i/stat && echo "$i $s"; done' "$((duree * 60))" 2>&1)
     if [ $? -eq 0 ] && printf '%s\n' "$sortie" | grep -q ' T$'; then
         consigner "$demande" "$(maintenant)" injection blocage "" "$cible@$hote" sigstop confirmee
         ok "injectée — processus $(printf '%s\n' "$sortie" | grep ' T$' | cut -d' ' -f1 | paste -sd, -) gelé(s), levée dans $duree min"
@@ -404,7 +442,7 @@ for i in $p; do read -r _ _ s _ < /proc/$i/stat && echo "$i $s"; done
     fi
     printf '%s\n' "$sortie" | sed 's/^/      /' >&2
     consigner "$demande" "" injection blocage "" "$cible@$hote" sigstop NON_CONFIRMEE
-    warn "le gel n'est pas confirmé (aucun processus à l'état T)"
+    warn "le gel n'est pas confirmé (aucun processus à l'état T) — le démon Chaos Mesh est-il sur $hote ? chaos.sh status"
     return 1
 }
 
@@ -436,14 +474,9 @@ injecter_app() {
 # ------------------------------------------------------------------------------
 # retirer — lever l'injection en cours ; sans état, nettoyer ce qui traîne
 # ------------------------------------------------------------------------------
-degeler() {   # <pod> — CONT, puis vérifie qu'aucun processus Java n'est resté en T
-    kubectl exec -n "$NS" "$1" -- sh -c '
-p=""
-for d in /proc/[0-9]*; do
-    [ -r "$d/comm" ] && read -r c < "$d/comm" 2>/dev/null && [ "$c" = java ] && p="$p ${d#/proc/}"
-done
-[ -n "$p" ] || p=1
-kill -CONT $p' >/dev/null 2>&1 || return 1
+degeler() {   # <pod> — CONT depuis la machine, puis vérifie qu'aucun processus Java n'est resté en T
+    sur_la_machine "$1" "$PIDS_JAVA"'
+[ -n "$p" ] && kill -CONT $p' >/dev/null || return 1
     ! etat_java "$1" | grep -q ' T$'
 }
 
