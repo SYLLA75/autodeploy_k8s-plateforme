@@ -382,6 +382,12 @@ par message) est une estimation : la première référence le vérifie —
 générateur ou la charge de base changent, la valeur est à recalculer — et la
 référence à refaire.
 
+**Chaos Mesh sert ici de réglage, pas de panne.** C'est un outil qui sait
+retarder le trafic réseau ; on lui fait poser un retard *permanent* (sans
+durée), présent pendant la référence **et** pendant toutes les pannes — le
+modèle le voit comme la normale. La cause `lenteur` (étape 11) est le même
+curseur poussé plus loin le temps d'une injection, puis remis à sa valeur.
+
 Pourquoi un retard réseau et pas un sommeil dans la base : un déclencheur SQL
 qui dort à chaque insertion a été essayé d'abord. La base n'exécute qu'un
 sommeil à la fois, quel que soit le nombre de répliques (mesuré : 1 sommeil
@@ -399,11 +405,10 @@ Ce que ça donne pour les quatre causes, à 25 voyageurs de base :
 | lenteur (+300 ms par échange ≈ +1,5 s par message) | 80 % → 250 % : le tas grossit vite |
 | hote | faible : le temps par message est de l'attente, pas du CPU — à mesurer |
 
-**Vérification**, après deux minutes à 25 voyageurs :
+**Vérification** — trois regards, du plus direct au plus complet :
 
 ```bash
 bash ~/autodeploy/apps/consommateur.sh etat
-bash ~/autodeploy/apps/panne.sh temoin
 ```
 
 ```
@@ -412,10 +417,25 @@ bash ~/autodeploy/apps/panne.sh temoin
   prefetch : 1
 ```
 
-Dans le témoin, `food_delivery` doit rester à **0 en attente** (1 ou 2, jamais
-plus) : c'est la preuve que les trois répliques suivent à la charge de base.
-Si le tas grossit, le retard est trop grand ; s'il faut plus de 50 voyageurs
-pour le faire grossir (cause `charge`), il est trop petit.
+Le retard est-il *réellement* appliqué ? Ouvrir une connexion depuis une
+réplique vers la base doit prendre au moins 140 ms (mesuré sans retard :
+2 ms) :
+
+```bash
+P=$(kubectl get pods -n train-ticket -l app=ts-delivery-service -o custom-columns=:metadata.name --no-headers | head -1)
+kubectl exec -n train-ticket "$P" -c ts-delivery-service -- bash -c "time (exec 3<>/dev/tcp/tsdb-mysql-leader/3306)" 2>&1 | grep real
+```
+
+Puis, après deux minutes à 25 voyageurs (`loadgen.sh scale 25`) :
+
+```bash
+bash ~/autodeploy/apps/panne.sh temoin
+```
+
+`food_delivery` doit rester à **0 en attente** (1 ou 2, jamais plus), avec
+**2 ou 3 non acquittés** — les répliques travaillent et suivent. Si le tas
+grossit, le retard est trop grand ; s'il faut plus de 50 voyageurs pour le
+faire grossir (cause `charge`), il est trop petit.
 
 Le pilote recopie l'état du consommateur dans chaque compte rendu
 (`reglage_consommateur`) : deux campagnes ne se comparent que si elles l'ont
