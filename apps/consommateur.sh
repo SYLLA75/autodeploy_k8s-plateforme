@@ -105,6 +105,14 @@ declencheur_actuel() {   # la définition posée, vide s'il n'y en a pas
     sql "SELECT ACTION_STATEMENT FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='$DB' AND TRIGGER_NAME='$DECLENCHEUR';" 2>/dev/null
 }
 
+repliques_pretes() {   # toutes les répliques voulues sont-elles prêtes ET à jour ?
+    local v p m
+    v=$(kubectl get deploy "$DEPLOY" -n "$NS" -o jsonpath='{.spec.replicas}' 2>/dev/null)
+    p=$(kubectl get deploy "$DEPLOY" -n "$NS" -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
+    m=$(kubectl get deploy "$DEPLOY" -n "$NS" -o jsonpath='{.status.updatedReplicas}' 2>/dev/null)
+    [ -n "$v" ] && [ "${p:-0}" = "$v" ] && [ "${m:-0}" = "$v" ]
+}
+
 prefetch_actuel() {   # la valeur portée par le déploiement, vide si absente
     kubectl get deploy "$DEPLOY" -n "$NS" \
         -o jsonpath="{.spec.template.spec.containers[0].env[?(@.name==\"$ENV_PREFETCH\")].value}" 2>/dev/null
@@ -152,8 +160,11 @@ dimensionner_app() {
         kubectl set env deploy/"$DEPLOY" -n "$NS" "$ENV_PREFETCH=$prefetch" >/dev/null \
             || { consigner dimensionner "$temps" "$prefetch" ECHEC; fail "kubectl set env a échoué."; }
         say "redémarrage roulant des répliques (nouveaux pods, donc nouveaux nœuds dans le graphe — d'où « avant la référence »)…"
-        kubectl rollout status deploy/"$DEPLOY" -n "$NS" --timeout=300s >/dev/null \
-            || { consigner dimensionner "$temps" "$prefetch" ECHEC; fail "Les répliques ne sont pas revenues en 5 min :  kubectl get pods -n $NS -l app=$DEPLOY"; }
+        # Trois services Java qui redémarrent l'un après l'autre : compter
+        # jusqu'à dix minutes, et regarder l'état réel avant de conclure.
+        kubectl rollout status deploy/"$DEPLOY" -n "$NS" --timeout=600s >/dev/null 2>&1 \
+            || repliques_pretes \
+            || { consigner dimensionner "$temps" "$prefetch" ECHEC; fail "Les répliques ne sont pas revenues en 10 min :  kubectl get pods -n $NS -l app=$DEPLOY"; }
     fi
     consigner dimensionner "$temps" "$prefetch" ok
     ok "consommateur dimensionné — à conserver tel quel pour toutes les campagnes"
@@ -183,7 +194,7 @@ retirer_app() {
     if [ -n "$(prefetch_actuel)" ]; then
         say "Retrait du prefetch (redémarrage roulant)…"
         kubectl set env deploy/"$DEPLOY" -n "$NS" "$ENV_PREFETCH-" >/dev/null \
-            && kubectl rollout status deploy/"$DEPLOY" -n "$NS" --timeout=300s >/dev/null \
+            && { kubectl rollout status deploy/"$DEPLOY" -n "$NS" --timeout=600s >/dev/null 2>&1 || repliques_pretes; } \
             && ok "prefetch retiré" || warn "le prefetch n'a pas pu être retiré"
     fi
     consigner retirer "" "" ok
