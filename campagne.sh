@@ -288,6 +288,7 @@ echo
 # a réellement eu lieu.
 rates=0; echoues=0; injectees=0; non_injectees=0; INJECTION_ACTIVE=0; INTERROMPUE=0
 MARGE_S=$(( ${MARGE:-2} * 60 )); T_COLLECTE=""; T0=""
+T_PILOTE=$(date +%s)          # tout journal du master écrit après cet instant est à cette campagne
 etat_avant=""; etat_apres=""; fenetre=""; registre=""; registre_pannes=""; reglage_consommateur=""; etat_donnees=""
 plage_date=""; plage_de=""; plage_a=""
 
@@ -415,8 +416,13 @@ cloturer() {
     say "Rapatriement des registres et des journaux…"
     registre=$(ssh "$CIBLE" "cat '$DISTANT/journaux/paliers.tsv'" 2>/dev/null)
     registre_pannes=$(ssh "$CIBLE" "cat '$DISTANT/journaux/pannes.tsv'" 2>/dev/null)
-    scp -q -r "$CIBLE:$DISTANT/journaux/." "$DOSSIER/journaux/" 2>/dev/null \
-        && ok "journaux copiés" || warn "copie des journaux impossible"
+    # Les registres (.tsv) en entier : ils portent l'historique. Les journaux
+    # (.log) seulement ceux écrits depuis le départ du pilote : le dossier du
+    # master garde ceux de toutes les campagnes précédentes, qui n'ont rien à
+    # faire dans la provenance de celle-ci.
+    ssh "$CIBLE" "cd '$DISTANT/journaux' && find . -maxdepth 1 -type f \\( -name '*.tsv' -o -newermt '@$T_PILOTE' \\) -print0 | tar -c --null -T -" 2>/dev/null \
+        | tar -x -C "$DOSSIER/journaux" 2>/dev/null \
+        && ok "journaux copiés ($(ls "$DOSSIER/journaux" | wc -l) fichiers)" || warn "copie des journaux impossible"
 
     ecrire_compte_rendu
     echo

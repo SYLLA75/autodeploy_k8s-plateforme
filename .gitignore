@@ -11,6 +11,11 @@
 # Contient les identifiants MinIO en clair et la plage d'une campagne précise.
 # Partir de graphe_en/config.example.yaml.
 graphe_en/config.yaml
+# Une clé SSH copiée par erreur à la racine (un « scp %USERPROFILE% » mal
+# développé le fait) ne doit jamais partir avec un « git add ».
+*id_rsa*
+*id_ed25519*
+*.pem
 
 # --- Généré à l'exécution -----------------------------------------------------
 /journaux/

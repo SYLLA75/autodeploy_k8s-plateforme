@@ -50,14 +50,14 @@ def main(argv: list[str]) -> int:
         if missing:
             sys.exit(f"unknown column(s) {missing}; available: {cols}")
         if header is None:
-            header = f"{'window':>6}  {'start_utc':<20} {'instance':<22}" + "".join(f"{c:>18}" for c in wanted)
+            header = f"{'window':>6}  {'start_utc':<20} {'instance':<40}" + "".join(f"{c:>18}" for c in wanted)
             print(f"instances containing '{word}'    run: {run_dir}")
             print(header)
         for name, values in zip(block.get("names", []), block.get("X", [])):
             if word not in name:
                 continue
             row = [values[cols.index(c)] for c in wanted]
-            print(f"{snap['window']['index']:>6}  {snap['window']['start_utc']:<20} {name[:22]:<22}"
+            print(f"{snap['window']['index']:>6}  {snap['window']['start_utc']:<20} {name[:40]:<40}"
                   + "".join(f"{fmt(v):>18}" for v in row))
     return 0
 
