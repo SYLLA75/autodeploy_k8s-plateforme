@@ -7,6 +7,41 @@ refaire une erreur déjà faite.
 
 ---
 
+## 2026-09-12 — essai-charge : deuxième cause validée, et une règle d'intensité
+
+50 voyageurs (2 × la base) de la minute 3 à la minute 8, plage 20:02 → 20:10
+(`campagnes/essai-charge/lecture.txt`) :
+
+```
+   fenêtre   backlog  slope  publish  consume  imbalance
+   20:02         1      -     3,65     3,65      0,00     avant
+   20:04       308    153     7,47     4,25      3,22     injection à 20:03:29
+   20:07       800    171     7,13     4,23      2,90
+   20:08       813     93     4,05     4,20     -0,15     retrait à 20:08:26
+   20:09       784     -8     3,72     4,25     -0,53
+```
+
+L'entrée double, la sortie plafonne à 4,25/s (trois répliques à 706 ms),
+le tas monte de 170 par minute ; répliques, hôtes, temps par message :
+inchangés. C'est la ligne « charge » du tableau des causes.
+
+**Ce que l'essai apprend en plus** : le tas ne fond qu'à ~0,5–0,75/s sous
+la charge de base. Vingt minutes à 50 voyageurs feraient 3 300 messages,
+plus d'une heure de fonte : dans une campagne à trois injections, la
+deuxième partirait sur le tas de la première, et les fenêtres « saines »
+entre deux ne le seraient pas. **Règle retenue pour les grandes
+campagnes** : l'intensité est choisie pour que le tas construit pendant
+l'injection soit fondu avant l'injection suivante, calculée sur les débits
+mesurés dans l'essai. Les valeurs sont fixées après les essais lenteur et
+hôte (entrée suivante).
+
+**Nettoyé au passage** : deux boucles `while true; do panne.sh temoin;
+sleep 20; done`, restées orphelines sur le master après la fermeture de
+leurs sessions SSH, avaient écrit 780 fichiers dans `journaux/` ; tuées.
+Une simple lecture (`etat`, `temoin`, `bilan`, `fenetre`) n'écrit plus de
+journal. Et le pilote attend maintenant une file vide avant de partir, et
+relève le bilan des parcours toutes les dix minutes sans arrêter.
+
 ## 2026-09-12 — essai-blocage-02 : la première cause validée sur la plateforme
 
 25 voyageurs, réplique gelée de la minute 3 à la minute 8, lu au témoin
