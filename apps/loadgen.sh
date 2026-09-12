@@ -264,13 +264,16 @@ for s in sorted(d.get('stats', []), key=lambda x: x.get('name') or ''):
     # sinon (un parcours rare peut n'avoir aucun appel dans les dix secondes).
     juge = (fps / rps) if rps > 0 else taux
     # Un parcours JAMAIS EXÉCUTÉ est aussi grave qu'un parcours qui échoue, et
-    # bien plus discret : son taux d'échec vaut zéro.
-    souci = '   <<< échoue' if juge > 0.05 else ('   <<< jamais exécuté' if n == 0 else '')
+    # bien plus discret : son taux d'échec vaut zéro. Sauf les lignes « 0x » :
+    # c'est la connexion, qui ne tourne qu'à l'arrivée d'un voyageur et toutes
+    # les vingt minutes — zéro appel juste après un reset est normal.
+    connexion = nom.startswith('0')
+    souci = '   <<< échoue' if juge > 0.05 else ('   <<< jamais exécuté' if n == 0 and not connexion else '')
     if souci:
         mauvais += 1
     print('  %-30s %8d %8d %5.1f%%   %9.2f %9.2f %7d%s' % (nom[:30], n, e, 100 * taux, rps, fps, p50, souci))
 
-attendus = [x for x in os.environ.get('ATTENDUS', '').split('|') if x]
+attendus = [x for x in os.environ.get('ATTENDUS', '').split('|') if x and not x.startswith('0')]
 vus = {(s.get('name') or '') for s in d.get('stats', [])}
 for a in [a for a in attendus if a not in vus]:
     print('  %-30s %8s %8s %6s   %9s %9s %7s   <<< JAMAIS EXÉCUTÉ' % (a[:30], '-', '-', '-', '-', '-', '-'))
