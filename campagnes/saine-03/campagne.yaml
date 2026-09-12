@@ -1,0 +1,82 @@
+# Conditions expérimentales — écrit par campagne.sh, ne pas éditer à la main.
+# Les réglages d'analyse sont ailleurs : graphe_en/runs/<date>/graph/manifest.json
+
+campagne: saine-03
+type: saine
+pilote_le: 2026-09-11T22:46:44Z
+
+profil_demande: "10:15,30:15,10:15,55:15"
+duree_prevue_min: 60
+paliers_confirmes: 4
+paliers_non_confirmes: 0
+
+plage_exploitable:
+  date: 2026-09-11
+  from: "21:42"
+  to:   "22:44"
+
+# Ce que le pilote a fait, dans l'ordre.
+deroule:
+  - { instant: 2026-09-11T21:45:04Z, action: etat_initial }
+  - { instant: 2026-09-11T21:45:04Z, action: collecte_demarree }
+  - { instant: 2026-09-11T21:45:05Z, action: charge, voyageurs: 10, resultat: confirme }
+  - { instant: 2026-09-11T22:00:28Z, action: charge, voyageurs: 30, resultat: confirme }
+  - { instant: 2026-09-11T22:15:51Z, action: charge, voyageurs: 10, resultat: confirme }
+  - { instant: 2026-09-11T22:31:41Z, action: charge, voyageurs: 55, resultat: confirme }
+  - { instant: 2026-09-11T22:46:43Z, action: collecte_arretee }
+
+# Registre écrit par loadgen.sh après vérification de la charge RÉELLE.
+# instant_demande / instant_effectif encadrent la montée, pendant laquelle
+# la charge n'est ni l'ancienne ni la nouvelle.
+paliers_mesures: |
+  # instant_demande	instant_effectif	voyageurs_observes	voyageurs_demandes	spawn_rate	cible	origine
+  2026-09-11T21:29:50Z	2026-09-11T21:29:50Z	10	10	1	train-ticket	demarrage
+  2026-09-11T21:30:21Z	2026-09-11T21:30:21Z	10	10	1	train-ticket	demarrage
+  2026-09-11T21:40:53Z	2026-09-11T21:40:53Z	10	10	1	train-ticket	demarrage
+  2026-09-11T21:45:04Z	2026-09-11T21:45:05Z	10	10	1	train-ticket	demande
+  2026-09-11T22:00:06Z	2026-09-11T22:00:28Z	30	30	1	train-ticket	demande
+  2026-09-11T22:15:29Z	2026-09-11T22:15:51Z	10	10	1	train-ticket	demande
+  2026-09-11T22:30:52Z	2026-09-11T22:31:41Z	55	55	1	train-ticket	demande
+
+# Sortie verbatim de « collecte.sh fenetre » :
+#   
+#     [collecte] Passerelle démarrée à  21:32:39 UTC
+#     [collecte] Charge démarrée à      21:40:53 UTC
+#     [collecte] Origine retenue        21:40:53 UTC  (démarrage du générateur de charge)
+#     [collecte] Il est 22:46:42 UTC — 65 minutes exploitables
+#     [collecte] Marge de 2 minute(s) écartée de chaque côté (montée en charge, latence d'écriture).
+#   
+#     À recopier dans graphe_en/config.yaml :
+#   
+#       range:
+#         date:       2026-09-11
+#         from:       "21:42"
+#         to:         "22:44"
+
+# État du cluster AVANT :
+#   
+#        COLLECTE EN MARCHE — les mesures partent vers le magasin
+#        ────────────────────────────────────────────────────────
+#   
+#        passerelle vers le magasin         1 exemplaire(s)
+#        générateur de charge             1 exemplaire(s)
+#        microservices                      58/58 prêts
+#        collecteurs locaux (traces)        6 en marche
+#        relevés de machines               8 en marche
+#   
+#        Pour connaître la plage à rapatrier :  bash /home/ubuntu/autodeploy/apps/collecte.sh fenetre
+
+# État du cluster APRÈS :
+#   
+#        COLLECTE ARRÊTÉE — rien n'arrive dans le magasin
+#        ────────────────────────────────────────────────────────
+#   
+#        passerelle vers le magasin         arrêtée
+#        générateur de charge             1 exemplaire(s)
+#        microservices                      58/58 prêts
+#        collecteurs locaux (traces)        6 en marche
+#        relevés de machines               8 en marche
+#   
+#        L'application tourne et reste instrumentée. Les traces produites
+#        pendant l'arrêt sont perdues — c'est le but.
+#        Pour enregistrer :  bash /home/ubuntu/autodeploy/apps/collecte.sh demarrer
