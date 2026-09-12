@@ -439,7 +439,8 @@ faire grossir (cause `charge`), il est trop petit.
 
 Le pilote recopie l'état du consommateur dans chaque compte rendu
 (`reglage_consommateur`) : deux campagnes ne se comparent que si elles l'ont
-identique.
+identique. Après la référence, `instances.py runs/<horodatage> delivery`
+donne le temps par message réellement mesuré (`process_time_p50`).
 
 ---
 
@@ -732,8 +733,15 @@ ssh master 'bash ~/autodeploy/apps/panne.sh retirer'
    ```
 
    Attendu : `publish_rate` ≈ 3,4/s à 25 voyageurs, `backlog` 0 partout, 3
-   consommateurs, et `process_time_p50` ≈ 0,7 s sur les répliques dans les
-   figures. Si le tas grossit déjà, le temps de service est trop grand.
+   consommateurs. Et le temps par message des répliques, qui ne se lit pas
+   sur la figure (elle colore les instances par CPU) mais par :
+
+   ```bash
+   ./.venv/bin/python instances.py runs/<horodatage> delivery
+   ```
+
+   Attendu : `process_time_p50` ≈ 0,7 s sur les trois répliques. Si le tas
+   grossit déjà, le temps de service est trop grand.
 
 2. **Un essai court par cause**, figures à l'appui, avant de dépenser des
    heures : on vérifie que la trace attendue est visible.

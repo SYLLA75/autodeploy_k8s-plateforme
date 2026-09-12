@@ -178,6 +178,17 @@ rates, their difference, the consumer count. This is how a calibration
 campaign is read: the load step where the backlog starts to grow is where the
 consumer saturates.
 
+### One instance, one line per window
+
+```bash
+./.venv/bin/python instances.py runs/20260910-034521 delivery [column ...]
+```
+
+Every instance whose name contains the word, with `process_time_p50`,
+`process_time_p95`, `error_ratio`, `cpu_rate`, `memory_used` by default (any
+instance column can be named instead). This is how the consumer's service
+time is read after a reference, and how one replica is watched during a fault.
+
 Text goes where nodes are few (queues, hosts); the node fill carries the value
 where they are many (instances). `figures.node_value` and `figures.host_value`
 accept any component name.
