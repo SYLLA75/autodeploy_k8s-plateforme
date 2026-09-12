@@ -557,6 +557,25 @@ ssh master 'bash ~/autodeploy/apps/panne.sh retirer'
    ./campagne.sh etalonnage --profil "10:10,20:10,40:10,80:10,160:10"
    ```
 
+   Puis l'étape 12 sur cette campagne (`export.scaler: apply` — la référence
+   reste la campagne saine), et une ligne par fenêtre pour la file :
+
+   ```bash
+   cd graphe_en && ./.venv/bin/python queues.py runs/<horodatage>
+   ```
+
+   ```
+   window  start_utc                 backlog  …  publish_rate  consume_rate  rate_imbalance  consumers
+       12  2026-09-12T10:12:00Z            0         0.610         0.610           0.000          3
+       31  2026-09-12T10:31:00Z           12         2.400         1.100           1.300          3
+   ```
+
+   Le palier où `backlog` se met à grossir — ou `consume_rate` cesse de suivre
+   `publish_rate` — est celui où le consommateur sature. Les instants de chaque
+   palier sont dans `paliers_mesures` du compte rendu. Si aucun palier ne
+   sature, c'est un résultat aussi : la cause `charge` demandera plus que 160
+   voyageurs, ou le générateur lui-même plafonne avant.
+
 2. **Un essai court par cause**, figures à l'appui, avant de dépenser des
    heures : on vérifie que la trace attendue est visible.
 

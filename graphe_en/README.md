@@ -160,12 +160,23 @@ Unique services stay short.
 ### Redrawing without refetching
 
 ```bash
-python3 run.py --render-only runs/20260910-034521
+./.venv/bin/python run.py --render-only runs/20260910-034521
 ```
 
 Changing which component fills the nodes, or the output format, does not need
 the archives again — the snapshots hold everything the figures use. Seven
 seconds instead of a full fetch.
+
+### One queue, one line per window
+
+```bash
+./.venv/bin/python queues.py runs/20260910-034521 [food_delivery]
+```
+
+Prints the six queue components of every window — backlog, its slope, the two
+rates, their difference, the consumer count. This is how a calibration
+campaign is read: the load step where the backlog starts to grow is where the
+consumer saturates.
 
 Text goes where nodes are few (queues, hosts); the node fill carries the value
 where they are many (instances). `figures.node_value` and `figures.host_value`
