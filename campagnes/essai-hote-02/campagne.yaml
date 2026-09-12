@@ -1,0 +1,209 @@
+# Conditions expérimentales — écrit par campagne.sh, ne pas éditer à la main.
+# Les réglages d'analyse sont ailleurs : graphe_en/runs/<date>/graph/manifest.json
+
+campagne: essai-hote-02
+type: panne
+pilote_le: 2026-09-12T21:10:45Z
+
+profil_demande: "25:12"
+duree_prevue_min: 12
+paliers_confirmes: 1
+paliers_non_confirmes: 0
+
+panne:
+  cause: hote
+  intensite: defaut
+  cible: automatique
+  debuts_min: [3]
+  duree_min: 5
+  injections_confirmees: 1
+  injections_non_confirmees: 0
+
+# Réglage du consommateur (consommateur.sh etat), identique pour toutes les
+# campagnes comparées entre elles.
+reglage_consommateur: |
+    consommateur : ts-delivery-service (3/3 répliques prêtes)
+    temps de service : 140 ms de retard par échange avec la base, ≈ 700 ms par message   (appliqué)
+    prefetch : 1
+
+# Données de l'application au départ (donnees.sh etat), après remise à zéro
+# sauf --sans-purge : le comportement de train-ticket en dépend.
+donnees_au_depart: |
+    orders                1 lignes
+    orders_other          0 lignes
+    food_order            7 lignes
+    delivery              6 lignes
+    commandes les plus concentrées : 1 sur D1345 le 2026-09-26
+    total : 14 lignes
+
+# Calculée par le pilote : mise en route de la collecte + marge → fin − marge.
+plage_exploitable:
+  date: 2026-09-12
+  from: "21:01"
+  to:   "21:08"
+
+# Ce que le pilote a fait, dans l'ordre.
+deroule:
+  - { instant: 2026-09-12T20:58:31Z, action: etat_initial }
+  - { instant: 2026-09-12T20:58:35Z, action: donnees_remises_a_zero }
+  - { instant: 2026-09-12T20:58:41Z, action: collecte_demarree }
+  - { instant: 2026-09-12T20:58:42Z, action: compteurs_locust_remis_a_zero }
+  - { instant: 2026-09-12T20:58:43Z, action: charge, voyageurs: 25, resultat: confirme }
+  - { instant: 2026-09-12T21:00:44Z, action: controle_parcours, resultat: ok }
+  - { instant: 2026-09-12T21:01:43Z, action: temoin, moment: avant }
+  - { instant: 2026-09-12T21:01:51Z, action: injection, cause: hote, resultat: confirme }
+  - { instant: 2026-09-12T21:04:13Z, action: temoin, moment: pendant }
+  - { instant: 2026-09-12T21:07:16Z, action: retrait, cause: hote, resultat: ok }
+  - { instant: 2026-09-12T21:07:43Z, action: temoin, moment: apres }
+  - { instant: 2026-09-12T21:08:45Z, action: veille_parcours, resultat: ok, file: 2 }
+  - { instant: 2026-09-12T21:10:44Z, action: collecte_arretee }
+
+# Registre écrit par loadgen.sh après vérification de la charge RÉELLE.
+# instant_demande / instant_effectif encadrent la montée, pendant laquelle
+# la charge n'est ni l'ancienne ni la nouvelle.
+paliers_mesures: |
+  # instant_demande	instant_effectif	voyageurs_observes	voyageurs_demandes	spawn_rate	cible	origine
+  2026-09-11T21:29:50Z	2026-09-11T21:29:50Z	10	10	1	train-ticket	demarrage
+  2026-09-11T21:30:21Z	2026-09-11T21:30:21Z	10	10	1	train-ticket	demarrage
+  2026-09-11T21:40:53Z	2026-09-11T21:40:53Z	10	10	1	train-ticket	demarrage
+  2026-09-11T21:45:04Z	2026-09-11T21:45:05Z	10	10	1	train-ticket	demande
+  2026-09-11T22:00:06Z	2026-09-11T22:00:28Z	30	30	1	train-ticket	demande
+  2026-09-11T22:15:29Z	2026-09-11T22:15:51Z	10	10	1	train-ticket	demande
+  2026-09-11T22:30:52Z	2026-09-11T22:31:41Z	55	55	1	train-ticket	demande
+  2026-09-12T13:23:40Z	2026-09-12T13:24:07Z	80	80	1	train-ticket	demande
+  2026-09-12T13:33:40Z	2026-09-12T13:35:01Z	160	160	1	train-ticket	demande
+  2026-09-12T13:43:40Z	2026-09-12T13:46:22Z	320	320	1	train-ticket	demande
+  2026-09-12T14:07:44Z		265	25	1	train-ticket	demande_non_aboutie
+  2026-09-12T14:10:12Z		117	25	1	train-ticket	demande_non_aboutie
+  2026-09-12T14:34:16Z	2026-09-12T14:34:16Z	10	10	1	train-ticket	demarrage
+  2026-09-12T14:54:21Z	2026-09-12T14:54:38Z	25	25	1	train-ticket	demande
+  2026-09-12T15:01:19Z	2026-09-12T15:01:47Z	1	1	1	train-ticket	demande
+  2026-09-12T15:12:55Z	2026-09-12T15:13:01Z	5	5	1	train-ticket	demande
+  2026-09-12T15:25:32Z	2026-09-12T15:25:32Z	10	10	1	train-ticket	demarrage
+  2026-09-12T15:30:30Z	2026-09-12T15:30:48Z	25	25	1	train-ticket	demande
+  2026-09-12T16:09:22Z	2026-09-12T16:09:39Z	10	10	1	train-ticket	demande
+  2026-09-12T16:15:19Z	2026-09-12T16:15:19Z	10	10	1	train-ticket	demande
+  2026-09-12T16:17:20Z	2026-09-12T16:17:21Z	10	10	1	train-ticket	demande
+  2026-09-12T16:21:20Z	2026-09-12T16:21:20Z	10	10	1	train-ticket	demande
+  2026-09-12T16:22:56Z	2026-09-12T16:22:57Z	10	10	1	train-ticket	demande
+  2026-09-12T16:37:57Z	2026-09-12T16:38:14Z	25	25	1	train-ticket	demande
+  2026-09-12T17:07:57Z	2026-09-12T17:08:03Z	20	20	1	train-ticket	demande
+  2026-09-12T17:22:57Z	2026-09-12T17:23:09Z	10	10	1	train-ticket	demande
+  2026-09-12T18:58:43Z	2026-09-12T18:59:01Z	25	25	1	train-ticket	demande
+  2026-09-12T19:09:55Z	2026-09-12T19:09:56Z	25	25	1	train-ticket	demande
+  2026-09-12T19:59:59Z	2026-09-12T20:00:00Z	25	25	1	train-ticket	demande
+  2026-09-12T20:03:01Z	2026-09-12T20:03:29Z	50	50	1	train-ticket	panne
+  2026-09-12T20:07:59Z	2026-09-12T20:08:26Z	25	25	1	train-ticket	retour_panne
+  2026-09-12T20:28:54Z	2026-09-12T20:28:55Z	25	25	1	train-ticket	demande
+  2026-09-12T20:45:41Z	2026-09-12T20:45:42Z	25	25	1	train-ticket	demande
+  2026-09-12T20:58:43Z	2026-09-12T20:58:43Z	25	25	1	train-ticket	demande
+
+# Registre écrit par panne.sh : qui a été touché, quand, avec quoi.
+pannes_mesurees: |
+  # instant_demande	instant_effectif	action	cause	intensite	cible	outil	resultat
+  2026-09-12T19:01:45Z		injection	blocage		ts-delivery-service-79c46f4f45-bmgvs@workers2	sigstop	NON_CONFIRMEE
+  2026-09-12T19:08:32Z	2026-09-12T19:08:33Z	retrait	blocage		ts-delivery-service-79c46f4f45-bmgvs	sigstop	ok
+  2026-09-12T19:12:57Z	2026-09-12T19:12:59Z	injection	blocage		ts-delivery-service-79c46f4f45-bmgvs@workers2	sigstop	confirmee
+  2026-09-12T19:17:55Z	2026-09-12T19:17:56Z	retrait	blocage		ts-delivery-service-79c46f4f45-bmgvs	sigstop	ok
+  2026-09-12T20:03:00Z	2026-09-12T20:03:29Z	injection	charge	50	locust	loadgen	confirmee
+  2026-09-12T20:07:58Z	2026-09-12T20:08:26Z	retrait	charge	50	locust	loadgen	ok
+  2026-09-12T20:31:55Z	2026-09-12T20:31:59Z	injection	lenteur	300	ts-delivery-service x3 -> app=tsdb-mysql	chaos-mesh/networkchaos	confirmee
+  2026-09-12T20:36:53Z	2026-09-12T20:36:57Z	retrait	lenteur	300	ts-delivery-service (3 répliques) -> app=tsdb-mysql	chaos-mesh	ok
+  2026-09-12T20:48:44Z		injection	hote	2	workers0	chaos-mesh/stresschaos	NON_CONFIRMEE
+  2026-09-12T20:53:41Z	2026-09-12T20:53:41Z	retrait	hote	2	workers0	chaos-mesh	ok
+  2026-09-12T21:01:44Z	2026-09-12T21:01:51Z	injection	hote	2	workers0	chaos-mesh/stresschaos	confirmee
+  2026-09-12T21:06:43Z	2026-09-12T21:07:16Z	retrait	hote	2	workers0	chaos-mesh	ok
+
+# Témoins relevés par panne.sh, verbatim :
+#   
+#   --- témoin « avant » à 2026-09-12T21:01:43Z
+#     instant : 2026-09-12T21:01:42Z
+#     file food_delivery : 2 en attente, 3 non acquitté(s), 3 consommateur(s)
+#     voyageurs : 25
+#     répliques de ts-delivery-service :
+#         ts-delivery-service-79c46f4f45-bmgvs          workers2   cpu 4m  mém 407Mi
+#         ts-delivery-service-79c46f4f45-r5pwb          workers0   cpu 4m  mém 399Mi
+#         ts-delivery-service-79c46f4f45-tvmfl          workers5   cpu 4m  mém 407Mi
+#     hôtes :
+#         workers0   cpu 207m (6%)  mém 5509Mi (78%)
+#         workers2   cpu 209m (6%)  mém 6002Mi (85%)
+#         workers5   cpu 232m (6%)  mém 4847Mi (68%)
+#     injection : aucune
+#   
+#   --- témoin « pendant » à 2026-09-12T21:04:13Z
+#     instant : 2026-09-12T21:04:12Z
+#     file food_delivery : 0 en attente, 3 non acquitté(s), 3 consommateur(s)
+#     voyageurs : 25
+#     répliques de ts-delivery-service :
+#         ts-delivery-service-79c46f4f45-bmgvs          workers2   cpu 4m  mém 407Mi
+#         ts-delivery-service-79c46f4f45-r5pwb          workers0   cpu 4m  mém 399Mi
+#         ts-delivery-service-79c46f4f45-tvmfl          workers5   cpu 4m  mém 406Mi
+#     hôtes :
+#         workers0   cpu 4000m (117%)  mém 5533Mi (78%)
+#         workers2   cpu 188m (5%)  mém 6000Mi (85%)
+#         workers5   cpu 179m (5%)  mém 4852Mi (68%)
+#     injection : hote depuis 2026-09-12T21:01:44Z
+#   
+#   --- témoin « apres » à 2026-09-12T21:07:43Z
+#     instant : 2026-09-12T21:07:42Z
+#     file food_delivery : 0 en attente, 2 non acquitté(s), 3 consommateur(s)
+#     voyageurs : 25
+#     répliques de ts-delivery-service :
+#         ts-delivery-service-79c46f4f45-bmgvs          workers2   cpu 14m  mém 406Mi
+#         ts-delivery-service-79c46f4f45-r5pwb          workers0   cpu 5m  mém 399Mi
+#         ts-delivery-service-79c46f4f45-tvmfl          workers5   cpu 3m  mém 406Mi
+#     hôtes :
+#         workers0   cpu 248m (7%)  mém 5516Mi (78%)
+#         workers2   cpu 194m (5%)  mém 6004Mi (85%)
+#         workers5   cpu 180m (5%)  mém 4837Mi (68%)
+#     injection : aucune
+
+# Sortie verbatim de « collecte.sh fenetre » :
+#   
+#     [collecte] Passerelle démarrée à  20:58:37 UTC
+#     [collecte] Charge démarrée à      15:25:32 UTC
+#     [collecte] Origine retenue        20:58:37 UTC  (démarrage de la passerelle)
+#     [collecte] Il est 21:10:43 UTC — 12 minutes exploitables
+#     [collecte] Marge de 2 minute(s) écartée de chaque côté (montée en charge, latence d'écriture).
+#   
+#     [collecte] La collecte a déjà été interrompue au moins une fois.
+#     [collecte]   Le magasin contient aussi des mesures antérieures, séparées de
+#     [collecte]   celles-ci par un blanc. La plage ci-dessous s'arrête au bord du
+#     [collecte]   blanc : ne l'élargis pas vers le passé sans le savoir.
+#   
+#     À recopier dans graphe_en/config.yaml :
+#   
+#       range:
+#         date:       2026-09-12
+#         from:       "21:00"
+#         to:         "21:08"
+
+# État du cluster AVANT :
+#   
+#        COLLECTE ARRÊTÉE — rien n'arrive dans le magasin
+#        ────────────────────────────────────────────────────────
+#   
+#        passerelle vers le magasin         arrêtée
+#        générateur de charge             1 exemplaire(s)
+#        microservices                      58/58 prêts
+#        collecteurs locaux (traces)        6 en marche
+#        relevés de machines               8 en marche
+#   
+#        L'application tourne et reste instrumentée. Les traces produites
+#        pendant l'arrêt sont perdues — c'est le but.
+#        Pour enregistrer :  bash /home/ubuntu/autodeploy/apps/collecte.sh demarrer
+
+# État du cluster APRÈS :
+#   
+#        COLLECTE ARRÊTÉE — rien n'arrive dans le magasin
+#        ────────────────────────────────────────────────────────
+#   
+#        passerelle vers le magasin         arrêtée
+#        générateur de charge             1 exemplaire(s)
+#        microservices                      58/58 prêts
+#        collecteurs locaux (traces)        6 en marche
+#        relevés de machines               8 en marche
+#   
+#        L'application tourne et reste instrumentée. Les traces produites
+#        pendant l'arrêt sont perdues — c'est le but.
+#        Pour enregistrer :  bash /home/ubuntu/autodeploy/apps/collecte.sh demarrer
