@@ -350,7 +350,7 @@ appel est aussi grave qu'un parcours qui échoue — voir « Avant chaque campag
 **Où** : sur le master · **Durée** : 3 minutes (une minute de redémarrage roulant)
 
 ```bash
-bash ~/autodeploy/apps/consommateur.sh dimensionner --temps 0.8
+bash ~/autodeploy/apps/consommateur.sh dimensionner --temps 0.7
 ```
 
 **Pourquoi** : une faute de coordination n'apparaît que si le consommateur est
@@ -358,9 +358,9 @@ taillé pour sa charge, avec peu de marge — comme dans tout système réel. Or
 `ts-delivery-service` ne fait presque rien par message :
 
 ```
-   ce qui arrive dans la file        3 messages/s   (25 voyageurs)
+   ce qui arrive dans la file      3,4 messages/s   (25 voyageurs, mesuré)
    ce que 3 répliques absorbent   ~500 messages/s   (6 ms par message)
-   marge                             × 170
+   marge                             × 150
 ```
 
 Avec cette marge, une réplique gelée ou un hôte saturé ne changent rien à la
@@ -370,13 +370,15 @@ référence saine, et jamais changés ensuite** :
 
 | réglage | ce que c'est | effet |
 |---|---|---|
-| temps de service `--temps 0.8` | un déclencheur SQL sur la table où le consommateur écrit : chaque insertion attend 0,8 s | 3 répliques absorbent 3,75 messages/s ; à 25 voyageurs, la file est occupée à **80 %** |
+| temps de service `--temps 0.7` | un déclencheur SQL sur la table où le consommateur écrit : chaque insertion attend 0,7 s | 3 répliques absorbent 4,3 messages/s ; à 25 voyageurs (3,4/s), la file est occupée à **80 %** |
 | `--prefetch 1` (défaut) | le courtier ne confie qu'un message à la fois à chaque réplique, au lieu de 250 d'avance | le tas visible bouge dès le premier message en retard ; une réplique gelée n'en emporte pas 250 |
 
 Comment la valeur est choisie : capacité = répliques ÷ temps de service ;
-on vise 80 % à la charge de base, donc `temps = 0,8 × 3 ÷ 3 = 0,8 s`. Si le
-générateur ou la charge de base changent, la valeur est à recalculer — et la
-référence à refaire.
+on vise 80 % à la charge de base, donc `temps = 0,8 × 3 ÷ 3,4 = 0,7 s`. Le
+débit de base se lit dans `bilan` (colonne maintenant/s de « commander un
+repas », plus la moitié de « réserver un billet »). Si le générateur ou la
+charge de base changent, la valeur est à recalculer — et la référence à
+refaire.
 
 Ce que ça donne pour les quatre causes, à 25 voyageurs de base :
 
@@ -395,13 +397,13 @@ bash ~/autodeploy/apps/consommateur.sh etat
 
 ```
   consommateur : ts-delivery-service (3/3 répliques prêtes)
-  temps de service : 0.8 s par message   (déclencheur ts.delivery.temps_de_service)
+  temps de service : 0.7 s par message   (déclencheur ts.delivery.temps_de_service)
   prefetch : 1
 ```
 
 Le pilote recopie cette sortie dans chaque compte rendu (`reglage_consommateur`) :
 deux campagnes ne se comparent que si elles l'ont identique. Le graphe doit
-ensuite montrer `process_time_p50` ≈ 0,8 s sur les trois répliques.
+ensuite montrer `process_time_p50` ≈ 0,7 s sur les trois répliques.
 
 ---
 
@@ -685,8 +687,8 @@ ssh master 'bash ~/autodeploy/apps/panne.sh retirer'
    cd graphe_en && ./.venv/bin/python queues.py runs/<horodatage>
    ```
 
-   Attendu : `publish_rate` ≈ 3/s à 25 voyageurs, `backlog` 0 partout, 3
-   consommateurs, et `process_time_p50` ≈ 0,8 s sur les répliques dans les
+   Attendu : `publish_rate` ≈ 3,4/s à 25 voyageurs, `backlog` 0 partout, 3
+   consommateurs, et `process_time_p50` ≈ 0,7 s sur les répliques dans les
    figures. Si le tas grossit déjà, le temps de service est trop grand.
 
 2. **Un essai court par cause**, figures à l'appui, avant de dépenser des

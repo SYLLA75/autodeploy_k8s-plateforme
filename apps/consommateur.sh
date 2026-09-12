@@ -33,11 +33,11 @@
 #  COMMENT CHOISIR S
 #
 #  Capacité des N répliques = N / S messages par seconde. On vise ~80 % à la
-#  charge de base :  S = 0,8 × N / débit_de_base. Avec 3 répliques et 3
-#  messages/s (25 voyageurs, générateur par défaut) : S = 0,8 s.
+#  charge de base :  S = 0,8 × N / débit_de_base. Avec 3 répliques et 3,4
+#  messages/s mesurés (25 voyageurs, générateur par défaut) : S = 0,7 s.
 #
 #  Usage (depuis le master) :
-#      bash ~/autodeploy/apps/consommateur.sh dimensionner --temps 0.8 [--prefetch 1]
+#      bash ~/autodeploy/apps/consommateur.sh dimensionner --temps 0.7 [--prefetch 1]
 #      bash ~/autodeploy/apps/consommateur.sh etat
 #      bash ~/autodeploy/apps/consommateur.sh retirer
 #

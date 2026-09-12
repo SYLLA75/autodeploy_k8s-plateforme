@@ -80,10 +80,12 @@ l'application tient à 50 voyageurs (moins de demande qu'avant à 25).
 Deux réglages de plateforme, posés une fois avant la référence, jamais
 changés ensuite, recopiés dans chaque compte rendu (`reglage_consommateur`) :
 
-- **temps de service 0,8 s par message** : un déclencheur SQL sur la table
-  `delivery` (`BEFORE INSERT … SLEEP(0.8)`). Capacité des 3 répliques :
-  3,75 messages/s ; à 25 voyageurs (3/s), occupation 80 %. Formule :
-  `temps = 0,8 × répliques ÷ débit_de_base`.
+- **temps de service 0,7 s par message** : un déclencheur SQL sur la table
+  `delivery` (`BEFORE INSERT … SLEEP(0.7)`). Capacité des 3 répliques :
+  4,3 messages/s ; à 25 voyageurs, **3,4 messages/s mesurés** (3,0 du parcours
+  direct + 0,4 des réservations avec repas), occupation 80 %. Formule :
+  `temps = 0,8 × répliques ÷ débit_de_base`. (D'abord posé à 0,8 s sur le
+  calcul à 3/s ; corrigé à 0,7 s après mesure du débit réel.)
 - **prefetch 1** (`SPRING_RABBITMQ_LISTENER_SIMPLE_PREFETCH=1`) : par défaut
   le courtier confie 250 messages d'avance à chaque réplique ; le tas visible
   (`messages_ready`) n'aurait bougé qu'après 750 messages en souffrance, et une
