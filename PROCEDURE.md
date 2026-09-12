@@ -757,13 +757,33 @@ ssh master 'bash ~/autodeploy/apps/panne.sh retirer'
    ./campagne.sh essai-blocage --profil "25:12" --panne blocage --a 3 --duree 5
    ```
 
-3. **Les campagnes** : 5 min sain, 20 min panne, 5 min retour, trois fois,
-   dans l'ordre `charge`, `blocage`, `lenteur`, `hote` — du plus simple au plus
-   délicat.
+3. **Les campagnes** : 5 min sain, puis trois fois « 20 min de panne, 25 min
+   de retour », dans l'ordre `charge`, `blocage`, `lenteur`, `hote` — du plus
+   simple au plus délicat. 135 minutes chacune.
 
    ```bash
-   ./campagne.sh charge-01 --profil "25:90" --panne charge --a 5,35,65 --duree 20 --intensite 50
+   ./campagne.sh charge-01  --profil "25:135" --panne charge  --a 5,50,95 --duree 20 --intensite 35
+   ./campagne.sh blocage-01 --profil "25:135" --panne blocage --a 5,50,95 --duree 20
+   ./campagne.sh lenteur-01 --profil "25:135" --panne lenteur --a 5,50,95 --duree 20 --intensite 75
+   ./campagne.sh hote-01    --profil "25:135" --panne hote    --a 5,50,95 --duree 20
    ```
+
+   **D'où viennent 25 minutes de retour, 35 voyageurs et 75 ms** — de la règle
+   suivante, calculée sur les débits mesurés dans les essais courts : *le tas
+   construit pendant une injection doit être fondu avant l'injection
+   suivante*, sinon la deuxième part sur le tas de la première et les
+   fenêtres « saines » entre deux n'en sont pas. Mesuré : le tas fond à
+   0,6 message/s sous 25 voyageurs (entrée 3,5/s, sortie 4,25/s). Le gel d'une
+   réplique — dont l'intensité ne se règle pas — le fait monter de 0,7/s :
+   840 messages en 20 min, 23 min de fonte, d'où 25 min de retour. Les deux
+   autres causes sont réglées pour monter *au même rythme* : 35 voyageurs
+   (entrée 0,14/s par voyageur → 4,9/s, +0,65/s) et +75 ms par échange
+   (706 + 5 × 75 = 1 081 ms par message → sortie 2,8/s, +0,7/s). Le symptôme
+   a alors la même taille pour les trois causes : le modèle ne peut pas les
+   distinguer à la hauteur du tas, seulement à ce qui les cause.
+
+   Ce qui reste visible à ces intensités : `publish_rate` +40 % (`charge`),
+   `process_time_p50` +53 % (`lenteur`), `consumers` 3 → 2 (`blocage`).
 
 4. **La sensibilité au réglage**, après les campagnes principales : les
    mêmes pannes à deux autres taux d'occupation, en ne changeant *que* le

@@ -7,6 +7,43 @@ refaire une erreur déjà faite.
 
 ---
 
+## 2026-09-12 — essai-lenteur : troisième cause validée, et un trou comblé
+
++300 ms par échange de la minute 3 à la minute 8, plage 20:31 → 20:38
+(`campagnes/essai-lenteur/lecture.txt`) :
+
+```
+   fenêtre   backlog  slope  publish  consume  p50 réplique
+   20:31         0      -     3,43     3,27      706 ms     avant
+   20:32       127    127     3,53     1,35     2206 ms     injection à 20:31:55
+   20:35       507    122     3,47     1,35     2206 ms
+   20:36       417     19     3,43     5,22        3 ms     retrait à 20:36:55
+   20:37       379    -64     3,65     4,23      706 ms
+```
+
+706 + 5 × 300 = 2 206 ms : le modèle « cinq échanges avec la base par
+message » est exact. La sortie tombe à 1,35/s (3 ÷ 2,206), le tas monte de
+127 par minute, CPU et hôtes ne bougent pas. Ligne « lenteur » du tableau.
+
+**Le trou** : à 20:36, p50 de 3 ms et sortie à 5,2/s. Entre la suppression de
+l'objet Chaos Mesh de la panne et la pose de celui du réglage, quelques
+secondes sans aucun retard : les répliques ont avalé 150 messages à 3 ms.
+Mesuré que deux retards sur les mêmes pods s'additionnent (140 + 1 → 143
+ms) ; `panne.sh` pose donc la panne avant de retirer le réglage, et repose
+le réglage avant de lever la panne. Le recouvrement dure quelques
+secondes, un peu plus lent, jamais sans retard. Et un minuteur repose le
+réglage de base à l'expiration si le pilote est mort entre-temps.
+
+## 2026-09-12 — essai-hote (1) : refusé par le kubelet, refait
+
+Le voisin bruyant demandait 2 cœurs (la moitié de l'hôte) ; l'hôte n'en a
+que 3,4 allouables, dont 1,65 déjà demandés. `nodeName` contourne
+l'ordonnanceur : c'est le kubelet qui a refusé le pod (`OutOfcpu`).
+Injection non confirmée, essai sans mesure (`campagnes/essai-hote/`).
+La demande ne fixe que le poids du voisin face aux autres pods ; le stress
+occupe de toute façon tous les cœurs. Elle est maintenant plafonnée à ce
+qui reste sur l'hôte moins 100 m (ici 1 600 m). Essai refait : `essai-hote-02`.
+
 ## 2026-09-12 — essai-charge : deuxième cause validée, et une règle d'intensité
 
 50 voyageurs (2 × la base) de la minute 3 à la minute 8, plage 20:02 → 20:10
