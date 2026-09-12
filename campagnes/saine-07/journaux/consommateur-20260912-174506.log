@@ -1,0 +1,10 @@
+  [consommateur] Un sommeil dans la base est en place : retiré (il sérialise les répliques).
+  [consommateur] Temps de service : 140 ms de retard à chaque échange des 3 répliques avec leur base (≈ 700 ms par message)
+  [consommateur] OK  retard posé sur 3 réplique(s)
+  [consommateur] Prefetch : 1 message(s) d'avance par réplique
+  [consommateur] déjà en place, pas de redémarrage
+  [consommateur] OK  consommateur dimensionné — à conserver tel quel pour toutes les campagnes
+
+  consommateur : ts-delivery-service (3/3 répliques prêtes)
+  temps de service : 140 ms de retard par échange avec la base, ≈ 700 ms par message   (appliqué)
+  prefetch : 1

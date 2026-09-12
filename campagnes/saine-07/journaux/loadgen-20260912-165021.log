@@ -1,0 +1,24 @@
+
+  voyageurs actifs : 10
+
+  parcours                         appels   échecs   taux   maintenant    échecs     p50
+                                    total    total                 /s        /s      ms
+  ------------------------------------------------------------------------------------
+  00 code de vérification              10        0   0.0%        0.00      0.00       8
+  01 connexion                         10        0   0.0%        0.00      0.00     130
+  10 chercher un train                229      229 100.0%        0.30      0.30   30008   <<< échoue
+  40 commander un repas               459        0   0.0%        0.40      0.00      13
+  60 déclencher un courriel            64        0   0.0%        0.00      0.00       6
+  20 mes contacts                       -        -      -           -         -       -   <<< JAMAIS EXÉCUTÉ
+  30 réserver un billet                 -        -      -           -         -       -   <<< JAMAIS EXÉCUTÉ
+
+  échecs, par motif :
+       229  10 chercher un train           HTTPError('500 Server Error:  for url: 10 chercher un train')
+
+  totaux : depuis le dernier « reset » — le pilote en fait un au départ de chaque campagne.
+  maintenant : les dix dernières secondes.
+
+  3 parcours en défaut — NE LANCE PAS DE CAMPAGNE.
+  Un parcours jamais exécuté laisse une file vide et un graphe sans flèche.
+  Regarde les journaux du service concerné avant toute mesure.
+

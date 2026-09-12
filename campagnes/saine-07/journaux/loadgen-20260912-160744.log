@@ -1,0 +1,5 @@
+  [loadgen] Demande envoyée à 2026-09-12T14:07:44Z — Locust répond : Swarming started
+  [loadgen] Vérification de la charge réelle (jusqu'à 55s)…
+  [loadgen] ATTENTION: Locust a accepté, mais la charge observée reste « 265 »
+  [loadgen] ATTENTION: au lieu de 25 après 55s. Le palier est consigné avec la valeur
+  [loadgen] ATTENTION: OBSERVÉE : c'est elle qui décrit l'expérience, pas celle demandée.

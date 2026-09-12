@@ -1,0 +1,146 @@
+  [instrument] Collecteur détecté : observability/otel-agent-opentelemetry-collector-agent
+  [instrument] Agent : version 2.31.1, mode « download »
+  [instrument] ts-admin-basic-info-service : mouchard attaché (conteneur « ts-admin-basic-info-service »)
+  [instrument] ts-admin-order-service : mouchard attaché (conteneur « ts-admin-order-service »)
+  [instrument] ts-admin-route-service : mouchard attaché (conteneur « ts-admin-route-service »)
+  [instrument] ts-admin-travel-service : mouchard attaché (conteneur « ts-admin-travel-service »)
+  [instrument] ts-admin-user-service : mouchard attaché (conteneur « ts-admin-user-service »)
+  [instrument] ts-assurance-service : mouchard attaché (conteneur « ts-assurance-service »)
+  [instrument] ts-auth-service : mouchard attaché (conteneur « ts-auth-service »)
+  [instrument] ts-avatar-service : mouchard attaché (conteneur « ts-avatar-service »)
+  [instrument] ts-basic-service : mouchard attaché (conteneur « ts-basic-service »)
+  [instrument] ts-cancel-service : mouchard attaché (conteneur « ts-cancel-service »)
+  [instrument] ts-config-service : mouchard attaché (conteneur « ts-config-service »)
+  [instrument] ts-consign-price-service : mouchard attaché (conteneur « ts-consign-price-service »)
+  [instrument] ts-consign-service : mouchard attaché (conteneur « ts-consign-service »)
+  [instrument] ts-contacts-service : mouchard attaché (conteneur « ts-contacts-service »)
+  [instrument] ts-delivery-service : mouchard attaché (conteneur « ts-delivery-service »)
+  [instrument] ts-execute-service : mouchard attaché (conteneur « ts-execute-service »)
+  [instrument] ts-food-delivery-service : mouchard attaché (conteneur « ts-food-delivery-service »)
+  [instrument] ts-food-service : mouchard attaché (conteneur « ts-food-service »)
+  [instrument] ts-gateway-service : mouchard attaché (conteneur « ts-gateway-service »)
+  [instrument] ts-inside-payment-service : mouchard attaché (conteneur « ts-inside-payment-service »)
+  [instrument] ts-news-service : mouchard attaché (conteneur « ts-news-service »)
+  [instrument] ts-notification-service : mouchard attaché (conteneur « ts-notification-service »)
+  [instrument] ts-order-other-service : mouchard attaché (conteneur « ts-order-other-service »)
+  [instrument] ts-order-service : mouchard attaché (conteneur « ts-order-service »)
+  [instrument] ts-payment-service : mouchard attaché (conteneur « ts-payment-service »)
+  [instrument] ts-preserve-other-service : mouchard attaché (conteneur « ts-preserve-other-service »)
+  [instrument] ts-preserve-service : mouchard attaché (conteneur « ts-preserve-service »)
+  [instrument] ts-price-service : mouchard attaché (conteneur « ts-price-service »)
+  [instrument] ts-rebook-service : mouchard attaché (conteneur « ts-rebook-service »)
+  [instrument] ts-route-plan-service : mouchard attaché (conteneur « ts-route-plan-service »)
+  [instrument] ts-route-service : mouchard attaché (conteneur « ts-route-service »)
+  [instrument] ts-seat-service : mouchard attaché (conteneur « ts-seat-service »)
+  [instrument] ts-security-service : mouchard attaché (conteneur « ts-security-service »)
+  [instrument] ts-station-food-service : mouchard attaché (conteneur « ts-station-food-service »)
+  [instrument] ts-station-service : mouchard attaché (conteneur « ts-station-service »)
+  [instrument] ts-ticket-office-service : mouchard attaché (conteneur « ts-ticket-office-service »)
+  [instrument] ts-train-food-service : mouchard attaché (conteneur « ts-train-food-service »)
+  [instrument] ts-train-service : mouchard attaché (conteneur « ts-train-service »)
+  [instrument] ts-travel-plan-service : mouchard attaché (conteneur « ts-travel-plan-service »)
+  [instrument] ts-travel-service : mouchard attaché (conteneur « ts-travel-service »)
+  [instrument] ts-travel2-service : mouchard attaché (conteneur « ts-travel2-service »)
+  [instrument] ts-ui-dashboard : mouchard attaché (conteneur « ts-ui-dashboard »)
+  [instrument] ts-user-service : mouchard attaché (conteneur « ts-user-service »)
+  [instrument] ts-verification-code-service : mouchard attaché (conteneur « ts-verification-code-service »)
+  [instrument] ts-voucher-service : mouchard attaché (conteneur « ts-voucher-service »)
+  [instrument] ts-wait-order-service : mouchard attaché (conteneur « ts-wait-order-service »)
+  [instrument] Attente du redémarrage des 46 déploiement(s)…
+  [instrument]   ts-admin-basic-info-service : redémarré
+  [instrument]   ts-admin-order-service : redémarré
+  [instrument]   ts-admin-route-service : redémarré
+  [instrument]   ts-admin-travel-service : redémarré
+  [instrument]   ts-admin-user-service : redémarré
+  [instrument]   ts-assurance-service : redémarré
+  [instrument]   ts-auth-service : redémarré
+  [instrument]   ts-avatar-service : redémarré
+  [instrument]   ts-basic-service : redémarré
+  [instrument]   ts-cancel-service : redémarré
+  [instrument]   ts-config-service : redémarré
+  [instrument]   ts-consign-price-service : redémarré
+  [instrument]   ts-consign-service : redémarré
+  [instrument]   ts-contacts-service : redémarré
+  [instrument]   ts-delivery-service : redémarré
+  [instrument]   ts-execute-service : redémarré
+  [instrument]   ts-food-delivery-service : redémarré
+  [instrument]   ts-food-service : redémarré
+  [instrument]   ts-gateway-service : redémarré
+  [instrument]   ts-inside-payment-service : redémarré
+  [instrument]   ts-news-service : redémarré
+  [instrument]   ts-notification-service : redémarré
+  [instrument]   ts-order-other-service : redémarré
+  [instrument]   ts-order-service : redémarré
+  [instrument]   ts-payment-service : redémarré
+  [instrument]   ts-preserve-other-service : redémarré
+  [instrument]   ts-preserve-service : redémarré
+  [instrument]   ts-price-service : redémarré
+  [instrument]   ts-rebook-service : redémarré
+  [instrument]   ts-route-plan-service : redémarré
+  [instrument]   ts-route-service : redémarré
+  [instrument]   ts-seat-service : redémarré
+  [instrument]   ts-security-service : redémarré
+  [instrument]   ts-station-food-service : redémarré
+  [instrument]   ts-station-service : redémarré
+  [instrument]   ts-ticket-office-service : redémarré
+  [instrument]   ts-train-food-service : redémarré
+  [instrument]   ts-train-service : redémarré
+  [instrument]   ts-travel-plan-service : redémarré
+  [instrument]   ts-travel-service : redémarré
+  [instrument]   ts-travel2-service : redémarré
+  [instrument]   ts-ui-dashboard : redémarré
+  [instrument]   ts-user-service : redémarré
+  [instrument]   ts-verification-code-service : redémarré
+  [instrument]   ts-voucher-service : redémarré
+  [instrument]   ts-wait-order-service : redémarré
+
+  [instrument] Déploiements instrumentés dans « train-ticket » :
+    ts-admin-basic-info-service        curlimages/curl:8.11.1
+    ts-admin-order-service             curlimages/curl:8.11.1
+    ts-admin-route-service             curlimages/curl:8.11.1
+    ts-admin-travel-service            curlimages/curl:8.11.1
+    ts-admin-user-service              curlimages/curl:8.11.1
+    ts-assurance-service               curlimages/curl:8.11.1
+    ts-auth-service                    curlimages/curl:8.11.1
+    ts-avatar-service                  curlimages/curl:8.11.1
+    ts-basic-service                   curlimages/curl:8.11.1
+    ts-cancel-service                  curlimages/curl:8.11.1
+    ts-config-service                  curlimages/curl:8.11.1
+    ts-consign-price-service           curlimages/curl:8.11.1
+    ts-consign-service                 curlimages/curl:8.11.1
+    ts-contacts-service                curlimages/curl:8.11.1
+    ts-delivery-service                curlimages/curl:8.11.1
+    ts-execute-service                 curlimages/curl:8.11.1
+    ts-food-delivery-service           curlimages/curl:8.11.1
+    ts-food-service                    curlimages/curl:8.11.1
+    ts-gateway-service                 curlimages/curl:8.11.1
+    ts-inside-payment-service          curlimages/curl:8.11.1
+    ts-news-service                    curlimages/curl:8.11.1
+    ts-notification-service            curlimages/curl:8.11.1
+    ts-order-other-service             curlimages/curl:8.11.1
+    ts-order-service                   curlimages/curl:8.11.1
+    ts-payment-service                 curlimages/curl:8.11.1
+    ts-preserve-other-service          curlimages/curl:8.11.1
+    ts-preserve-service                curlimages/curl:8.11.1
+    ts-price-service                   curlimages/curl:8.11.1
+    ts-rebook-service                  curlimages/curl:8.11.1
+    ts-route-plan-service              curlimages/curl:8.11.1
+    ts-route-service                   curlimages/curl:8.11.1
+    ts-seat-service                    curlimages/curl:8.11.1
+    ts-security-service                curlimages/curl:8.11.1
+    ts-station-food-service            curlimages/curl:8.11.1
+    ts-station-service                 curlimages/curl:8.11.1
+    ts-ticket-office-service           curlimages/curl:8.11.1
+    ts-train-food-service              curlimages/curl:8.11.1
+    ts-train-service                   curlimages/curl:8.11.1
+    ts-travel-plan-service             curlimages/curl:8.11.1
+    ts-travel-service                  curlimages/curl:8.11.1
+    ts-travel2-service                 curlimages/curl:8.11.1
+    ts-ui-dashboard                    curlimages/curl:8.11.1
+    ts-user-service                    curlimages/curl:8.11.1
+    ts-verification-code-service       curlimages/curl:8.11.1
+    ts-voucher-service                 curlimages/curl:8.11.1
+    ts-wait-order-service              curlimages/curl:8.11.1
+
+  [instrument] Version réellement chargée (à figer dans INST_AGENT_VERSION) :
+  [instrument]     opentelemetry-javaagent - version: 2.31.1

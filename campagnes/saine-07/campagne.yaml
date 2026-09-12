@@ -1,0 +1,126 @@
+# Conditions expérimentales — écrit par campagne.sh, ne pas éditer à la main.
+# Les réglages d'analyse sont ailleurs : graphe_en/runs/<date>/graph/manifest.json
+
+campagne: saine-07
+type: saine
+pilote_le: 2026-09-12T17:23:12Z
+
+profil_demande: "10:15,25:30,20:15"
+duree_prevue_min: 60
+paliers_confirmes: 3
+paliers_non_confirmes: 0
+
+# Réglage du consommateur (consommateur.sh etat), identique pour toutes les
+# campagnes comparées entre elles.
+reglage_consommateur: |
+    consommateur : ts-delivery-service (3/3 répliques prêtes)
+    temps de service : 140 ms de retard par échange avec la base, ≈ 700 ms par message   (appliqué)
+    prefetch : 1
+
+# Données de l'application au départ (donnees.sh etat), après remise à zéro
+# sauf --sans-purge : le comportement de train-ticket en dépend.
+donnees_au_depart: |
+    orders                0 lignes
+    orders_other          0 lignes
+    food_order            2 lignes
+    delivery              0 lignes
+    commandes les plus concentrées : 1 sur D1345 le 2026-10-06
+    total : 2 lignes
+
+plage_exploitable:
+  date: 2026-09-12
+  from: "16:23"
+  to:   "17:21"
+
+# Ce que le pilote a fait, dans l'ordre.
+deroule:
+  - { instant: 2026-09-12T16:22:51Z, action: etat_initial }
+  - { instant: 2026-09-12T16:22:53Z, action: donnees_remises_a_zero }
+  - { instant: 2026-09-12T16:22:55Z, action: collecte_demarree }
+  - { instant: 2026-09-12T16:22:56Z, action: compteurs_locust_remis_a_zero }
+  - { instant: 2026-09-12T16:22:57Z, action: charge, voyageurs: 10, resultat: confirme }
+  - { instant: 2026-09-12T16:24:57Z, action: controle_parcours, resultat: ok }
+  - { instant: 2026-09-12T16:38:14Z, action: charge, voyageurs: 25, resultat: confirme }
+  - { instant: 2026-09-12T17:08:03Z, action: charge, voyageurs: 20, resultat: confirme }
+  - { instant: 2026-09-12T17:23:09Z, action: retour_charge_de_base, voyageurs: 10, resultat: confirme }
+  - { instant: 2026-09-12T17:23:10Z, action: collecte_arretee }
+
+# Registre écrit par loadgen.sh après vérification de la charge RÉELLE.
+# instant_demande / instant_effectif encadrent la montée, pendant laquelle
+# la charge n'est ni l'ancienne ni la nouvelle.
+paliers_mesures: |
+  # instant_demande	instant_effectif	voyageurs_observes	voyageurs_demandes	spawn_rate	cible	origine
+  2026-09-11T21:29:50Z	2026-09-11T21:29:50Z	10	10	1	train-ticket	demarrage
+  2026-09-11T21:30:21Z	2026-09-11T21:30:21Z	10	10	1	train-ticket	demarrage
+  2026-09-11T21:40:53Z	2026-09-11T21:40:53Z	10	10	1	train-ticket	demarrage
+  2026-09-11T21:45:04Z	2026-09-11T21:45:05Z	10	10	1	train-ticket	demande
+  2026-09-11T22:00:06Z	2026-09-11T22:00:28Z	30	30	1	train-ticket	demande
+  2026-09-11T22:15:29Z	2026-09-11T22:15:51Z	10	10	1	train-ticket	demande
+  2026-09-11T22:30:52Z	2026-09-11T22:31:41Z	55	55	1	train-ticket	demande
+  2026-09-12T13:23:40Z	2026-09-12T13:24:07Z	80	80	1	train-ticket	demande
+  2026-09-12T13:33:40Z	2026-09-12T13:35:01Z	160	160	1	train-ticket	demande
+  2026-09-12T13:43:40Z	2026-09-12T13:46:22Z	320	320	1	train-ticket	demande
+  2026-09-12T14:07:44Z		265	25	1	train-ticket	demande_non_aboutie
+  2026-09-12T14:10:12Z		117	25	1	train-ticket	demande_non_aboutie
+  2026-09-12T14:34:16Z	2026-09-12T14:34:16Z	10	10	1	train-ticket	demarrage
+  2026-09-12T14:54:21Z	2026-09-12T14:54:38Z	25	25	1	train-ticket	demande
+  2026-09-12T15:01:19Z	2026-09-12T15:01:47Z	1	1	1	train-ticket	demande
+  2026-09-12T15:12:55Z	2026-09-12T15:13:01Z	5	5	1	train-ticket	demande
+  2026-09-12T15:25:32Z	2026-09-12T15:25:32Z	10	10	1	train-ticket	demarrage
+  2026-09-12T15:30:30Z	2026-09-12T15:30:48Z	25	25	1	train-ticket	demande
+  2026-09-12T16:09:22Z	2026-09-12T16:09:39Z	10	10	1	train-ticket	demande
+  2026-09-12T16:15:19Z	2026-09-12T16:15:19Z	10	10	1	train-ticket	demande
+  2026-09-12T16:17:20Z	2026-09-12T16:17:21Z	10	10	1	train-ticket	demande
+  2026-09-12T16:21:20Z	2026-09-12T16:21:20Z	10	10	1	train-ticket	demande
+  2026-09-12T16:22:56Z	2026-09-12T16:22:57Z	10	10	1	train-ticket	demande
+  2026-09-12T16:37:57Z	2026-09-12T16:38:14Z	25	25	1	train-ticket	demande
+  2026-09-12T17:07:57Z	2026-09-12T17:08:03Z	20	20	1	train-ticket	demande
+  2026-09-12T17:22:57Z	2026-09-12T17:23:09Z	10	10	1	train-ticket	demande
+
+# Sortie verbatim de « collecte.sh fenetre » :
+#   
+#     [collecte] Passerelle démarrée à  16:21:14 UTC
+#     [collecte] Charge démarrée à      15:25:32 UTC
+#     [collecte] Origine retenue        16:21:14 UTC  (démarrage de la passerelle)
+#     [collecte] Il est 17:23:09 UTC — 61 minutes exploitables
+#     [collecte] Marge de 2 minute(s) écartée de chaque côté (montée en charge, latence d'écriture).
+#   
+#     [collecte] La collecte a déjà été interrompue au moins une fois.
+#     [collecte]   Le magasin contient aussi des mesures antérieures, séparées de
+#     [collecte]   celles-ci par un blanc. La plage ci-dessous s'arrête au bord du
+#     [collecte]   blanc : ne l'élargis pas vers le passé sans le savoir.
+#   
+#     À recopier dans graphe_en/config.yaml :
+#   
+#       range:
+#         date:       2026-09-12
+#         from:       "16:23"
+#         to:         "17:21"
+
+# État du cluster AVANT :
+#   
+#        COLLECTE EN MARCHE — les mesures partent vers le magasin
+#        ────────────────────────────────────────────────────────
+#   
+#        passerelle vers le magasin         1 exemplaire(s)
+#        générateur de charge             1 exemplaire(s)
+#        microservices                      58/58 prêts
+#        collecteurs locaux (traces)        6 en marche
+#        relevés de machines               8 en marche
+#   
+#        Pour connaître la plage à rapatrier :  bash /home/ubuntu/autodeploy/apps/collecte.sh fenetre
+
+# État du cluster APRÈS :
+#   
+#        COLLECTE ARRÊTÉE — rien n'arrive dans le magasin
+#        ────────────────────────────────────────────────────────
+#   
+#        passerelle vers le magasin         arrêtée
+#        générateur de charge             1 exemplaire(s)
+#        microservices                      58/58 prêts
+#        collecteurs locaux (traces)        6 en marche
+#        relevés de machines               8 en marche
+#   
+#        L'application tourne et reste instrumentée. Les traces produites
+#        pendant l'arrêt sont perdues — c'est le but.
+#        Pour enregistrer :  bash /home/ubuntu/autodeploy/apps/collecte.sh demarrer

@@ -1,0 +1,7 @@
+  [consommateur] Temps de service : 0.8 s par message, sur la table ts.delivery
+      Enter password: delivery
+  [consommateur] ATTENTION: table « delivery » introuvable dans la base « ts ». Tables dont le nom contient « delivery », toutes bases :
+      Enter password: ts.delivery
+      ts.food_delivery_order
+      ts.food_delivery_order_food_list
+  [consommateur] ERREUR: Donne la bonne base et la bonne table :  CONSO_DB=… CONSO_TABLE=… bash /home/ubuntu/autodeploy/apps/consommateur.sh dimensionner --temps 0.8

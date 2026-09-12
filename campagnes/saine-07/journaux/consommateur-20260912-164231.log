@@ -1,0 +1,6 @@
+  [consommateur] Temps de service : 0.8 s par message, sur la table ts.delivery
+  [consommateur] OK  déclencheur posé : SET @attente = SLEEP(0.8)
+  [consommateur] Prefetch : 1 message(s) d'avance par réplique
+  [consommateur] redémarrage roulant des répliques (nouveaux pods, donc nouveaux nœuds dans le graphe — d'où « avant la référence »)…
+error: timed out waiting for the condition
+  [consommateur] ERREUR: Les répliques ne sont pas revenues en 5 min :  kubectl get pods -n train-ticket -l app=ts-delivery-service

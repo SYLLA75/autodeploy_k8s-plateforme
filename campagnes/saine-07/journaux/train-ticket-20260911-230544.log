@@ -1,0 +1,14 @@
+
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  Train Ticket — accès aux interfaces web                                 │
+  └──────────────────────────────────────────────────────────────────────────┘
+     Interface de réservation ....... http://10.10.223.161:32677
+     Passerelle API (ts-gateway) .... http://10.10.223.161:30467
+
+   Comptes de démonstration fournis par le benchmark :
+     utilisateur : fdse_microservice   mot de passe : 111111
+     administrateur : admin            mot de passe : 222222
+
+   Si le port 32677 n'est pas joignable depuis ton poste, ouvre un tunnel SSH :
+     ssh -N -L 8081:localhost:32677 master
+   puis navigue sur http://localhost:8081

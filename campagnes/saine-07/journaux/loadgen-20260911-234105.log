@@ -1,0 +1,16 @@
+
+  voyageurs actifs : 6
+
+  parcours                             appels   échecs     taux
+  --------------------------------------------------------------
+  00 code de vérification                   6        0     0.0%
+  01 connexion                              -        -       -   <<< JAMAIS EXÉCUTÉ
+  10 chercher un train                      -        -       -   <<< JAMAIS EXÉCUTÉ
+  20 mes contacts                           -        -       -   <<< JAMAIS EXÉCUTÉ
+  30 réserver un billet                     -        -       -   <<< JAMAIS EXÉCUTÉ
+  60 déclencher un courriel                 -        -       -   <<< JAMAIS EXÉCUTÉ
+
+  5 parcours en défaut — NE LANCE PAS DE CAMPAGNE.
+  Un parcours jamais exécuté laisse une file vide et un graphe sans flèche.
+  Regarde les journaux du service concerné avant toute mesure.
+

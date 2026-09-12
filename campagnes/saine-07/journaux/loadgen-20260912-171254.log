@@ -1,0 +1,5 @@
+  [loadgen] Compteurs de Locust remis à zéro à 2026-09-12T15:12:54Z.
+  [loadgen] Demande envoyée à 2026-09-12T15:12:55Z — Locust répond : Swarming started
+  [loadgen] Vérification de la charge réelle (jusqu'à 34s)…
+  [loadgen] Charge confirmée : 5 voyageurs à 2026-09-12T15:13:01Z
+  [loadgen] Consigné dans /home/ubuntu/autodeploy/journaux/paliers.tsv

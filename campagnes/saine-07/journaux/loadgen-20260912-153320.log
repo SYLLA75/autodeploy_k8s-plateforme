@@ -1,0 +1,16 @@
+
+  voyageurs actifs : 80
+
+  parcours                             appels   échecs     taux
+  --------------------------------------------------------------
+  00 code de vérification                2157        0     0.0%
+  01 connexion                           2157        0     0.0%
+  10 chercher un train                  59263    40647    68.6%   <<< échoue
+  20 mes contacts                       11619        0     0.0%
+  30 réserver un billet                 11598     2549    22.0%   <<< échoue
+  60 déclencher un courriel             15005        0     0.0%
+
+  2 parcours en défaut — NE LANCE PAS DE CAMPAGNE.
+  Un parcours jamais exécuté laisse une file vide et un graphe sans flèche.
+  Regarde les journaux du service concerné avant toute mesure.
+

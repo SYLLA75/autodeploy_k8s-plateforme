@@ -1,0 +1,8 @@
+  [donnees] Purge de : orders orders_other food_order delivery  (6307 lignes)
+  [donnees] OK  données remises à zéro
+  orders                1 lignes
+  orders_other          0 lignes
+  food_order            1 lignes
+  delivery            102 lignes
+  commandes les plus concentrées : 1 sur D1345 le 2026-10-02
+  total : 104 lignes

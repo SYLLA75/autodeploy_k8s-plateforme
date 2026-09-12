@@ -1,0 +1,193 @@
+  [train-ticket] Helm 3 détecté : v3.22.0+g144ca65
+  [train-ticket] StorageClass par défaut : local-path
+  [train-ticket] Clonage de https://github.com/FudanSELab/train-ticket.git (réf. master)…
+Cloning into '/home/ubuntu/train-ticket'...
+namespace/train-ticket created
+  [train-ticket] Déploiement en cours (infrastructure MySQL/Nacos/RabbitMQ puis 41 services)…
+  [train-ticket] Compte 15 à 30 minutes : ~46 images Docker doivent être téléchargées.
+args num: 1
+quick start
+Start deployment Step <1/3>------------------------------------
+Start to deploy mysql cluster for nacos.
+NAME: nacosdb
+LAST DEPLOYED: Fri Sep 11 23:00:03 2026
+NAMESPACE: train-ticket
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+NOTES:
+The cluster is comprised of 3 pods: 1 leader and 2 followers. Each instance is accessible within the cluster through:
+
+    <pod-name>.nacosdb-mysql
+
+To connect to your database:
+
+1. Get mysql user `nacos`'s password:
+
+    kubectl get secret -n train-ticket nacosdb-mysql -o jsonpath="{.data.mysql-password}" | base64 --decode; echo
+
+2. Run an Ubuntu pod that you can use as a client:
+
+    kubectl run ubuntu -n train-ticket --image=ubuntu:focal -it --rm --restart='Never' -- bash -il
+
+3. Install the mysql client:
+
+    apt-get update && apt-get install mysql-client -y
+
+4. To connect to leader service in the Ubuntu pod:
+
+    mysql -h nacosdb-mysql-leader -u nacos -p
+
+5. To connect to follower service (read-only) in the Ubuntu pod:
+
+    mysql -h nacosdb-mysql-follower -u nacos -p
+Waiting for mysql cluster of nacos to be ready ......
+Waiting for 3 pods to be ready...
+  [train-ticket] correctif IPv6 appliqué à nacosdb-mysql-0 (compte root@::1 créé)
+  [train-ticket] correctif IPv6 REPOSÉ sur nacosdb-mysql-0 (il avait été effacé)
+Waiting for 2 pods to be ready...
+Waiting for 2 pods to be ready...
+  [train-ticket] correctif IPv6 appliqué à nacosdb-mysql-1 (compte root@::1 créé)
+  [train-ticket] correctif IPv6 REPOSÉ sur nacosdb-mysql-1 (il avait été effacé)
+Waiting for 1 pods to be ready...
+Waiting for 1 pods to be ready...
+  [train-ticket] correctif IPv6 appliqué à nacosdb-mysql-2 (compte root@::1 créé)
+  [train-ticket] élection MySQL aboutie sur 1 base(s) — surveillance maintenue.
+  [train-ticket] correctif IPv6 REPOSÉ sur nacosdb-mysql-2 (il avait été effacé)
+partitioned roll out complete: 3 new pods have been updated...
+Start to deploy nacos.
+NAME: nacos
+LAST DEPLOYED: Fri Sep 11 23:01:39 2026
+NAMESPACE: train-ticket
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+Waiting for nacos to be ready ......
+Waiting for 3 pods to be ready...
+Waiting for 2 pods to be ready...
+Waiting for 2 pods to be ready...
+Waiting for 1 pods to be ready...
+Waiting for 1 pods to be ready...
+partitioned roll out complete: 3 new pods have been updated...
+Start to deploy rabbitmq.
+NAME: rabbitmq
+LAST DEPLOYED: Fri Sep 11 23:02:24 2026
+NAMESPACE: train-ticket
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+Waiting for rabbitmq to be ready ......
+Waiting for deployment "rabbitmq" rollout to finish: 0 of 1 updated replicas are available...
+deployment "rabbitmq" successfully rolled out
+End deployment Step <1/3>--------------------------------------
+Start deployment Step <2/3>: mysql cluster of train-ticket services----------------------
+Waiting for mysql cluster of train-ticket to be ready ......
+Waiting for 3 pods to be ready...
+  [train-ticket] correctif IPv6 appliqué à tsdb-mysql-0 (compte root@::1 créé)
+  [train-ticket] correctif IPv6 REPOSÉ sur tsdb-mysql-0 (il avait été effacé)
+Waiting for 2 pods to be ready...
+Waiting for 2 pods to be ready...
+  [train-ticket] correctif IPv6 appliqué à tsdb-mysql-1 (compte root@::1 créé)
+Waiting for 1 pods to be ready...
+Waiting for 1 pods to be ready...
+  [train-ticket] correctif IPv6 appliqué à tsdb-mysql-2 (compte root@::1 créé)
+  [train-ticket] élection MySQL aboutie sur 2 base(s) — surveillance maintenue.
+partitioned roll out complete: 3 new pods have been updated...
+End deployment Step <2/3>-----------------------------------------------------------------
+Start deployment Step <3/3>: train-ticket services--------------------------------------------
+Start to deploy secret of train-ticket services.
+Start to deploy train-ticket deployments.
+sed: can't read s/nacos/nacos/g: No such file or directory
+sed: can't read s/rabbitmq/rabbitmq/g: No such file or directory
+End deployment Step <3/3>----------------------------------------------------------------------
+  [train-ticket] Attente du démarrage des microservices (max 30 minutes)…
+  [train-ticket]   … 54/56 pods prêts (120s)
+  [train-ticket] Tous les pods sont prêts (56/56).
+
+  [train-ticket] État des pods dans « train-ticket » :
+NAME                                           READY   STATUS    RESTARTS   AGE
+nacos-0                                        1/1     Running   0          3m59s
+nacos-1                                        1/1     Running   0          3m44s
+nacos-2                                        1/1     Running   0          3m29s
+nacosdb-mysql-0                                3/3     Running   0          5m34s
+nacosdb-mysql-1                                3/3     Running   0          5m2s
+nacosdb-mysql-2                                3/3     Running   0          4m31s
+rabbitmq-7f8b646c9d-pgk2g                      1/1     Running   0          3m14s
+ts-admin-basic-info-service-576bb8bfd5-2bglj   1/1     Running   0          2m2s
+ts-admin-order-service-6df59bdfb7-zlwmh        1/1     Running   0          2m2s
+ts-admin-route-service-78b86b7cc5-mwp2p        1/1     Running   0          2m2s
+ts-admin-travel-service-6d96d84d9b-jb88w       1/1     Running   0          2m2s
+ts-admin-user-service-6f4c9d7584-hhxlp         1/1     Running   0          2m2s
+ts-assurance-service-8bccffd49-8ns57           1/1     Running   0          2m2s
+ts-auth-service-dbbc8877c-2wzgc                1/1     Running   0          2m1s
+ts-avatar-service-57879768b-mdh9r              1/1     Running   0          2m1s
+ts-basic-service-b974d68cb-gtgr6               1/1     Running   0          2m1s
+ts-cancel-service-59bd6b6984-46wbc             1/1     Running   0          2m1s
+ts-config-service-67bb9f8669-26mh4             1/1     Running   0          2m1s
+ts-consign-price-service-5bcc8c466f-tqq7h      1/1     Running   0          2m1s
+ts-consign-service-7c5bc465f8-7qv9m            1/1     Running   0          2m
+ts-contacts-service-6b776fd9f7-n7dcf           1/1     Running   0          2m
+ts-delivery-service-5f947c8cd7-2lmbp           1/1     Running   0          2m
+ts-execute-service-86b47769ff-659lr            1/1     Running   0          2m
+ts-food-delivery-service-7d7d6dc88f-wqqjl      1/1     Running   0          119s
+ts-food-service-c57ddb9b7-scwq9                1/1     Running   0          2m
+ts-gateway-service-54f9bc8664-lk68s            1/1     Running   0          119s
+ts-inside-payment-service-74465bbf69-zhrqm     1/1     Running   0          119s
+ts-news-service-55466f466f-gpmvr               1/1     Running   0          119s
+ts-notification-service-7d7c794f59-gzgdd       1/1     Running   0          119s
+ts-order-other-service-7df6bb6666-p2j5k        1/1     Running   0          119s
+ts-order-service-5f8ffb4b7b-hchvw              1/1     Running   0          118s
+ts-payment-service-7d577dbbc-xnqjs             1/1     Running   0          118s
+ts-preserve-other-service-7f449cfc69-r2x7s     1/1     Running   0          118s
+ts-preserve-service-f45bf6c74-px92w            1/1     Running   0          118s
+ts-price-service-77964f6965-76hf4              1/1     Running   0          118s
+ts-rebook-service-7cd59d98bf-g88k2             1/1     Running   0          118s
+ts-route-plan-service-7945998d69-nlz2v         1/1     Running   0          117s
+ts-route-service-5b9c7cf9b5-wvxh4              1/1     Running   0          117s
+ts-seat-service-6ccb467b6c-pm7f9               1/1     Running   0          117s
+ts-security-service-675d9467cf-s8s9g           1/1     Running   0          117s
+ts-station-food-service-b6d8fd4f7-4kgnv        1/1     Running   0          117s
+ts-station-service-76b45695b4-k5qg6            1/1     Running   0          116s
+ts-ticket-office-service-5976bf5c7c-vg54f      1/1     Running   0          116s
+ts-train-food-service-6c9474c965-vfwf6         1/1     Running   0          116s
+ts-train-service-6c7f7ffb59-l55tz              1/1     Running   0          116s
+ts-travel-plan-service-98955f986-pn85w         1/1     Running   0          116s
+ts-travel-service-67d49d9897-9h4mc             1/1     Running   0          115s
+ts-travel2-service-846b458867-9qmg6            1/1     Running   0          115s
+ts-ui-dashboard-5654bf5969-prtw9               1/1     Running   0          114s
+ts-user-service-6fdc787dc8-hffhd               1/1     Running   0          115s
+ts-verification-code-service-8789598f5-625ct   1/1     Running   0          115s
+ts-voucher-service-56dbcc45c9-b275g            1/1     Running   0          115s
+ts-wait-order-service-65dd99447b-4j6wn         1/1     Running   0          114s
+tsdb-mysql-0                                   3/3     Running   0          3m9s
+tsdb-mysql-1                                   3/3     Running   0          2m45s
+tsdb-mysql-2                                   3/3     Running   0          2m25s
+
+  [train-ticket] Services de type NodePort :
+NAME                           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)                               AGE
+nacos                          NodePort    10.233.63.7     <none>        8848:31808/TCP,7848:30374/TCP         3m59s
+ts-gateway-service             NodePort    10.233.27.225   <none>        18888:30467/TCP                       2m2s
+ts-ui-dashboard                NodePort    10.233.36.65    <none>        8080:32677/TCP                        2m2s
+
+  [train-ticket] Volumes persistants :
+NAME                   STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+data-nacosdb-mysql-0   Bound    pvc-e97648ff-e347-4de8-82d2-714b14f26846   1Gi        RWO            local-path     <unset>                 5m34s
+data-nacosdb-mysql-1   Bound    pvc-f21b412d-f5f4-4243-a990-4a3d1b41df75   1Gi        RWO            local-path     <unset>                 5m2s
+data-nacosdb-mysql-2   Bound    pvc-82dcfa3b-90cb-4a2b-9a61-9181f928b434   1Gi        RWO            local-path     <unset>                 4m31s
+data-tsdb-mysql-0      Bound    pvc-605d4d4a-d086-4cda-9a31-6deaeb6c7921   1Gi        RWO            local-path     <unset>                 3m9s
+data-tsdb-mysql-1      Bound    pvc-bab814c6-ee0f-41a6-9715-2051dfebfcdc   1Gi        RWO            local-path     <unset>                 2m45s
+data-tsdb-mysql-2      Bound    pvc-4bcdf34d-47d0-4c81-a1b7-1873b613acb4   1Gi        RWO            local-path     <unset>                 2m25s
+
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  Train Ticket — accès aux interfaces web                                 │
+  └──────────────────────────────────────────────────────────────────────────┘
+     Interface de réservation ....... http://10.10.223.161:32677
+     Passerelle API (ts-gateway) .... http://10.10.223.161:30467
+
+   Comptes de démonstration fournis par le benchmark :
+     utilisateur : fdse_microservice   mot de passe : 111111
+     administrateur : admin            mot de passe : 222222
+
+   Si le port 32677 n'est pas joignable depuis ton poste, ouvre un tunnel SSH :
+     ssh -N -L 8081:localhost:32677 master
+   puis navigue sur http://localhost:8081

@@ -1,0 +1,9 @@
+  [consommateur] Temps de service : 0.7 s par message, sur la table ts.delivery
+  [consommateur] OK  déclencheur posé : SET @attente = SLEEP(0.7)
+  [consommateur] Prefetch : 1 message(s) d'avance par réplique
+  [consommateur] déjà en place, pas de redémarrage
+  [consommateur] OK  consommateur dimensionné — à conserver tel quel pour toutes les campagnes
+
+  consommateur : ts-delivery-service (3/3 répliques prêtes)
+  temps de service : 0.7 s par message   (déclencheur ts.delivery.temps_de_service)
+  prefetch : 1

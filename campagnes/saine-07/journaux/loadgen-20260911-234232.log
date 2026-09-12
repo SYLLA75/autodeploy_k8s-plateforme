@@ -1,0 +1,14 @@
+
+  voyageurs actifs : 10
+
+  parcours                             appels   échecs     taux
+  --------------------------------------------------------------
+  00 code de vérification                  10        0     0.0%
+  01 connexion                             10        0     0.0%
+  10 chercher un train                    144        0     0.0%
+  20 mes contacts                          96        0     0.0%
+  30 réserver un billet                    96        0     0.0%
+  60 déclencher un courriel                26        0     0.0%
+
+  Tous les parcours passent. La campagne peut être lancée.
+

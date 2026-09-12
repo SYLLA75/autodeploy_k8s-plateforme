@@ -1,0 +1,2 @@
+  [consommateur] Temps de service : 0.8 s par message, sur la table ts.delivery
+  [consommateur] ERREUR: Table « delivery » absente de la base « ts » — le consommateur a-t-il déjà démarré ? (CONSO_TABLE, CONSO_DB)

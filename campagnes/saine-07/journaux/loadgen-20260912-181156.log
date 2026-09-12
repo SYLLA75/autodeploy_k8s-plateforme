@@ -1,0 +1,22 @@
+
+  voyageurs actifs : 10
+
+  parcours                         appels   échecs   taux   maintenant    échecs     p50
+                                    total    total                 /s        /s      ms
+  ------------------------------------------------------------------------------------
+  00 code de vérification               6        0   0.0%        0.00      0.00       6
+  01 connexion                          6        0   0.0%        0.00      0.00     110
+  10 chercher un train                 39       15  38.5%        0.60      0.00   23000
+  20 mes contacts                      16        0   0.0%        0.50      0.00       5
+  30 réserver un billet                16        0   0.0%        0.50      0.00     330
+  40 commander un repas                87        0   0.0%        1.30      0.00      10
+  60 déclencher un courriel            18        0   0.0%        0.10      0.00       5
+
+  échecs, par motif :
+        15  10 chercher un train           HTTPError('500 Server Error:  for url: 10 chercher un train')
+
+  totaux : depuis le dernier « reset » — le pilote en fait un au départ de chaque campagne.
+  maintenant : les dix dernières secondes.
+
+  Tous les parcours passent. La campagne peut être lancée.
+

@@ -1,0 +1,19 @@
+
+  voyageurs actifs : 10
+
+  parcours                         appels   échecs   taux   maintenant    échecs     p50
+                                    total    total                 /s        /s      ms
+  ------------------------------------------------------------------------------------
+  00 code de vérification               0        0   0.0%        0.00      0.00       0
+  01 connexion                          0        0   0.0%        0.00      0.00       0
+  10 chercher un train                 18        0   0.0%        1.00      0.00      40
+  20 mes contacts                      12        0   0.0%        0.70      0.00       5
+  30 réserver un billet                12        0   0.0%        0.70      0.00      79
+  40 commander un repas                39        0   0.0%        0.90      0.00      10
+  60 déclencher un courriel             3        0   0.0%        0.10      0.00       5
+
+  totaux : depuis le dernier « reset » — le pilote en fait un au départ de chaque campagne.
+  maintenant : les dix dernières secondes.
+
+  Tous les parcours passent. La campagne peut être lancée.
+

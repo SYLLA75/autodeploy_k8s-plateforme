@@ -1,0 +1,10 @@
+  [donnees] Purge de : orders orders_other food_order delivery  (21173 lignes)
+  [donnees] Redémarrage de ts-order-service…
+  [donnees] ts-order-service redémarré
+  [donnees] OK  données remises à zéro
+  orders                3 lignes
+  orders_other          0 lignes
+  food_order           29 lignes
+  delivery             29 lignes
+  commandes les plus concentrées : 1 sur G1237 le 2022-10-01 00:00:00
+  total : 61 lignes
