@@ -1,0 +1,26 @@
+  [loadgen] Suppression du générateur…
+  [loadgen] Terminé.
+  [loadgen] Application visée : http://ts-gateway-service.train-ticket.svc.cluster.local:18888
+  [loadgen] Envoi des parcours…
+  [loadgen] Déploiement du générateur…
+deployment.apps/locust created
+service/locust created
+
+  [loadgen] État du générateur :
+NAME                      READY   STATUS    RESTARTS   AGE   IP              NODE       NOMINATED NODE   READINESS GATES
+locust-579cf89999-hgm9z   1/1     Running   0          6s    10.233.107.75   workers0   <none>           <none>
+
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  Générateur de trafic — pilotage                                         │
+  └──────────────────────────────────────────────────────────────────────────┘
+     Page de pilotage ............... http://10.10.223.161:30089
+
+   Tunnel SSH (la cible est l'adresse du nœud, pas « localhost ») :
+     ssh -N -L 8089:10.10.223.161:30089 master
+   puis http://localhost:8089
+
+   Changer le nombre de voyageurs en ligne de commande :
+     bash /home/ubuntu/autodeploy/apps/loadgen.sh scale 25
+
+   Le rythme est réglé à un parcours toutes les 5 s par voyageur.
+   Avec 10 voyageurs, cela fait environ 2.0 parcours par seconde.

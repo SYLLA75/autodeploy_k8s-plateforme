@@ -1,0 +1,114 @@
+  [observability] Helm utilisé : v4.3.0+gbec5b06
+  [observability] StorageClass par défaut : local-path
+  [observability] Nœud « workers6 » étiqueté pour la mesure (les volumes y seront créés).
+  [observability] Ajout des dépôts Helm…
+  [observability] Installation du magasin de métriques (+ mouchard machines + mouchard Kubernetes)…
+  [observability]   courtier découvert : service « rabbitmq » dans « train-ticket »
+Release "prom" does not exist. Installing it now.
+NAME: prom
+LAST DEPLOYED: Fri Sep 11 23:32:28 2026
+NAMESPACE: observability
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+TEST SUITE: None
+NOTES:
+The Prometheus server can be accessed via port 80 on the following DNS name from within your cluster:
+prom-prometheus-server.observability.svc.cluster.local
+
+
+Get the Prometheus server URL by running these commands in the same shell:
+  export NODE_PORT=$(kubectl get --namespace observability -o jsonpath="{.spec.ports[0].nodePort}" services prom-prometheus-server)
+  export NODE_IP=$(kubectl get nodes --namespace observability -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+
+
+
+
+
+For more information on running Prometheus, visit:
+https://prometheus.io/
+  [observability] Installation du magasin de traces (Jaeger + disque)…
+persistentvolumeclaim/jaeger-badger created
+deployment.apps/jaeger created
+service/jaeger created
+  [observability] Installation de la passerelle de collecte (écrivain unique des traces)…
+persistentvolumeclaim/otel-traces-archive created
+  [observability] Magasin d'objets : https://s3.slices-be.eu/ilabt.imec.be-project-cloud-resilience/otel-data
+Release "otel-gateway" does not exist. Installing it now.
+NAME: otel-gateway
+LAST DEPLOYED: Fri Sep 11 23:32:30 2026
+NAMESPACE: observability
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+TEST SUITE: None
+NOTES:
+
+  [observability] Installation du collecteur sur chaque nœud (pose l'identité Kubernetes)…
+Release "otel-agent" does not exist. Installing it now.
+NAME: otel-agent
+LAST DEPLOYED: Fri Sep 11 23:32:30 2026
+NAMESPACE: observability
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+TEST SUITE: None
+NOTES:
+
+  [observability] Ouverture du port de mesure du courtier « rabbitmq »…
+  [observability]   port existant n°0 nommé « port-0 » (Kubernetes l'exige au-delà d'un port)
+  [observability]   port 15692 ajouté, point d'accès /metrics/per-object
+  [observability]   ports du Service : port-0:5672 metrics:15692 
+  [observability] Attente du démarrage…
+
+  [observability] État des pods dans « observability » :
+NAME                                                    READY   STATUS              RESTARTS   AGE   IP               NODE       NOMINATED NODE   READINESS GATES
+jaeger-594d676665-25jj7                                 1/1     Running             0          20s   10.233.109.199   workers6   <none>           <none>
+otel-agent-opentelemetry-collector-agent-45t2r          1/1     Running             0          19s   10.233.125.13    workers4   <none>           <none>
+otel-agent-opentelemetry-collector-agent-77pnj          1/1     Running             0          19s   10.233.107.77    workers0   <none>           <none>
+otel-agent-opentelemetry-collector-agent-hkcnm          1/1     Running             0          19s   10.233.98.11     workers1   <none>           <none>
+otel-agent-opentelemetry-collector-agent-q8qcl          1/1     Running             0          19s   10.233.92.205    workers3   <none>           <none>
+otel-agent-opentelemetry-collector-agent-swkt5          1/1     Running             0          19s   10.233.125.76    workers2   <none>           <none>
+otel-agent-opentelemetry-collector-agent-w8zwg          1/1     Running             0          19s   10.233.91.205    workers5   <none>           <none>
+otel-gateway-opentelemetry-collector-77d46bf68b-zzj82   1/1     Running             0          19s   10.233.109.200   workers6   <none>           <none>
+prom-kube-state-metrics-5c594dc8b8-b7tzt                1/1     Running             0          20s   10.233.109.194   workers6   <none>           <none>
+prom-prometheus-node-exporter-4jg9n                     1/1     Running             0          20s   10.10.221.168    workers5   <none>           <none>
+prom-prometheus-node-exporter-9jttn                     1/1     Running             0          20s   10.10.221.236    workers1   <none>           <none>
+prom-prometheus-node-exporter-gtrdr                     1/1     Running             0          20s   10.10.223.107    workers3   <none>           <none>
+prom-prometheus-node-exporter-hpznd                     1/1     Running             0          20s   10.10.223.161    master     <none>           <none>
+prom-prometheus-node-exporter-p4k65                     1/1     Running             0          20s   10.10.222.141    workers0   <none>           <none>
+prom-prometheus-node-exporter-phcmx                     1/1     Running             0          20s   10.10.222.49     workers4   <none>           <none>
+prom-prometheus-node-exporter-xp6k9                     1/1     Running             0          20s   10.10.218.237    workers6   <none>           <none>
+prom-prometheus-node-exporter-xrzsx                     1/1     Running             0          20s   10.10.222.196    workers2   <none>           <none>
+prom-prometheus-server-79f8654db6-grkmq                 0/2     ContainerCreating   0          20s   <none>           workers6   <none>           <none>
+
+  [observability] Volumes persistants :
+NAME                     STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+jaeger-badger            Bound    pvc-05ebbe6a-3d98-43f5-8a8c-20b95069b239   20Gi       RWO            local-path     <unset>                 20s
+otel-traces-archive      Bound    pvc-741d1f8f-2710-4f4b-95e1-e1f12174e0e5   20Gi       RWO            local-path     <unset>                 20s
+prom-prometheus-server   Bound    pvc-ecd5cf51-53e6-47bf-b758-b4dadce0df98   20Gi       RWO            local-path     <unset>                 20s
+
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  Pile d'observabilité — accès                                            │
+  └──────────────────────────────────────────────────────────────────────────┘
+     Métriques (Prometheus) ......... http://10.10.223.161:30622
+     Traces (Jaeger) ................ http://10.10.223.161:30686
+
+     Archive brute des traces ....... volume « otel-traces-archive »,
+                                      fichier /archive/spans.jsonl
+
+   Sur SLICES-RI les VMs n'ont pas d'adresse publique : ouvre un tunnel SSH.
+   ATTENTION, la cible du tunnel est l'ADRESSE DU NŒUD, pas « localhost » —
+   kube-proxy ne s'attache pas à l'interface locale, et la forme habituelle
+   « -L 9090:localhost:30622 » échoue silencieusement ici.
+
+     ssh -N -L 16686:10.10.223.161:30686 -L 9090:10.10.223.161:30622 master
+
+   puis, dans le navigateur :
+     Traces ...... http://localhost:16686
+     Métriques ... http://localhost:9090
+
+  [observability] Étape suivante : instrumenter les services applicatifs (voir notes/OBSERVABILITE.md).
+  [observability] Point d'envoi des traces, à poser sur chaque service :
+  [observability]     OTEL_EXPORTER_OTLP_ENDPOINT=http://$(NODE_IP):4318

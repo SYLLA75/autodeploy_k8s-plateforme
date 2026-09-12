@@ -1,0 +1,25 @@
+  [chaos] Moteur de conteneurs détecté : containerd  (prise : /run/containerd/containerd.sock)
+  [chaos] Tableau de bord désactivé (CHAOS_DASHBOARD=1 pour l'activer).
+  [chaos] Contrôleur placé sur le nœud de mesure « workers6 ».
+  [chaos] Installation…
+Release "chaos-mesh" does not exist. Installing it now.
+NAME: chaos-mesh
+LAST DEPLOYED: Fri Sep 11 23:39:19 2026
+NAMESPACE: chaos-mesh
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+TEST SUITE: None
+NOTES:
+1. Make sure chaos-mesh components are running
+   kubectl get pods --namespace chaos-mesh -l app.kubernetes.io/instance=chaos-mesh
+  [chaos] OK  Chaos Mesh installé — version du chart : 2.8.4
+  [chaos] Fige-la pour rendre l'expérience rejouable :  CHAOS_VERSION=2.8.4  dans .env
+
+
+     23      types d'injection disponibles
+     1       contrôleur(s) en marche
+     8/8     démons — un par nœud
+
+  [chaos] OK  prêt à injecter
+

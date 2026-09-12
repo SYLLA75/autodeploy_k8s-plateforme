@@ -1,0 +1,51 @@
+
+  [instrument] Déploiements instrumentés dans « train-ticket » :
+    ts-admin-basic-info-service        curlimages/curl:8.11.1
+    ts-admin-order-service             curlimages/curl:8.11.1
+    ts-admin-route-service             curlimages/curl:8.11.1
+    ts-admin-travel-service            curlimages/curl:8.11.1
+    ts-admin-user-service              curlimages/curl:8.11.1
+    ts-assurance-service               curlimages/curl:8.11.1
+    ts-auth-service                    curlimages/curl:8.11.1
+    ts-avatar-service                  curlimages/curl:8.11.1
+    ts-basic-service                   curlimages/curl:8.11.1
+    ts-cancel-service                  curlimages/curl:8.11.1
+    ts-config-service                  curlimages/curl:8.11.1
+    ts-consign-price-service           curlimages/curl:8.11.1
+    ts-consign-service                 curlimages/curl:8.11.1
+    ts-contacts-service                curlimages/curl:8.11.1
+    ts-delivery-service                curlimages/curl:8.11.1
+    ts-execute-service                 curlimages/curl:8.11.1
+    ts-food-delivery-service           curlimages/curl:8.11.1
+    ts-food-service                    curlimages/curl:8.11.1
+    ts-gateway-service                 curlimages/curl:8.11.1
+    ts-inside-payment-service          curlimages/curl:8.11.1
+    ts-news-service                    curlimages/curl:8.11.1
+    ts-notification-service            curlimages/curl:8.11.1
+    ts-order-other-service             curlimages/curl:8.11.1
+    ts-order-service                   curlimages/curl:8.11.1
+    ts-payment-service                 curlimages/curl:8.11.1
+    ts-preserve-other-service          curlimages/curl:8.11.1
+    ts-preserve-service                curlimages/curl:8.11.1
+    ts-price-service                   curlimages/curl:8.11.1
+    ts-rebook-service                  curlimages/curl:8.11.1
+    ts-route-plan-service              curlimages/curl:8.11.1
+    ts-route-service                   curlimages/curl:8.11.1
+    ts-seat-service                    curlimages/curl:8.11.1
+    ts-security-service                curlimages/curl:8.11.1
+    ts-station-food-service            curlimages/curl:8.11.1
+    ts-station-service                 curlimages/curl:8.11.1
+    ts-ticket-office-service           curlimages/curl:8.11.1
+    ts-train-food-service              curlimages/curl:8.11.1
+    ts-train-service                   curlimages/curl:8.11.1
+    ts-travel-plan-service             curlimages/curl:8.11.1
+    ts-travel-service                  curlimages/curl:8.11.1
+    ts-travel2-service                 curlimages/curl:8.11.1
+    ts-ui-dashboard                    curlimages/curl:8.11.1
+    ts-user-service                    curlimages/curl:8.11.1
+    ts-verification-code-service       curlimages/curl:8.11.1
+    ts-voucher-service                 curlimages/curl:8.11.1
+    ts-wait-order-service              curlimages/curl:8.11.1
+
+  [instrument] Version réellement chargée (à figer dans INST_AGENT_VERSION) :
+  [instrument]     opentelemetry-javaagent - version: 2.31.1

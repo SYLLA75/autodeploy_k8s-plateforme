@@ -1,0 +1,38 @@
+
+  [observability] INVENTAIRE D'EXTRACTION — ce que la grappe produit réellement
+
+  --- Noeud MACHINE (5 composantes) ---
+  attente processeur (pression noyau)                  PRESENT  (16 series)
+  attente memoire (pression noyau)                     PRESENT  (16 series)
+  attente entrees-sorties (pression noyau)             PRESENT  (8 series)
+  memoire disponible                                   PRESENT  (16 series)
+  occupation processeur                                PRESENT  (512 series)
+
+  --- Noeud INSTANCE, etat des ressources ---
+  etranglement processeur (numerateur)                 PRESENT  (64 series)
+  etranglement processeur (denominateur)               PRESENT  (128 series)
+  usage processeur                                     PRESENT  (896 series)
+  memoire occupee                                      PRESENT  (898 series)
+  limite memoire declaree                              PRESENT  (444 series)
+  redemarrages                                         PRESENT  (282 series)
+
+  --- Noeud INSTANCE, signal de transport ---
+  paquets perdus en reception                          PRESENT  (809 series)
+  paquets perdus en emission                           PRESENT  (812 series)
+  erreurs de reception                                 PRESENT  (812 series)
+  octets recus                                         PRESENT  (812 series)
+
+  --- Pont entre les traces et les metriques ---
+  identifiant de pod + machine                         PRESENT  (128 series)
+
+  --- Noeud FILE (famille file classique) ---
+  niveau d'accumulation par file                       PRESENT  (4 series)
+  nombre de consommateurs par file                     PRESENT  (4 series)
+  messages delivres non acquittes                      PRESENT  (2 series)
+
+  --- Traces (la seule source des flux par file et des quatre relations) ---
+  services applicatifs qui emettent des traces         PRESENT  (41 service(s))
+
+  [observability] Rappel : les debits publie et consomme d'une file n'ont AUCUNE source
+  [observability] cote courtier. Ils se reconstruisent uniquement depuis les traces.
+
