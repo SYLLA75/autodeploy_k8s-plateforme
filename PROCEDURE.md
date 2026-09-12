@@ -458,10 +458,14 @@ collecte :
         attend la minute prévue
    3. s'il y a une panne            panne.sh injecter … / retirer
         à la minute dite, pour la durée dite
-   4. calcule la fenêtre            collecte.sh fenetre
-   5. arrête la collecte            collecte.sh arreter
-   6. écrit le compte rendu         campagnes/saine-01/campagne.yaml
+   4. ramène la charge              loadgen.sh scale <premier palier>
+   5. calcule la fenêtre            collecte.sh fenetre
+   6. arrête la collecte            collecte.sh arreter
+   7. écrit le compte rendu         campagnes/saine-01/campagne.yaml
 ```
+
+Le point 4 compte : sans lui, un étalonnage qui finit à 320 voyageurs
+laisserait l'application saturée jusqu'à la campagne suivante.
 
 Tu n'as donc **rien à démarrer ni à arrêter toi-même**. Si la collecte tourne
 déjà, le pilote la reprend sans dommage. Si elle est déjà pilotée par ailleurs,

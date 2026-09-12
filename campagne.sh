@@ -346,6 +346,22 @@ ecrire_compte_rendu() {
     } > "$sortie_yaml"
 }
 
+# La charge ne reste pas au dernier palier : un étalonnage qui finit à 320
+# voyageurs laisserait l'application saturée jusqu'à la campagne suivante. On
+# revient au premier palier, celui qui décrit le régime de base.
+retour_au_premier_palier() {
+    local base="${PALIERS[0]%%:*}" dernier="${PALIERS[-1]%%:*}"
+    [ "$base" != "$dernier" ] || return 0
+    say "Retour à $base voyageurs (premier palier)…"
+    if sortie=$(distant loadgen.sh scale "$base"); then
+        noter_action "action: retour_charge_de_base, voyageurs: $base, resultat: confirme"
+    else
+        printf '%s\n' "$sortie" | sed 's/^/      /' >&2
+        warn "Retour à $base voyageurs non confirmé — la charge reste celle du dernier palier."
+        noter_action "action: retour_charge_de_base, voyageurs: $base, resultat: NON_CONFIRME"
+    fi
+}
+
 # La fenêtre AVANT l'arrêt : collecte.sh fenetre lit la date de démarrage de la
 # passerelle ; passerelle arrêtée, il n'a plus rien à lire.
 cloturer() {
@@ -407,6 +423,7 @@ interrompu() {
         noter_action "action: retrait, motif: interruption"
         INJECTION_ACTIVE=0
     fi
+    retour_au_premier_palier
     cloturer
     exit 130
 }
@@ -516,6 +533,7 @@ done
 attendre_jusqua $((T0 + TOTAL * 60))
 
 trap - INT TERM
+retour_au_premier_palier
 cloturer
 
 }
