@@ -220,6 +220,10 @@ for p in "${PALIERS[@]}"; do
     EVENEMENTS+=("$((depuis * 60)) 0 palier $p")
     depuis=$((depuis + ${p##*:}))
 done
+# Deux minutes après le premier palier, les parcours sont contrôlés : une
+# campagne dont un parcours échoue ou ne tourne pas ne vaut rien, et mieux
+# vaut le savoir à la minute 2 qu'à la minute 60.
+[ "$TOTAL" -ge 3 ] && EVENEMENTS+=("120 2 controle -")
 for a in "${DEBUTS[@]}"; do
     EVENEMENTS+=("$((a * 60)) 1 temoin avant")
     EVENEMENTS+=("$((a * 60)) 2 injecter -")
@@ -242,6 +246,7 @@ for ev in "${EVENEMENTS[@]}"; do
         injecter) printf "      %4d   injection « %s »%s%s, pendant %s min\n" $((sec / 60)) "$PANNE" \
                       "${INTENSITE:+ · intensité $INTENSITE}" "${CIBLE_PANNE:+ · cible $CIBLE_PANNE}" "$DUREE" ;;
         retirer)  printf "      %4d   retrait\n" $((sec / 60)) ;;
+        controle) printf "      %4d   contrôle des parcours\n" $((sec / 60)) ;;
     esac
 done
 printf "      %4d   fin\n" "$TOTAL"
@@ -454,7 +459,7 @@ reglage_consommateur=$(distant consommateur.sh etat) || reglage_consommateur="(n
 # redémarrage du service des commandes reste hors de la fenêtre mesurée.
 if [ "$PURGE" = "1" ]; then
     say "Remise à zéro des données de l'application…"
-    if sortie=$(distant donnees.sh purger); then
+    if sortie=$(distant donnees.sh purger); then   # sans redémarrage : voir donnees.sh
         printf '%s\n' "$sortie" | sed 's/^/      /'
         noter_action "action: donnees_remises_a_zero"
     else
@@ -540,6 +545,19 @@ $sortie
     say "témoin « $moment » relevé"
 }
 
+controle_des_parcours() {
+    say "Contrôle des parcours (loadgen.sh bilan)…"
+    if sortie=$(distant loadgen.sh bilan); then
+        printf '%s\n' "$sortie" | grep -E "^\s+[0-9]{2} " | sed 's/^/      /'
+        noter_action "action: controle_parcours, resultat: ok"
+        return 0
+    fi
+    printf '%s\n' "$sortie" | sed 's/^/      /' >&2
+    noter_action "action: controle_parcours, resultat: EN_DEFAUT"
+    warn "Un parcours échoue ou ne tourne pas : la campagne ne vaudrait rien. Arrêt."
+    interrompu
+}
+
 attendre_jusqua() {   # <epoch> — dort jusqu'à cet instant, sans dérive
     local n; n=$(date +%s)
     [ "$1" -gt "$n" ] || return 0
@@ -559,6 +577,7 @@ for ev in "${EVENEMENTS[@]}"; do
         injecter) injecter ;;
         retirer)  retirer ;;
         temoin)   temoin "$arg" ;;
+        controle) controle_des_parcours ;;
     esac
 done
 attendre_jusqua $((T0 + TOTAL * 60))

@@ -7,6 +7,20 @@ refaire une erreur déjà faite.
 
 ---
 
+## 2026-09-12 — Redémarrer le service des commandes seul casse la recherche deux minutes
+
+**Mesuré** au départ de saine-04 : le pilote purgeait et redémarrait
+`ts-order-service` ; dans la minute, « chercher un train » à 100 % de `500`
+(30 s), puis retour à la normale de lui-même après ~2 minutes (57 ms). Les
+services qui appellent les commandes gardent des connexions ouvertes vers le
+pod disparu et y attendent. La campagne a été arrêtée et relancée : ses deux
+premières minutes étaient fausses.
+
+**Décisions** : la purge ne redémarre plus rien (`--redemarrer` redémarre la
+chaîne complète — commandes, sièges, recherche — quand c'est nécessaire) ;
+`bilan` rend un code de retour ; le pilote contrôle les parcours à la minute
+2 et s'arrête proprement si l'un échoue ou ne tourne pas.
+
 ## 2026-09-12 — Le sommeil dans la base sérialise les répliques : retard réseau à la place
 
 **Mesuré**, après la purge et à 25 voyageurs, avec le déclencheur SQL à

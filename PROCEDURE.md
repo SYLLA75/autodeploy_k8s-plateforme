@@ -554,20 +554,27 @@ voyageur, même après redémarrage des services du dessus. Dans `bilan`, la
 signature est un `p50` de **30 000** sur « chercher un train ».
 
 Le pilote remet donc les tables de commandes à zéro au départ de chaque
-campagne (`donnees.sh purger`, avant la collecte), et le compte rendu note
-l'état des tables (`donnees_au_depart`). À la main :
+campagne (`donnees.sh purger`, avant la collecte, sans rien redémarrer), et
+le compte rendu note l'état des tables (`donnees_au_depart`). À la main :
 
 ```bash
 ssh master 'bash ~/autodeploy/apps/donnees.sh etat'
 ssh master 'bash ~/autodeploy/apps/donnees.sh purger'
 ```
 
-Si, après une purge, la recherche reste à 30 000 : redémarrer la chaîne
-dans l'ordre — commandes, sièges, recherche — puis `bilan` à nouveau.
+Si la recherche est à 30 000 (service des commandes déjà étouffé) : purger
+**et** redémarrer la chaîne — commandes, sièges, recherche, dans cet ordre.
+Jamais le service des commandes seul : ceux qui l'appellent gardent des
+connexions vers le pod disparu et la recherche échoue pendant ~2 minutes.
 
 ```bash
-ssh master 'for d in ts-order-service ts-seat-service ts-travel-service; do kubectl rollout restart deploy/$d -n train-ticket && kubectl rollout status deploy/$d -n train-ticket --timeout=300s; done'
+ssh master 'bash ~/autodeploy/apps/donnees.sh purger --redemarrer'
 ```
+
+Après un redémarrage, attendre deux minutes et refaire `bilan` avant de
+lancer quoi que ce soit. Le pilote, lui, contrôle les parcours **à la minute
+2** de chaque campagne et s'arrête si l'un échoue ou ne tourne pas — mieux
+vaut perdre deux minutes que soixante.
 
 Et une vérification de deux secondes : les instants du compte rendu viennent
 de deux horloges, celle du nœud de contrôle et celle du master. Les deux
@@ -604,6 +611,7 @@ collecte :
    2. pour chaque palier            loadgen.sh scale <n>
         vérifie la charge réelle
         attend la minute prévue
+      à la minute 2                 loadgen.sh bilan      (s'arrête si un parcours échoue)
    3. s'il y a une panne            panne.sh injecter … / retirer
         à la minute dite, pour la durée dite
    4. ramène la charge              loadgen.sh scale <premier palier>
@@ -900,7 +908,7 @@ ssh master 'set -a; . ~/autodeploy/.env.secrets; set +a; \
 | `apps/loadgen.sh` | le trafic · `install` `scale <n>` `bilan` `reset` `isolate` |
 | `apps/collecte.sh` | l'enregistrement · `demarrer` `arreter` `fenetre` `etat` |
 | `apps/consommateur.sh` | tailler le consommateur pour sa charge · `dimensionner` `etat` `retirer` |
-| `apps/donnees.sh` | remettre les tables de commandes à zéro · `etat` `purger` |
+| `apps/donnees.sh` | remettre les tables de commandes à zéro · `etat` `purger [--redemarrer]` `redemarrer` |
 | `apps/chaos.sh` | l'injecteur de pannes · `install` `status` `isolate` |
 | `apps/panne.sh` | les quatre pannes · `verifier` `injecter` `retirer` `etat` `temoin` |
 | `campagne.sh` | une campagne entière depuis le nœud de contrôle — charge, panne, collecte, compte rendu |

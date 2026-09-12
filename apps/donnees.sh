@@ -30,16 +30,27 @@
 #  Les données de démonstration (gares, trains, comptes, contacts) ne sont pas
 #  touchées : les parcours en ont besoin, et elles ne grossissent pas.
 #
-#  Le service des commandes est redémarré après : ses connexions et sa mémoire
-#  gardent la trace de l'étouffement, la table vide ne suffit pas.
+#  LA PURGE NE REDÉMARRE RIEN, SAUF DEMANDE
+#
+#  Un service des commandes déjà étouffé garde la trace de l'étouffement
+#  (connexions, mémoire) : la table vide ne suffit pas, il faut le redémarrer.
+#  Mais le redémarrer SEUL casse la chaîne de recherche : les services qui
+#  l'appellent (sièges, recherche) gardent des connexions ouvertes vers le pod
+#  disparu et y attendent sans limite — mesuré : recherche à 100 % d'échecs,
+#  30 s, dans la minute qui suit. « --redemarrer » redémarre donc les trois,
+#  dans l'ordre commandes, sièges, recherche. Sain, un service n'a pas besoin
+#  de redémarrer : le pilote purge sans, et « loadgen.sh bilan » dit si la
+#  chaîne va bien.
 #
 #  Usage (depuis le master) :
 #      bash ~/autodeploy/apps/donnees.sh etat
-#      bash ~/autodeploy/apps/donnees.sh purger [--sans-redemarrage]
+#      bash ~/autodeploy/apps/donnees.sh purger [--redemarrer]
+#      bash ~/autodeploy/apps/donnees.sh redemarrer          la chaîne seule
 #
 #  Variables reconnues : celles de apps/mysql.sh (CONSO_NAMESPACE, CONSO_DB…)
 #      DONNEES_TABLES   (défaut: "orders orders_other food_order delivery")
-#      DONNEES_DEPLOY   (défaut: ts-order-service)  redémarré après la purge
+#      DONNEES_CHAINE   (défaut: "ts-order-service ts-seat-service ts-travel-service")
+#                       les services redémarrés, dans cet ordre, avec --redemarrer
 # ==============================================================================
 set -uo pipefail
 
@@ -48,7 +59,7 @@ _ici="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$_ici/mysql.sh"
 
 TABLES="${DONNEES_TABLES:-orders orders_other food_order delivery}"
-DEPLOY="${DONNEES_DEPLOY:-ts-order-service}"
+CHAINE="${DONNEES_CHAINE:-ts-order-service ts-seat-service ts-travel-service}"
 
 JOURNAUX="$(cd "$_ici/.." && pwd)/journaux"
 REGISTRE="$JOURNAUX/donnees.tsv"
@@ -86,9 +97,24 @@ etat_app() {
     return 0
 }
 
+redemarrer_chaine() {   # commandes, sièges, recherche — l'un après l'autre
+    local d
+    for d in $CHAINE; do
+        say "Redémarrage de $d…"
+        kubectl rollout restart deploy/"$d" -n "$NS" >/dev/null 2>&1 \
+            && kubectl rollout status deploy/"$d" -n "$NS" --timeout=300s >/dev/null 2>&1 \
+            && say "$d redémarré" \
+            || { warn "$d n'est pas revenu en 5 min :  kubectl get pods -n $NS -l app=$d"; return 1; }
+    done
+}
+
 purger_app() {
-    local redemarrage=1
-    [ "${1:-}" = "--sans-redemarrage" ] && redemarrage=0
+    local redemarrage=0
+    case "${1:-}" in
+        --redemarrer) redemarrage=1 ;;
+        --sans-redemarrage|'') ;;
+        *) fail "Option inconnue : $1" ;;
+    esac
     local avant=0 t n
     for t in $TABLES; do
         n=$(lignes "$t"); case "$n" in *[!0-9]*) ;; *) avant=$((avant + n)) ;; esac
@@ -100,13 +126,7 @@ purger_app() {
         consigner purger "$avant" ECHEC
         fail "La base a refusé la purge."
     fi
-    if [ "$redemarrage" = "1" ]; then
-        say "Redémarrage de $DEPLOY…"
-        kubectl rollout restart deploy/"$DEPLOY" -n "$NS" >/dev/null 2>&1 \
-            && kubectl rollout status deploy/"$DEPLOY" -n "$NS" --timeout=300s >/dev/null 2>&1 \
-            && say "$DEPLOY redémarré" \
-            || warn "$DEPLOY n'est pas revenu en 5 min :  kubectl get pods -n $NS -l app=$DEPLOY"
-    fi
+    [ "$redemarrage" = "0" ] || redemarrer_chaine || { consigner purger "$avant" ECHEC; fail "La chaîne n'est pas revenue."; }
     consigner purger "$avant" ok
     ok "données remises à zéro"
     etat_app
@@ -115,5 +135,6 @@ purger_app() {
 case "${1:-etat}" in
     etat)   etat_app ;;
     purger) shift; purger_app "${1:-}" ;;
-    *) echo "Usage: $0 {etat|purger [--sans-redemarrage]}" >&2; exit 2 ;;
+    redemarrer) redemarrer_chaine && ok "chaîne redémarrée" ;;
+    *) echo "Usage: $0 {etat|purger [--redemarrer]|redemarrer}" >&2; exit 2 ;;
 esac

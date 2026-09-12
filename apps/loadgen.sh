@@ -25,7 +25,7 @@
 #       bash ~/autodeploy/apps/loadgen.sh install|uninstall|status|urls
 #       bash ~/autodeploy/apps/loadgen.sh scale <n>     changer la charge
 #       bash ~/autodeploy/apps/loadgen.sh voyageurs     combien tournent vraiment
-#       bash ~/autodeploy/apps/loadgen.sh bilan         les parcours passent-ils ?
+#       bash ~/autodeploy/apps/loadgen.sh bilan         les parcours passent-ils ? (code 1 sinon)
 #       bash ~/autodeploy/apps/loadgen.sh reset         compteurs de Locust à zéro
 #
 #   Variables d'environnement reconnues :
@@ -294,6 +294,8 @@ if mauvais:
 else:
     print('  Tous les parcours passent. La campagne peut être lancée.')
 print()
+# Le code de retour porte le verdict : le pilote s'en sert pour s'arrêter.
+raise SystemExit(1 if mauvais else 0)
 " 2>&1
 }
 
