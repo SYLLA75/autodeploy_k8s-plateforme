@@ -13,7 +13,7 @@
 graphe_en/config.yaml
 
 # --- Généré à l'exécution -----------------------------------------------------
-journaux/
+/journaux/
 kubespray/
 inventory.ini
 raw_inventory.txt
