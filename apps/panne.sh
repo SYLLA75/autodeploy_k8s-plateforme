@@ -81,6 +81,7 @@ VOISIN_NS="${PANNE_VOISIN_NS:-voisin}"
 VOISIN_IMAGE="${PANNE_VOISIN_IMAGE:-busybox:1.36}"
 LOADGEN="$_ici/loadgen.sh"
 CONSOMMATEUR="$_ici/consommateur.sh"
+CONSO_MYSQL_LABEL="${PANNE_BASE_LABEL:-app=tsdb-mysql}" CONSO_NAMESPACE="$NS" . "$_ici/mysql.sh"
 REGLAGE="consommateur-temps-de-service"   # l'objet du réglage de base (consommateur.sh)
 
 JOURNAUX="$(cd "$_ici/.." && pwd)/journaux"
@@ -263,7 +264,6 @@ injecter_lenteur() {
     local duree="$1" intensite="${2:-300}"
     local n; n=$(repliques | wc -l)
     [ "$n" -gt 0 ] || fail "Aucune réplique de $CONSO en marche dans $NS"
-    local cle="${BASE_LABEL%%=*}" val="${BASE_LABEL#*=}"
 
     # Le retard de base (consommateur.sh) et la panne visent le même chemin :
     # un seul objet à la fois. La panne remplace le réglage par « base + panne »,
@@ -278,31 +278,8 @@ injecter_lenteur() {
     ecrire_etat CAUSE=lenteur OUTIL=chaos-mesh "CIBLE=$CONSO ($n répliques) -> $BASE_LABEL" \
                 "INTENSITE=$intensite" "RETARD_BASE=${base:-}" "DEBUT=$demande" "DUREE=$duree"
     [ -z "$base" ] || kubectl delete networkchaos "$REGLAGE" -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1
-    kubectl apply -f - >/dev/null <<EOF || fail "Chaos Mesh a refusé l'objet — voir ci-dessus."
-apiVersion: chaos-mesh.org/v1alpha1
-kind: NetworkChaos
-metadata:
-  name: panne-lenteur
-  namespace: $NS
-  labels: { panne: lenteur }
-spec:
-  action: delay
-  mode: all
-  selector:
-    namespaces: [ "$NS" ]
-    labelSelectors: { app: "$CONSO" }
-  direction: to
-  target:
-    mode: all
-    selector:
-      namespaces: [ "$NS" ]
-      labelSelectors: { $cle: "$val" }
-  delay:
-    latency: "${total}ms"
-    jitter: "0ms"
-    correlation: "0"
-  duration: "${duree}m"
-EOF
+    yaml_retard panne-lenteur "$CONSO" "$total" "$duree" "panne=lenteur" | kubectl apply -f - >/dev/null \
+        || fail "Chaos Mesh a refusé l'objet — voir ci-dessus."
     if attendre_injection networkchaos "$NS" panne-lenteur 60; then
         local t; t=$(conteneurs_touches networkchaos "$NS" panne-lenteur)
         consigner "$demande" "$(maintenant)" injection lenteur "$intensite" "$CONSO x$n -> $BASE_LABEL" chaos-mesh/networkchaos confirmee

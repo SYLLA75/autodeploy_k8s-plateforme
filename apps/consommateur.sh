@@ -121,32 +121,9 @@ prefetch_actuel() {   # la valeur portée par le déploiement, vide si absente
 
 # poser_retard <ms> — crée ou remplace l'objet, attend qu'il soit appliqué
 poser_retard() {
-    local ms="$1" cle="${MYSQL_LABEL%%=*}" val="${MYSQL_LABEL#*=}"
+    local ms="$1"
     kubectl delete networkchaos "$OBJET" -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1
-    kubectl apply -f - >/dev/null <<YAML || return 1
-apiVersion: chaos-mesh.org/v1alpha1
-kind: NetworkChaos
-metadata:
-  name: $OBJET
-  namespace: $NS
-  labels: { reglage: consommateur }
-spec:
-  action: delay
-  mode: all
-  selector:
-    namespaces: [ "$NS" ]
-    labelSelectors: { app: "$DEPLOY" }
-  direction: to
-  target:
-    mode: all
-    selector:
-      namespaces: [ "$NS" ]
-      labelSelectors: { $cle: "$val" }
-  delay:
-    latency: "${ms}ms"
-    jitter: "0ms"
-    correlation: "0"
-YAML
+    yaml_retard "$OBJET" "$DEPLOY" "$ms" "" "reglage=consommateur" | kubectl apply -f - >/dev/null || return 1
     local reste=60
     while [ "$reste" -gt 0 ]; do
         retard_injecte && return 0

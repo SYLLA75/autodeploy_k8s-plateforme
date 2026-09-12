@@ -24,6 +24,13 @@ Traiter un message coûte ~5 échanges avec la base : ≈ 0,7 s. Le facteur 5
 est une estimation, à vérifier sur la référence (`process_time_p50`) et sur
 le témoin (tas à 0 à 25 voyageurs).
 
+Piège trouvé à la première pose : les répliques parlent à la base par une
+adresse de *service* (`tsdb-mysql-leader`), traduite en adresse de pod après
+la sortie du pod ; un retard posé sur les seules adresses des pods de la base
+ne voit jamais passer ce trafic (mesuré : connexion en 2 ms, Chaos Mesh
+disant « appliqué »). Les adresses des services devant la base sont ajoutées
+en `externalTargets` — pour le réglage comme pour la cause `lenteur`.
+
 Conséquence sur la cause `lenteur` : un seul objet à la fois sur ce chemin.
 La panne remplace le réglage par « base + panne » (défaut +300 ms) et
 `retirer` repose le réglage. Le déclencheur SQL est retiré par
