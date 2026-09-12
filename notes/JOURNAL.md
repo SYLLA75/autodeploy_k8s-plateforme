@@ -7,6 +7,22 @@ refaire une erreur déjà faite.
 
 ---
 
+## 2026-09-12 — essai-blocage-02 : la première cause validée sur la plateforme
+
+25 voyageurs, réplique gelée de la minute 3 à la minute 8, lu au témoin
+toutes les 20 s :
+
+```
+   pendant   2 consommateurs (le courtier a lâché la gelée), 2 non acquittés,
+             tas + ~50 par minute (129 → 182 en 63 s ; prévu + 40)
+   minute 8  3 consommateurs, pic à 188
+   après     fonte à ~45 par minute, 0 au bout de cinq minutes, puis 0–3
+```
+
+L'entrée n'a pas bougé (3,5/s) ; la sortie est passée de 4,2 à 2,8/s. La
+trace est nette, datée, réversible. Reste à vérifier que le graphe la porte
+(`backlog`, `consumers`, `rate_imbalance`, réplique à zéro).
+
 ## 2026-09-12 — Le gel d'une réplique doit partir de la machine
 
 **Mesuré** (essai-blocage, première tentative) : `kill -STOP` envoyé depuis
