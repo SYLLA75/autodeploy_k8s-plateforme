@@ -90,6 +90,8 @@
 #  Variables reconnues :
 #      CAMPAGNE_SSH      (défaut: master)
 #      CAMPAGNE_DISTANT  (défaut: /home/ubuntu/autodeploy)
+#      FILE_VIDE_MAX     (défaut: 40) minutes d'attente, au départ, pour que la
+#                        file laissée par la campagne précédente se vide
 # ==============================================================================
 set -uo pipefail
 
@@ -225,6 +227,10 @@ done
 # campagne dont un parcours échoue ou ne tourne pas ne vaut rien, et mieux
 # vaut le savoir à la minute 2 qu'à la minute 60.
 [ "$TOTAL" -ge 3 ] && EVENEMENTS+=("120 2 controle -")
+# Puis toutes les dix minutes, une veille : le même bilan, noté dans le
+# déroulé mais sans arrêt. Une campagne de deux heures tourne sans personne
+# devant ; si l'application se casse à la minute 70, il faut pouvoir le lire.
+for ((m = 10; m < TOTAL; m += 10)); do EVENEMENTS+=("$((m * 60)) 5 veille -"); done
 for a in "${DEBUTS[@]}"; do
     EVENEMENTS+=("$((a * 60)) 1 temoin avant")
     EVENEMENTS+=("$((a * 60)) 2 injecter -")
@@ -248,6 +254,7 @@ for ev in "${EVENEMENTS[@]}"; do
                       "${INTENSITE:+ · intensité $INTENSITE}" "${CIBLE_PANNE:+ · cible $CIBLE_PANNE}" "$DUREE" ;;
         retirer)  printf "      %4d   retrait\n" $((sec / 60)) ;;
         controle) printf "      %4d   contrôle des parcours\n" $((sec / 60)) ;;
+        veille)   [ "$sec" -eq 600 ] && printf "      %4d   veille des parcours, puis toutes les 10 min\n" $((sec / 60)) ;;
     esac
 done
 printf "      %4d   fin\n" "$TOTAL"
@@ -488,6 +495,25 @@ if [ "$PURGE" = "1" ]; then
 fi
 etat_donnees=$(distant donnees.sh etat) || etat_donnees="(non lu : $etat_donnees)"
 
+# La file aussi doit être vide : une campagne qui part sur le tas laissé par
+# la précédente porterait dès ses premières fenêtres une panne sans cause.
+# Le tas fond de lui-même sous la charge de base ; on attend, en le notant.
+attendre_file_vide() {
+    local reste=$(( ${FILE_VIDE_MAX:-40} * 60 )) n attendu=0
+    while :; do
+        n=$(distant panne.sh temoin | sed -n 's/.*file [^:]*: \([0-9]*\) en attente.*/\1/p' | head -1)
+        [ -n "$n" ] || { warn "File illisible (panne.sh temoin) — on part sans l'avoir vue vide."; return 0; }
+        if [ "$n" -eq 0 ]; then [ "$attendu" = "1" ] && ok "file vide"; return 0; fi
+        if [ "$attendu" = "0" ]; then
+            say "La file porte encore $n message(s) : attente qu'elle se vide (au plus ${FILE_VIDE_MAX:-40} min)…"
+            noter_action "action: attente_file_vide, en_attente: $n"; attendu=1
+        fi
+        [ "$reste" -gt 0 ] || fail "La file ne s'est pas vidée en ${FILE_VIDE_MAX:-40} min ($n restants) : départ refusé."
+        sleep 30; reste=$((reste - 30))
+    done
+}
+attendre_file_vide
+
 if [ "$COLLECTE" = "1" ]; then
     say "Démarrage de la collecte…"
     if sortie=$(distant collecte.sh demarrer); then
@@ -578,6 +604,22 @@ controle_des_parcours() {
     interrompu
 }
 
+# Même bilan, mais seulement noté : une panne « charge » ou « lenteur » peut
+# faire échouer un parcours pendant l'injection sans que la campagne soit à
+# jeter — c'est justement ce qu'on mesure. Le déroulé dit quand ça a commencé.
+veille_des_parcours() {
+    local file
+    if sortie=$(distant loadgen.sh bilan); then
+        file=$(distant panne.sh temoin | sed -n 's/.*file [^:]*: \([0-9]*\) en attente.*/\1/p' | head -1)
+        noter_action "action: veille_parcours, resultat: ok, file: ${file:-?}"
+        say "veille : parcours ok, file ${file:-?}"
+    else
+        printf '%s\n' "$sortie" | grep -E "^\s+[0-9]{2} |échou|jamais" | sed 's/^/      /' >&2
+        noter_action "action: veille_parcours, resultat: EN_DEFAUT"
+        warn "veille : un parcours échoue ou ne tourne pas — noté, la campagne continue."
+    fi
+}
+
 attendre_jusqua() {   # <epoch> — dort jusqu'à cet instant, sans dérive
     local n; n=$(date +%s)
     [ "$1" -gt "$n" ] || return 0
@@ -598,6 +640,7 @@ for ev in "${EVENEMENTS[@]}"; do
         retirer)  retirer ;;
         temoin)   temoin "$arg" ;;
         controle) controle_des_parcours ;;
+        veille)   veille_des_parcours ;;
     esac
 done
 attendre_jusqua $((T0 + TOTAL * 60))
