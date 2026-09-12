@@ -323,10 +323,14 @@ injecter_lenteur() {
     local demande; demande=$(maintenant)
     ecrire_etat CAUSE=lenteur OUTIL=chaos-mesh "CIBLE=$CONSO ($n répliques) -> $BASE_LABEL" \
                 "INTENSITE=$intensite" "RETARD_BASE=${base:-}" "DEBUT=$demande" "DUREE=$duree" MINUTEUR=
-    [ -z "$base" ] || kubectl delete networkchaos "$REGLAGE" -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1
+    # La panne est posée AVANT que le réglage soit retiré : deux retards sur
+    # les mêmes pods s'additionnent (mesuré : 140 + 1 → 143 ms), donc pendant
+    # le recouvrement le consommateur est un peu plus lent, jamais sans retard.
+    # Dans l'autre ordre, il serait mille fois trop rapide quelques secondes.
     yaml_retard panne-lenteur "$CONSO" "$total" "$duree" "panne=lenteur" | kubectl apply -f - >/dev/null \
         || fail "Chaos Mesh a refusé l'objet — voir ci-dessus."
     if attendre_injection networkchaos "$NS" panne-lenteur 60; then
+        [ -z "$base" ] || kubectl delete networkchaos "$REGLAGE" -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1
         local t; t=$(conteneurs_touches networkchaos "$NS" panne-lenteur)
         consigner "$demande" "$(maintenant)" injection lenteur "$intensite" "$CONSO x$n -> $BASE_LABEL" chaos-mesh/networkchaos confirmee
         ok "injectée — $t conteneur(s) touché(s), expire dans $duree min"
@@ -535,13 +539,15 @@ retirer_app() {
             LG_ORIGINE=retour_panne JOURNAL_OFF=1 bash "$LOADGEN" scale "$RETOUR" || resultat=ECHEC ;;
         lenteur)
             [ -n "${MINUTEUR:-}" ] && [ "$MINUTEUR" != "$PPID" ] && kill "$MINUTEUR" >/dev/null 2>&1
-            kubectl delete networkchaos panne-lenteur -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 \
-                || resultat=ECHEC
+            # Le réglage de base est reposé AVANT de lever la panne : même
+            # raison qu'à l'injection, jamais un instant sans retard.
             if [ -n "${RETARD_BASE:-}" ]; then
                 say "Retour au réglage de base ($RETARD_BASE ms)…"
                 JOURNAL_OFF=1 bash "$CONSOMMATEUR" dimensionner --retard "$RETARD_BASE" >/dev/null 2>&1 \
                     && say "réglage de base reposé" || { warn "réglage de base NON reposé :  consommateur.sh dimensionner --retard $RETARD_BASE"; resultat=ECHEC; }
-            fi ;;
+            fi
+            kubectl delete networkchaos panne-lenteur -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 \
+                || resultat=ECHEC ;;
         hote)
             kubectl delete stresschaos panne-hote -n "$VOISIN_NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 \
                 || resultat=ECHEC
