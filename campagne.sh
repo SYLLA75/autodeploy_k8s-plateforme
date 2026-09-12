@@ -427,6 +427,15 @@ if [ "$COLLECTE" = "1" ]; then
     fi
 fi
 
+# Les compteurs de Locust repartent de zéro : « loadgen.sh bilan » décrira
+# cette campagne, pas ce qui a tourné avant.
+if sortie=$(distant loadgen.sh reset); then
+    noter_action "action: compteurs_locust_remis_a_zero"
+else
+    printf '%s\n' "$sortie" | sed 's/^/      /' >&2
+    warn "Compteurs de Locust non remis à zéro — le bilan cumulera avec ce qui précède."
+fi
+
 # ------------------------------------------------------------------ les gestes
 appliquer_palier() {
     local v="${1%%:*}" d="${1##*:}"

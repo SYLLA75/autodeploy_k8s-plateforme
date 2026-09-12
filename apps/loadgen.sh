@@ -26,6 +26,7 @@
 #       bash ~/autodeploy/apps/loadgen.sh scale <n>     changer la charge
 #       bash ~/autodeploy/apps/loadgen.sh voyageurs     combien tournent vraiment
 #       bash ~/autodeploy/apps/loadgen.sh bilan         les parcours passent-ils ?
+#       bash ~/autodeploy/apps/loadgen.sh reset         compteurs de Locust à zéro
 #
 #   Variables d'environnement reconnues :
 #     LG_NAMESPACE     (défaut: loadgen)        espace du générateur
@@ -238,37 +239,45 @@ bilan_app() {
     local attendus=""
     [ -f "$LOCUSTFILE" ] && attendus=$(grep -oP 'name="\K[^"]+' "$LOCUSTFILE" | sort -u | paste -sd'|')
 
+    # Deux lectures par parcours : les TOTAUX depuis le dernier « reset », et
+    # MAINTENANT — les dix dernières secondes. Un total dit ce qui s'est passé,
+    # pas quand ; le verdict se prend sur maintenant dès qu'il y a du trafic.
     kubectl exec -n "$NAMESPACE" "$pod" -- env ATTENDUS="$attendus" python -c "
-import json, urllib.request
+import json, os, urllib.request
 d = json.loads(urllib.request.urlopen('http://localhost:8089/stats/requests', timeout=10).read().decode())
 print()
 print('  voyageurs actifs : %s' % d.get('user_count'))
 print()
-print('  %-34s %8s %8s %8s' % ('parcours', 'appels', 'échecs', 'taux'))
-print('  ' + '-' * 62)
+print('  %-30s %8s %8s %6s   %9s %9s %7s' % ('parcours', 'appels', 'échecs', 'taux', 'maintenant', 'échecs', 'p50'))
+print('  %-30s %8s %8s %6s   %9s %9s %7s' % ('', 'total', 'total', '', '/s', '/s', 'ms'))
+print('  ' + '-' * 84)
 mauvais = 0
 for s in sorted(d.get('stats', []), key=lambda x: x.get('name') or ''):
     nom = s.get('name') or ''
     if nom in ('', 'Aggregated'):
         continue
     n, e = s.get('num_requests', 0), s.get('num_failures', 0)
+    rps, fps = s.get('current_rps') or 0.0, s.get('current_fail_per_sec') or 0.0
+    p50 = s.get('median_response_time') or 0
     taux = (e / n) if n else 0
+    # Le verdict porte sur maintenant quand le parcours tourne ; sur le total
+    # sinon (un parcours rare peut n'avoir aucun appel dans les dix secondes).
+    juge = (fps / rps) if rps > 0 else taux
     # Un parcours JAMAIS EXÉCUTÉ est aussi grave qu'un parcours qui échoue, et
-    # bien plus discret : son taux d'échec vaut zéro. C'est ce qui est arrivé à
-    # « commander un repas » — jamais atteint, donc file food_delivery vide, sans
-    # qu'aucun compteur d'erreur ne bouge.
-    souci = '   <<< échoue' if taux > 0.05 else ('   <<< jamais exécuté' if n == 0 else '')
+    # bien plus discret : son taux d'échec vaut zéro.
+    souci = '   <<< échoue' if juge > 0.05 else ('   <<< jamais exécuté' if n == 0 else '')
     if souci:
         mauvais += 1
-    print('  %-34s %8d %8d %7.1f%%%s' % (nom[:34], n, e, 100 * taux, souci))
+    print('  %-30s %8d %8d %5.1f%%   %9.2f %9.2f %7d%s' % (nom[:30], n, e, 100 * taux, rps, fps, p50, souci))
 
-import os
 attendus = [x for x in os.environ.get('ATTENDUS', '').split('|') if x]
 vus = {(s.get('name') or '') for s in d.get('stats', [])}
-absents = [a for a in attendus if a not in vus]
-for a in absents:
-    print('  %-34s %8s %8s %7s   <<< JAMAIS EXÉCUTÉ' % (a[:34], '-', '-', '-'))
+for a in [a for a in attendus if a not in vus]:
+    print('  %-30s %8s %8s %6s   %9s %9s %7s   <<< JAMAIS EXÉCUTÉ' % (a[:30], '-', '-', '-', '-', '-', '-'))
     mauvais += 1
+print()
+print('  totaux : depuis le dernier « reset » — le pilote en fait un au départ de chaque campagne.')
+print('  maintenant : les dix dernières secondes.')
 print()
 if mauvais:
     print('  %d parcours en défaut — NE LANCE PAS DE CAMPAGNE.' % mauvais)
@@ -278,6 +287,23 @@ else:
     print('  Tous les parcours passent. La campagne peut être lancée.')
 print()
 " 2>&1
+}
+
+# ------------------------------------------------------------------------------
+# reset — remettre les compteurs de Locust à zéro
+# ------------------------------------------------------------------------------
+# Les totaux de « bilan » comptent depuis ce point. Fait au départ de chaque
+# campagne, pour que le bilan décrive la campagne et non la nuit d'avant.
+# Les voyageurs continuent de tourner : seuls les compteurs repartent de zéro.
+# ------------------------------------------------------------------------------
+reset_app() {
+    local pod; pod=$(locust_pod)
+    [ -n "$pod" ] || fail "Générateur introuvable. Lance d'abord : $0 install"
+    kubectl exec -n "$NAMESPACE" "$pod" -- python -c "
+import urllib.request
+urllib.request.urlopen('http://localhost:8089/stats/reset', timeout=10).read()
+" 2>&1 || fail "Locust n'a pas remis ses compteurs à zéro."
+    say "Compteurs de Locust remis à zéro à $(date -u +%Y-%m-%dT%H:%M:%SZ)."
 }
 
 # ------------------------------------------------------------------------------
@@ -405,6 +431,7 @@ case "${1:-status}" in
     scale)     shift; scale_app "${1:-}" ;;
     voyageurs) voyageurs_actuels "$(locust_pod)" ;;
     bilan)     bilan_app ;;
+    reset)     reset_app ;;
     isolate)   shift; isolate_app "${1:-}" ;;
-    *) echo "Usage: $0 {install|uninstall|status|urls|scale <n>|voyageurs|bilan|isolate <nœud>}" >&2; exit 2 ;;
+    *) echo "Usage: $0 {install|uninstall|status|urls|scale <n>|voyageurs|bilan|reset|isolate <nœud>}" >&2; exit 2 ;;
 esac

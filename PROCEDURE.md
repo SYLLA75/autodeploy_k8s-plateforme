@@ -392,14 +392,23 @@ ssh master 'bash ~/autodeploy/apps/loadgen.sh bilan'
 ```
 
 ```
-   parcours                             appels   échecs     taux
-   --------------------------------------------------------------
-   01 connexion                            300        0     0.0%
-   10 chercher un train                    900       12     1.3%
-   20 commander un repas                   180        2     1.1%
+   parcours                         appels   échecs   taux   maintenant    échecs     p50
+                                     total    total                 /s        /s      ms
+   ------------------------------------------------------------------------------------
+   01 connexion                        300        0   0.0%        0.10      0.00     120
+   10 chercher un train                900       12   1.3%        4.20      0.00     310
+   30 réserver un billet               180        2   1.1%        0.80      0.00     650
 
    Tous les parcours passent. La campagne peut être lancée.
 ```
+
+Deux lectures par parcours. Les **totaux** comptent depuis le dernier « reset »
+— le pilote en fait un au départ de chaque campagne, donc ils décrivent la
+campagne en cours, pas la nuit d'avant. **Maintenant**, ce sont les dix
+dernières secondes : c'est là-dessus que le verdict se prend dès qu'un
+parcours tourne. Pendant une campagne, c'est la colonne à regarder ; `p50`
+qui grimpe d'un palier à l'autre, c'est l'application qui approche de son
+plafond.
 
 **Deux choses sont fatales, et aucune ne se voit ailleurs :**
 
@@ -705,6 +714,9 @@ ssh master 'bash ~/autodeploy/apps/observability.sh verify'
 # faire monter la charge, et noter l'instant
 ssh master 'bash ~/autodeploy/apps/loadgen.sh scale 25'
 
+# les parcours passent-ils, maintenant ?
+ssh master 'bash ~/autodeploy/apps/loadgen.sh bilan'
+
 # une panne est-elle en place ? la lever ; relever la file et les répliques
 ssh master 'bash ~/autodeploy/apps/panne.sh etat'
 ssh master 'bash ~/autodeploy/apps/panne.sh retirer'
@@ -729,7 +741,7 @@ ssh master 'set -a; . ~/autodeploy/.env.secrets; set +a; \
 | `deploy.sh` | machines, Kubernetes, application |
 | `apps/observability.sh` | toute la chaîne de mesure · `install` `verify` `isolate` `tune` `urls` |
 | `apps/instrument.sh` | attacher l'observateur aux services · `install --all` |
-| `apps/loadgen.sh` | le trafic · `install` `scale <n>` `bilan` `isolate` |
+| `apps/loadgen.sh` | le trafic · `install` `scale <n>` `bilan` `reset` `isolate` |
 | `apps/collecte.sh` | l'enregistrement · `demarrer` `arreter` `fenetre` `etat` |
 | `apps/chaos.sh` | l'injecteur de pannes · `install` `status` `isolate` |
 | `apps/panne.sh` | les quatre pannes · `verifier` `injecter` `retirer` `etat` `temoin` |
