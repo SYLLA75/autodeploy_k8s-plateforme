@@ -149,6 +149,7 @@ while [ $# -gt 0 ]; do
 done
 
 [ -n "$PROFIL" ] || fail "Le profil est obligatoire : --profil \"10:15,25:15\""
+case "${MARGE:-2}" in ''|*[!0-9]*) fail "--marge : un nombre de minutes" ;; esac
 
 # ------------------------------------------------------ lecture du profil
 # Refusé tôt et en entier : découvrir une faute de frappe à la troisième heure
@@ -286,6 +287,7 @@ echo
 # Écrit à la fin, et aussi sur interruption : le fichier décrit toujours ce qui
 # a réellement eu lieu.
 rates=0; echoues=0; injectees=0; non_injectees=0; INJECTION_ACTIVE=0; INTERROMPUE=0
+MARGE_S=$(( ${MARGE:-2} * 60 )); T_COLLECTE=""; T0=""
 etat_avant=""; etat_apres=""; fenetre=""; registre=""; registre_pannes=""; reglage_consommateur=""; etat_donnees=""
 plage_date=""; plage_de=""; plage_a=""
 
@@ -326,6 +328,7 @@ ecrire_compte_rendu() {
         echo "donnees_au_depart: |"
         printf '%s\n' "${etat_donnees:-(non lu)}" | sed 's/^/  /'
         echo
+        echo "# Calculée par le pilote : mise en route de la collecte + marge → fin − marge."
         echo "plage_exploitable:"
         echo "  date: ${plage_date:-inconnue}"
         echo "  from: \"${plage_de:-?}\""
@@ -393,9 +396,21 @@ cloturer() {
     fi
     etat_apres=$(distant collecte.sh etat)
 
-    plage_date=$(printf '%s\n' "$fenetre" | grep -oP '^\s+date:\s+\K[0-9-]+'   | head -1)
-    plage_de=$(printf '%s\n' "$fenetre"   | grep -oP '^\s+from:\s+"\K[0-9:]+' | head -1)
-    plage_a=$(printf '%s\n' "$fenetre"    | grep -oP '^\s+to:\s+"\K[0-9:]+'   | head -1)
+    # La plage est calculée par le pilote, depuis ses propres instants : le
+    # début est celui où IL a mis la collecte en route (ou le premier palier,
+    # sans collecte pilotée), la fin est maintenant, chacun rogné de la marge.
+    # « collecte.sh fenetre » déduit le début de la date du pod de collecte,
+    # qui peut dater d'une campagne précédente ; sa sortie reste dans le compte
+    # rendu, à titre de recoupement.
+    local origine=$(( ${T_COLLECTE:-${T0:-$(date +%s)}} + MARGE_S )) fin=$(( $(date +%s) - MARGE_S ))
+    origine=$(( (origine + 59) / 60 * 60 ))          # à la minute pleine suivante
+    fin=$(( fin / 60 * 60 ))                         # à la minute pleine précédente
+    plage_date=$(date -u -d "@$origine" +%Y-%m-%d)
+    plage_de=$(date -u -d "@$origine" +%H:%M)
+    plage_a=$(date -u -d "@$fin" +%H:%M)
+    [ "$(date -u -d "@$fin" +%Y-%m-%d)" = "$plage_date" ] \
+        || warn "La campagne a traversé minuit : la plage ne peut pas être décrite sur un seul jour."
+    [ "$fin" -gt "$origine" ] || { warn "Plage vide : campagne trop courte pour la marge de $((MARGE_S / 60)) min."; plage_de=""; }
 
     say "Rapatriement des registres et des journaux…"
     registre=$(ssh "$CIBLE" "cat '$DISTANT/journaux/paliers.tsv'" 2>/dev/null)
@@ -422,9 +437,7 @@ cloturer() {
         echo "      to:         \"$plage_a\""
         echo
     else
-        warn "Plage exploitable illisible — voir la sortie verbatim dans le compte rendu."
-        warn "Repli : la plage se calcule depuis « deroule » du compte rendu,"
-        warn "  collecte_demarree + 2 min  →  collecte_arretee − 2 min."
+        warn "Pas de plage exploitable — campagne trop courte pour la marge."
     fi
     say "Ce dossier est à committer : c'est la provenance de tes données."
 }
@@ -473,6 +486,7 @@ if [ "$COLLECTE" = "1" ]; then
     say "Démarrage de la collecte…"
     if sortie=$(distant collecte.sh demarrer); then
         ok "collecte démarrée"
+        T_COLLECTE=$(date +%s)
         noter_action "action: collecte_demarree"
     else
         printf '%s\n' "$sortie" | sed 's/^/      /' >&2
