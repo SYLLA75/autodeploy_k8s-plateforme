@@ -7,6 +7,28 @@ refaire une erreur déjà faite.
 
 ---
 
+## 2026-09-12 — Le sommeil dans la base sérialise les répliques : retard réseau à la place
+
+**Mesuré**, après la purge et à 25 voyageurs, avec le déclencheur SQL à
+0,7 s : 570 messages en attente en cinq minutes ; 3,4 reçus/s, 1,3 traités/s
+pour 3 répliques ; et côté base, **un seul** `User sleep` actif en
+permanence (10 échantillons sur 10). MySQL n'exécute qu'un sommeil de
+déclencheur à la fois : les trois répliques attendaient l'une après l'autre.
+La capacité valait 1 ÷ S quel que soit le nombre de répliques — une réplique
+gelée n'aurait rien changé, les causes `blocage` et `hote` étaient mortes.
+
+**Décision** : le temps de service est un **retard réseau propre à chaque
+réplique** (Chaos Mesh NetworkChaos sans durée, `consommateur.sh
+dimensionner --retard 140`), entre les pods du consommateur et `tsdb-mysql`.
+Traiter un message coûte ~5 échanges avec la base : ≈ 0,7 s. Le facteur 5
+est une estimation, à vérifier sur la référence (`process_time_p50`) et sur
+le témoin (tas à 0 à 25 voyageurs).
+
+Conséquence sur la cause `lenteur` : un seul objet à la fois sur ce chemin.
+La panne remplace le réglage par « base + panne » (défaut +300 ms) et
+`retirer` repose le réglage. Le déclencheur SQL est retiré par
+`dimensionner` s'il en reste un.
+
 ## 2026-09-12 — L'application s'étouffe sur ses propres données (`apps/donnees.sh`)
 
 **Symptôme** : après l'étalonnage, « chercher un train » répond `500` à 100 %,
@@ -80,22 +102,21 @@ l'application tient à 50 voyageurs (moins de demande qu'avant à 25).
 Deux réglages de plateforme, posés une fois avant la référence, jamais
 changés ensuite, recopiés dans chaque compte rendu (`reglage_consommateur`) :
 
-- **temps de service 0,7 s par message** : un déclencheur SQL sur la table
-  `delivery` (`BEFORE INSERT … SLEEP(0.7)`). Capacité des 3 répliques :
-  4,3 messages/s ; à 25 voyageurs, **3,4 messages/s mesurés** (3,0 du parcours
-  direct + 0,4 des réservations avec repas), occupation 80 %. Formule :
-  `temps = 0,8 × répliques ÷ débit_de_base`. (D'abord posé à 0,8 s sur le
-  calcul à 3/s ; corrigé à 0,7 s après mesure du débit réel.)
+- **temps de service ≈ 0,7 s par message** : d'abord un déclencheur SQL
+  (`SLEEP`) — abandonné le jour même, voir l'entrée suivante — puis un retard
+  réseau de 140 ms par échange avec la base. Capacité des 3 répliques :
+  ~4,3 messages/s ; à 25 voyageurs, **3,4 messages/s mesurés** (3,0 du
+  parcours direct + 0,4 des réservations avec repas), occupation 80 %.
 - **prefetch 1** (`SPRING_RABBITMQ_LISTENER_SIMPLE_PREFETCH=1`) : par défaut
   le courtier confie 250 messages d'avance à chaque réplique ; le tas visible
   (`messages_ready`) n'aurait bougé qu'après 750 messages en souffrance, et une
   réplique gelée en aurait emporté 250. Entraîne un redémarrage roulant, donc
   de nouveaux pods : d'où « avant la référence ».
 
-Pourquoi un déclencheur SQL et pas un retard réseau Chaos Mesh : le retard
-réseau est le mécanisme de la cause `lenteur` ; deux retards sur le même
-chemin se seraient mélangés. Le temps de service est passé dans l'appel à la
-base, là où un vrai service de livraison passerait le sien.
+Le déclencheur SQL avait été préféré au retard réseau pour ne pas mélanger
+deux retards sur le même chemin (cause `lenteur`). La mesure a tranché
+autrement (entrée suivante) ; `lenteur` remplace désormais le réglage le
+temps de la panne.
 
 Attendu avec ce réglage (à mesurer par les essais courts) : charge 25 → 50 :
 160 % ; blocage : 120 % ; lenteur +1 s réseau : ~380 % ; hote : faible, le

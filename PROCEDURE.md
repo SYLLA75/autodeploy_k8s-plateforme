@@ -350,7 +350,7 @@ appel est aussi grave qu'un parcours qui échoue — voir « Avant chaque campag
 **Où** : sur le master · **Durée** : 3 minutes (une minute de redémarrage roulant)
 
 ```bash
-bash ~/autodeploy/apps/consommateur.sh dimensionner --temps 0.7
+bash ~/autodeploy/apps/consommateur.sh dimensionner --retard 140
 ```
 
 **Pourquoi** : une faute de coordination n'apparaît que si le consommateur est
@@ -370,15 +370,25 @@ référence saine, et jamais changés ensuite** :
 
 | réglage | ce que c'est | effet |
 |---|---|---|
-| temps de service `--temps 0.7` | un déclencheur SQL sur la table où le consommateur écrit : chaque insertion attend 0,7 s | 3 répliques absorbent 4,3 messages/s ; à 25 voyageurs (3,4/s), la file est occupée à **80 %** |
+| temps de service `--retard 140` | chaque échange entre une réplique et sa base est retardé de 140 ms (Chaos Mesh, sans durée). Traiter un message coûte ~5 échanges : **≈ 0,7 s par message** | 3 répliques absorbent ~4,3 messages/s ; à 25 voyageurs (3,4/s), la file est occupée à **80 %** |
 | `--prefetch 1` (défaut) | le courtier ne confie qu'un message à la fois à chaque réplique, au lieu de 250 d'avance | le tas visible bouge dès le premier message en retard ; une réplique gelée n'en emporte pas 250 |
 
-Comment la valeur est choisie : capacité = répliques ÷ temps de service ;
-on vise 80 % à la charge de base, donc `temps = 0,8 × 3 ÷ 3,4 = 0,7 s`. Le
+Comment la valeur est choisie : capacité = répliques ÷ (5 × retard) ; on vise
+80 % à la charge de base, donc `retard = 0,8 × 3 ÷ (5 × 3,4) ≈ 0,14 s`. Le
 débit de base se lit dans `bilan` (colonne maintenant/s de « commander un
-repas », plus la moitié de « réserver un billet »). Si le générateur ou la
-charge de base changent, la valeur est à recalculer — et la référence à
-refaire.
+repas », plus la moitié de « réserver un billet »). Le facteur 5 (échanges
+par message) est une estimation : la première référence le vérifie —
+`process_time_p50` ≈ 0,7 s sur les répliques dans les figures. Si le
+générateur ou la charge de base changent, la valeur est à recalculer — et la
+référence à refaire.
+
+Pourquoi un retard réseau et pas un sommeil dans la base : un déclencheur SQL
+qui dort à chaque insertion a été essayé d'abord. La base n'exécute qu'un
+sommeil à la fois, quel que soit le nombre de répliques (mesuré : 1 sommeil
+actif en permanence, 1,3 message/s pour 3 répliques à 0,7 s, 570 messages en
+attente en cinq minutes). La capacité ne dépendait plus du nombre de
+répliques, et une réplique gelée n'aurait rien changé. Le retard réseau
+s'applique dans chaque pod, indépendamment des autres.
 
 Ce que ça donne pour les quatre causes, à 25 voyageurs de base :
 
@@ -386,24 +396,30 @@ Ce que ça donne pour les quatre causes, à 25 voyageurs de base :
 |---|---|
 | charge 25 → 50 voyageurs | 80 % → 160 % : le tas grossit |
 | blocage d'une réplique | 80 % → 120 % : le tas grossit |
-| lenteur (+1 s réseau ≈ +3 s par message) | 80 % → 380 % : le tas grossit vite |
+| lenteur (+300 ms par échange ≈ +1,5 s par message) | 80 % → 250 % : le tas grossit vite |
 | hote | faible : le temps par message est de l'attente, pas du CPU — à mesurer |
 
-**Vérification** :
+**Vérification**, après deux minutes à 25 voyageurs :
 
 ```bash
 bash ~/autodeploy/apps/consommateur.sh etat
+bash ~/autodeploy/apps/panne.sh temoin
 ```
 
 ```
   consommateur : ts-delivery-service (3/3 répliques prêtes)
-  temps de service : 0.7 s par message   (déclencheur ts.delivery.temps_de_service)
+  temps de service : 140 ms de retard par échange avec la base, ≈ 700 ms par message   (appliqué)
   prefetch : 1
 ```
 
-Le pilote recopie cette sortie dans chaque compte rendu (`reglage_consommateur`) :
-deux campagnes ne se comparent que si elles l'ont identique. Le graphe doit
-ensuite montrer `process_time_p50` ≈ 0,7 s sur les trois répliques.
+Dans le témoin, `food_delivery` doit rester à **0 en attente** (1 ou 2, jamais
+plus) : c'est la preuve que les trois répliques suivent à la charge de base.
+Si le tas grossit, le retard est trop grand ; s'il faut plus de 50 voyageurs
+pour le faire grossir (cause `charge`), il est trop petit.
+
+Le pilote recopie l'état du consommateur dans chaque compte rendu
+(`reglage_consommateur`) : deux campagnes ne se comparent que si elles l'ont
+identique.
 
 ---
 
@@ -622,7 +638,7 @@ causes font grossir le tas, chacune pour une raison différente :
 | `--panne` | ce qui est fait | avec quoi | ce qu'on s'attend à voir *(pas encore mesuré)* |
 |---|---|---|---|
 | `charge` | deux fois plus de voyageurs : on dépose plus vite qu'on ne retire | `loadgen.sh scale` | `publish_rate` ↑, `consume_rate` plafonne à 3,75/s, `backlog` ↑ ; tout le reste sain |
-| `lenteur` | les 3 répliques attendent 1 s de plus à chaque échange avec leur base | Chaos Mesh, retard réseau entre ces pods et `tsdb-mysql` | `process_time_p50` ↑ sur les 3 répliques, cpu normal, hôtes normaux, `backlog` ↑ |
+| `lenteur` | les 3 répliques attendent 300 ms de plus à chaque échange avec leur base, en plus du réglage de base | Chaos Mesh, retard réseau entre ces pods et `tsdb-mysql` (remplace le réglage le temps de la panne, le repose après) | `process_time_p50` ↑ sur les 3 répliques, cpu normal, hôtes normaux, `backlog` ↑ |
 | `hote` | un pod voisin, hors du graphe, occupe tous les cœurs de l'hôte d'UNE réplique | Chaos Mesh, stress CPU sur ce voisin | `cpu_pressure` ↑ sur cet hôte seul ; la réplique qui y vit ralentit, les 2 autres vont bien ; les autres services de cet hôte aussi |
 | `blocage` | une seule réplique est gelée, sans être tuée | `SIGSTOP` sur son processus Java | `consume_rate` 0 et cpu ≈ 0 sur elle, mémoire inchangée ; les 2 autres absorbent ; hôte normal ; après ~2 min le courtier ne compte plus que 2 consommateurs |
 
@@ -645,7 +661,7 @@ tmux new -s campagne
 | `--panne <cause>` | `charge`, `lenteur`, `hote`, `blocage` | — |
 | `--a <min[,min…]>` | minute(s) de début, depuis le premier palier ; `--a 5,35,65` répète | — |
 | `--duree <min>` | durée de chaque injection | — |
-| `--intensite <n>` | voyageurs (`charge`) · ms de retard (`lenteur`) · cœurs réclamés par le voisin (`hote`) | 2 × la charge · 1000 · la moitié de l'hôte |
+| `--intensite <n>` | voyageurs (`charge`) · ms de retard en plus (`lenteur`) · cœurs réclamés par le voisin (`hote`) | 2 × la charge · 300 · la moitié de l'hôte |
 | `--cible <x>` | nœud (`hote`) ou pod (`blocage`) | le moins chargé des hôtes portant une réplique · la première réplique |
 
 Le pilote décide **quand** ; `apps/panne.sh`, sur le master, décide **comment**

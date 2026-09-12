@@ -11,7 +11,9 @@
 #
 #     lenteur    les répliques du consommateur mettent plus longtemps par message
 #                → Chaos Mesh NetworkChaos : un retard sur ce que ces pods
-#                  envoient à leur base de données
+#                  envoient à leur base de données, EN PLUS du retard de base
+#                  posé par consommateur.sh (un seul objet à la fois sur ce
+#                  chemin ; « retirer » repose le réglage de base)
 #
 #     hote       un voisin brûle tout le CPU de l'hôte qui porte UNE réplique
 #                → un pod « voisin bruyant » posé sur cet hôte, dans son propre
@@ -48,7 +50,7 @@
 #
 #  --intensite, selon la cause :
 #      charge     voyageurs                      (défaut : 2 × la charge en cours)
-#      lenteur    millisecondes de retard        (défaut : 1000)
+#      lenteur    millisecondes de retard EN PLUS du réglage de base (défaut : 300)
 #      hote       cœurs réclamés par le voisin   (défaut : la moitié de l'hôte)
 #      blocage    sans objet
 #
@@ -78,6 +80,8 @@ BASE_LABEL="${PANNE_BASE_LABEL:-app=tsdb-mysql}"
 VOISIN_NS="${PANNE_VOISIN_NS:-voisin}"
 VOISIN_IMAGE="${PANNE_VOISIN_IMAGE:-busybox:1.36}"
 LOADGEN="$_ici/loadgen.sh"
+CONSOMMATEUR="$_ici/consommateur.sh"
+REGLAGE="consommateur-temps-de-service"   # l'objet du réglage de base (consommateur.sh)
 
 JOURNAUX="$(cd "$_ici/.." && pwd)/journaux"
 ETAT="$JOURNAUX/panne.etat"
@@ -256,16 +260,24 @@ injecter_charge() {
 }
 
 injecter_lenteur() {
-    local duree="$1" intensite="${2:-1000}"
+    local duree="$1" intensite="${2:-300}"
     local n; n=$(repliques | wc -l)
     [ "$n" -gt 0 ] || fail "Aucune réplique de $CONSO en marche dans $NS"
     local cle="${BASE_LABEL%%=*}" val="${BASE_LABEL#*=}"
 
-    say "cause  : lenteur — les $n répliques de $CONSO attendent $intensite ms de plus à chaque échange avec leur base"
+    # Le retard de base (consommateur.sh) et la panne visent le même chemin :
+    # un seul objet à la fois. La panne remplace le réglage par « base + panne »,
+    # et « retirer » repose le réglage tel qu'il était.
+    local base; base=$(kubectl get networkchaos "$REGLAGE" -n "$NS" -o jsonpath='{.spec.delay.latency}' 2>/dev/null | tr -d 'ms')
+    case "$base" in *[!0-9]*) base="" ;; esac
+    local total=$((intensite + ${base:-0}))
+
+    say "cause  : lenteur — les $n répliques de $CONSO attendent $intensite ms de plus à chaque échange avec leur base${base:+ (réglage de base $base ms → $total ms)}"
     say "outil  : Chaos Mesh NetworkChaos $NS/panne-lenteur, durée ${duree}m"
     local demande; demande=$(maintenant)
     ecrire_etat CAUSE=lenteur OUTIL=chaos-mesh "CIBLE=$CONSO ($n répliques) -> $BASE_LABEL" \
-                "INTENSITE=$intensite" "DEBUT=$demande" "DUREE=$duree"
+                "INTENSITE=$intensite" "RETARD_BASE=${base:-}" "DEBUT=$demande" "DUREE=$duree"
+    [ -z "$base" ] || kubectl delete networkchaos "$REGLAGE" -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1
     kubectl apply -f - >/dev/null <<EOF || fail "Chaos Mesh a refusé l'objet — voir ci-dessus."
 apiVersion: chaos-mesh.org/v1alpha1
 kind: NetworkChaos
@@ -286,7 +298,7 @@ spec:
       namespaces: [ "$NS" ]
       labelSelectors: { $cle: "$val" }
   delay:
-    latency: "${intensite}ms"
+    latency: "${total}ms"
     jitter: "0ms"
     correlation: "0"
   duration: "${duree}m"
@@ -295,6 +307,7 @@ EOF
         local t; t=$(conteneurs_touches networkchaos "$NS" panne-lenteur)
         consigner "$demande" "$(maintenant)" injection lenteur "$intensite" "$CONSO x$n -> $BASE_LABEL" chaos-mesh/networkchaos confirmee
         ok "injectée — $t conteneur(s) touché(s), expire dans $duree min"
+        [ -z "$base" ] || warn "à l'expiration, le réglage de base n'est PAS reposé tout seul : « retirer » le fait."
         return 0
     fi
     consigner "$demande" "" injection lenteur "$intensite" "$CONSO x$n -> $BASE_LABEL" chaos-mesh/networkchaos NON_CONFIRMEE
@@ -500,7 +513,12 @@ retirer_app() {
             LG_ORIGINE=retour_panne JOURNAL_OFF=1 bash "$LOADGEN" scale "$RETOUR" || resultat=ECHEC ;;
         lenteur)
             kubectl delete networkchaos panne-lenteur -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 \
-                || resultat=ECHEC ;;
+                || resultat=ECHEC
+            if [ -n "${RETARD_BASE:-}" ]; then
+                say "Retour au réglage de base ($RETARD_BASE ms)…"
+                JOURNAL_OFF=1 bash "$CONSOMMATEUR" dimensionner --retard "$RETARD_BASE" >/dev/null 2>&1 \
+                    && say "réglage de base reposé" || { warn "réglage de base NON reposé :  consommateur.sh dimensionner --retard $RETARD_BASE"; resultat=ECHEC; }
+            fi ;;
         hote)
             kubectl delete stresschaos panne-hote -n "$VOISIN_NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 \
                 || resultat=ECHEC
