@@ -275,6 +275,14 @@ vus = {(s.get('name') or '') for s in d.get('stats', [])}
 for a in [a for a in attendus if a not in vus]:
     print('  %-30s %8s %8s %6s   %9s %9s %7s   <<< JAMAIS EXÉCUTÉ' % (a[:30], '-', '-', '-', '-', '-', '-'))
     mauvais += 1
+# Le POURQUOI des échecs : Locust garde chaque message d'erreur et son nombre
+# d'occurrences. « aucun train » et « 500 » n'appellent pas la même réponse.
+erreurs = sorted(d.get('errors', []), key=lambda e: -(e.get('occurrences') or 0))
+if erreurs:
+    print()
+    print('  échecs, par motif :')
+    for e in erreurs[:6]:
+        print('  %8d  %-30s %s' % (e.get('occurrences') or 0, (e.get('name') or '')[:30], (e.get('error') or '')[:70]))
 print()
 print('  totaux : depuis le dernier « reset » — le pilote en fait un au départ de chaque campagne.')
 print('  maintenant : les dix dernières secondes.')
