@@ -20,8 +20,30 @@ toutes les 20 s :
 ```
 
 L'entrée n'a pas bougé (3,5/s) ; la sortie est passée de 4,2 à 2,8/s. La
-trace est nette, datée, réversible. Reste à vérifier que le graphe la porte
-(`backlog`, `consumers`, `rate_imbalance`, réplique à zéro).
+trace est nette, datée, réversible.
+
+**Le graphe la porte** (run sur la plage 19:12 → 19:19, `scaler: apply`,
+gardé dans `campagnes/essai-blocage-02/lecture.txt`) :
+
+```
+   fenêtre   backlog  slope  publish  consume  imbalance  consumers
+   19:12         0      -     3,55     3,55      0,00        3      avant
+   19:13        25     25     3,35     2,80      0,55        3      gel à 19:12:59
+   19:15        95     35     3,43     2,83      0,60        2      le courtier lâche la gelée
+   19:17       192     48     3,75     2,93      0,82        2
+   19:18       156      9     3,48     4,22     -0,73        3      levée à 19:17:56
+```
+
+Et sur les répliques : la gelée (`…-bmgvs`) n'a plus de `process_time` et
+`cpu_rate` 0,000 de 19:13 à 19:17, mémoire inchangée ; les deux autres
+gardent 706 ms. Exactement la ligne « blocage » du tableau des causes.
+
+**Corrigé au passage** : le pilote d'alors lisait le début de la plage dans
+la date du pod de collecte (resté de la campagne d'avant : « 19:00 »). Il
+la calcule maintenant depuis ses propres instants (`collecte_demarree` +
+marge). Et le dossier d'une campagne recevait *tout* `journaux/` du master,
+600 fichiers dont 500 d'avant elle : il ne reçoit plus que les registres
+(.tsv) et les journaux écrits depuis le départ du pilote.
 
 ## 2026-09-12 — Le gel d'une réplique doit partir de la machine
 

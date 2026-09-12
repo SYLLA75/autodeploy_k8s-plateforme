@@ -853,6 +853,18 @@ Pour refaire les figures sans retélécharger :
 ./.venv/bin/python run.py --render-only runs/<horodatage>
 ```
 
+Puis **lire, et garder la lecture avec la campagne** — `runs/` ne se versionne
+pas, mais ces deux tableaux sont ce qu'un rapport cite :
+
+```bash
+./.venv/bin/python lecture.py runs/<horodatage> <nom>
+```
+
+Écrit `campagnes/<nom>/lecture.txt` : le run d'origine, la plage, puis la file
+(`queues.py`) et chaque réplique du consommateur (`instances.py … delivery`).
+Le dossier `campagnes/<nom>/` se committe ensuite en entier — conditions et
+lecture ensemble.
+
 ### Trois réglages à ne pas toucher entre deux campagnes
 
 | | |
@@ -926,6 +938,8 @@ ssh master 'set -a; . ~/autodeploy/.env.secrets; set +a; \
 | `apps/chaos.sh` | l'injecteur de pannes · `install` `status` `isolate` |
 | `apps/panne.sh` | les quatre pannes · `verifier` `injecter` `retirer` `etat` `temoin` |
 | `campagne.sh` | une campagne entière depuis le nœud de contrôle — charge, panne, collecte, compte rendu |
+| `graphe_en/run.py` | le graphe d'une plage : rapatrie, découpe, exporte, dessine |
+| `graphe_en/queues.py` · `instances.py` · `lecture.py` | lire la file, lire les répliques, garder les deux avec la campagne |
 | `apps/metrics-keep.txt` | la liste des compteurs sauvegardés, un par ligne |
 | `destroy.sh` | tout libérer |
 
