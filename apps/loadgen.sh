@@ -331,6 +331,13 @@ scale_app() {
     local pod; pod=$(locust_pod)
     [ -n "$pod" ] || fail "Générateur introuvable. Lance d'abord : $0 install"
 
+    # La distance à parcourir, pas la cible : Locust ajoute ET retire les
+    # voyageurs au rythme de spawn_rate par seconde. Descendre de 320 à 25
+    # prend cinq minutes, comme monter de 0 à 295.
+    local actuel; actuel=$(voyageurs_actuels "$pod")
+    case "$actuel" in ''|*[!0-9]*) actuel=0 ;; esac
+    local distance=$(( n > actuel ? n - actuel : actuel - n ))
+
     local demande; demande=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     local sortie code=0
     if ! sortie=$(kubectl exec -n "$NAMESPACE" "$pod" -- python -c "
@@ -351,9 +358,9 @@ except Exception:
     fi
     say "Demande envoyée à $demande — Locust répond : $sortie"
 
-    # La montée est progressive. On attend qu'elle aboutisse, avec une limite
-    # large : n voyageurs au rythme de spawn_rate par seconde, plus une marge.
-    local limite=$(( 30 + n )) reste observe="" effectif=""
+    # La montée (ou la descente) est progressive. On attend qu'elle aboutisse,
+    # avec une limite large : la distance au rythme de spawn_rate, plus une marge.
+    local limite=$(( 30 + distance / SPAWN_RATE )) reste observe="" effectif=""
     reste=$limite
     say "Vérification de la charge réelle (jusqu'à ${limite}s)…"
     while [ "$reste" -gt 0 ]; do
