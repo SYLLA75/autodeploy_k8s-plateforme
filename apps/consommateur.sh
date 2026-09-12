@@ -93,8 +93,11 @@ pod_mysql() {
 sql() {   # <requête> — sur la base $DB, sortie brute
     local pod; pod=$(pod_mysql)
     [ -n "$pod" ] || fail "Aucun pod « $MYSQL_LABEL » dans $NS : la base du consommateur est introuvable."
+    # Sans mot de passe dans l'environnement du pod, « -p » seul demanderait le
+    # mot de passe au terminal et son invite salirait la sortie.
     kubectl exec -n "$NS" "$pod" -c mysql -- sh -c \
-        'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" --database="$1" -N -B -e "$2" 2>&1 | grep -v "Using a password"' \
+        'mysql -uroot ${MYSQL_ROOT_PASSWORD:+-p"$MYSQL_ROOT_PASSWORD"} --database="$1" -N -B -e "$2" 2>&1 \
+         | grep -v "Using a password" | sed "s/^Enter password: //"' \
         sh "$DB" "$1"
 }
 
