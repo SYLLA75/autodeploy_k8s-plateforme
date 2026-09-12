@@ -137,6 +137,16 @@ def _fetch(console: Console, conf) -> "fetch.Fetched":
     return got
 
 
+def _range_bounds(conf) -> tuple[int, int]:
+    """range.from / range.to on range.date, as UTC epoch nanoseconds."""
+    from datetime import time, timezone
+    def at(hhmm: str) -> int:
+        h, m = (int(x) for x in hhmm.split(":")[:2])
+        return int(datetime.combine(conf.day, time(h, m), tzinfo=timezone.utc)
+                   .timestamp() * 1_000_000_000)
+    return at(conf.range["from"]), at(conf.range["to"])
+
+
 def _window(console: Console, conf, got):
     import windows as windows_module
 
@@ -144,13 +154,17 @@ def _window(console: Console, conf, got):
     spans, samples = windows_module.load(got.files)
     console.ok(f"{len(spans)} spans, {len(samples)} samples")
 
+    # The requested range, in UTC like everything in the store.
+    from_ns, to_ns = _range_bounds(conf)
     kept, report = windows_module.cut(
         spans, samples, conf.width, conf.step,
         margin=int(conf.windows["edge_margin"] or 0),
-        limit=conf.windows["max"])
+        limit=conf.windows["max"],
+        from_ns=from_ns, to_ns=to_ns)
 
     console.ok(f"{report['built']} built, {report['kept']} retained")
-    console.note(f"discarded: {report['dropped_coverage']} outside coverage, "
+    console.note(f"discarded: {report['dropped_range']} outside the requested range, "
+                 f"{report['dropped_coverage']} outside coverage, "
                  f"{report['dropped_margin']} margin, "
                  f"{report['dropped_limit']} over limit")
     if not kept:

@@ -130,13 +130,20 @@ def _indices(instant_ns: int, width_ns: int, step_ns: int) -> range:
 
 
 def cut(spans: list[Span], samples: list[Sample], width_s: float, step_s: float,
-        margin: int = 0, limit: int | None = None
+        margin: int = 0, limit: int | None = None,
+        from_ns: int | None = None, to_ns: int | None = None
         ) -> tuple[list[Window], dict]:
     """
     File every span and sample into the windows that contain them.
 
     Returns the retained windows and a report of what was set aside, so that no
     data disappears silently.
+
+    from_ns / to_ns are the requested range. The fetch takes one file more on
+    each side, so the data can reach beyond what was asked; a window is kept
+    only if it lies entirely inside the request. Without this, the last
+    minutes of a previous collection, exported late, were counted as windows of
+    the campaign being analysed.
     """
     width_ns = int(width_s * BILLION)
     step_ns = int(step_s * BILLION)
@@ -145,8 +152,8 @@ def cut(spans: list[Span], samples: list[Sample], width_s: float, step_s: float,
     instants += [s.timestamp_ns for s in samples if s.timestamp_ns]
     if not instants:
         return [], {"reason": "no usable timestamp", "built": 0, "kept": 0,
-                    "dropped_coverage": 0, "dropped_margin": 0,
-                    "dropped_limit": 0, "discarded": []}
+                    "dropped_range": 0, "dropped_coverage": 0,
+                    "dropped_margin": 0, "dropped_limit": 0, "discarded": []}
     first_ns, last_ns = min(instants), max(instants)
 
     boxes: dict[int, Window] = {}
@@ -168,7 +175,10 @@ def cut(spans: list[Span], samples: list[Sample], width_s: float, step_s: float,
             box(k).samples.append(s)
 
     everything = [boxes[k] for k in sorted(boxes)]
-    covered = [w for w in everything
+    requested = [w for w in everything
+                 if (from_ns is None or w.start_ns >= from_ns)
+                 and (to_ns is None or w.end_ns <= to_ns)]
+    covered = [w for w in requested
                if w.start_ns >= first_ns and w.end_ns <= last_ns]
     trimmed = covered[margin:-margin] if margin and len(covered) > 2 * margin else (
         [] if margin else covered)
@@ -185,8 +195,11 @@ def cut(spans: list[Span], samples: list[Sample], width_s: float, step_s: float,
     kept_ids = {id(w) for w in kept}
     trimmed_ids = {id(w) for w in trimmed}
     covered_ids = {id(w) for w in covered}
-    discarded = [(w, "outside data coverage") for w in everything
-                 if id(w) not in covered_ids]
+    requested_ids = {id(w) for w in requested}
+    discarded = [(w, "outside requested range") for w in everything
+                 if id(w) not in requested_ids]
+    discarded += [(w, "outside data coverage") for w in requested
+                  if id(w) not in covered_ids]
     discarded += [(w, "edge margin") for w in covered
                   if id(w) not in trimmed_ids]
     discarded += [(w, "over windows.max") for w in trimmed
@@ -195,7 +208,8 @@ def cut(spans: list[Span], samples: list[Sample], width_s: float, step_s: float,
 
     report = {
         "built": len(everything),
-        "dropped_coverage": len(everything) - len(covered),
+        "dropped_range": len(everything) - len(requested),
+        "dropped_coverage": len(requested) - len(covered),
         "dropped_margin": len(covered) - len(trimmed),
         "dropped_limit": dropped_limit,
         "kept": len(kept),
