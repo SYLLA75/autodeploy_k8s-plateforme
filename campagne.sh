@@ -480,24 +480,10 @@ noter_action "action: etat_initial"
 # comparée à une autre sans qu'on sache si elles partagent le même.
 reglage_consommateur=$(distant consommateur.sh etat) || reglage_consommateur="(non lu : $reglage_consommateur)"
 
-# Les tables de commandes aussi : deux campagnes ne se comparent que si elles
-# partent des mêmes données. On les vide, AVANT la collecte, pour que le
-# redémarrage du service des commandes reste hors de la fenêtre mesurée.
-if [ "$PURGE" = "1" ]; then
-    say "Remise à zéro des données de l'application…"
-    if sortie=$(distant donnees.sh purger); then   # sans redémarrage : voir donnees.sh
-        printf '%s\n' "$sortie" | sed 's/^/      /'
-        noter_action "action: donnees_remises_a_zero"
-    else
-        printf '%s\n' "$sortie" | sed 's/^/      /' >&2
-        fail "La remise à zéro des données a échoué (--sans-purge pour s'en passer, en connaissance de cause)."
-    fi
-fi
-etat_donnees=$(distant donnees.sh etat) || etat_donnees="(non lu : $etat_donnees)"
-
-# La file aussi doit être vide : une campagne qui part sur le tas laissé par
-# la précédente porterait dès ses premières fenêtres une panne sans cause.
-# Le tas fond de lui-même sous la charge de base ; on attend, en le notant.
+# La file doit être vide : une campagne qui part sur le tas laissé par la
+# précédente porterait dès ses premières fenêtres une panne sans cause. Le tas
+# fond de lui-même sous la charge de base ; on attend, en le notant. Avant la
+# purge : les messages encore en file s'écrivent dans les tables purgées.
 attendre_file_vide() {
     local reste=$(( ${FILE_VIDE_MAX:-40} * 60 )) n attendu=0
     while :; do
@@ -513,6 +499,22 @@ attendre_file_vide() {
     done
 }
 attendre_file_vide
+
+# Les tables de commandes aussi : deux campagnes ne se comparent que si elles
+# partent des mêmes données. On les vide, AVANT la collecte, pour que le
+# redémarrage du service des commandes reste hors de la fenêtre mesurée.
+if [ "$PURGE" = "1" ]; then
+    say "Remise à zéro des données de l'application…"
+    if sortie=$(distant donnees.sh purger); then   # sans redémarrage : voir donnees.sh
+        printf '%s\n' "$sortie" | sed 's/^/      /'
+        noter_action "action: donnees_remises_a_zero"
+    else
+        printf '%s\n' "$sortie" | sed 's/^/      /' >&2
+        fail "La remise à zéro des données a échoué (--sans-purge pour s'en passer, en connaissance de cause)."
+    fi
+fi
+etat_donnees=$(distant donnees.sh etat) || etat_donnees="(non lu : $etat_donnees)"
+
 
 if [ "$COLLECTE" = "1" ]; then
     say "Démarrage de la collecte…"
