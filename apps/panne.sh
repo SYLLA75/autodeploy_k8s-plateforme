@@ -351,6 +351,16 @@ injecter_lenteur() {
     return 1
 }
 
+millicoeurs_libres() {   # <nœud> → millicœurs allouables que personne ne demande encore
+    local alloc; alloc=$(kubectl get node "$1" -o jsonpath='{.status.allocatable.cpu}' 2>/dev/null)
+    [ -n "$alloc" ] || return 1
+    { echo "$alloc"
+      kubectl get pods -A --field-selector "spec.nodeName=$1,status.phase!=Succeeded,status.phase!=Failed" \
+          -o jsonpath='{range .items[*]}{range .spec.containers[*]}{.resources.requests.cpu}{"\n"}{end}{end}' 2>/dev/null
+    } | awk 'function m(v) { return v ~ /m$/ ? substr(v, 1, length(v) - 1) + 0 : v * 1000 }
+             NR == 1 { a = m($1); next }  NF { u += m($1) }  END { print int(a - u) }'
+}
+
 injecter_hote() {
     local duree="$1" intensite="$2" cible="$3"
     [ -n "$cible" ] || cible=$(hote_le_moins_charge) || fail "Aucune réplique de $CONSO en marche : pas d'hôte à viser"
@@ -360,10 +370,22 @@ injecter_hote() {
     case "$coeurs" in ''|*[!0-9]*) fail "Nombre de cœurs de « $cible » illisible" ;; esac
     [ -n "$intensite" ] || intensite=$((coeurs / 2))
     [ "$intensite" -ge 1 ] || intensite=1
+    # nodeName contourne l'ordonnanceur : c'est le kubelet qui refuse un pod
+    # dont la demande dépasse ce qui reste allouable (mesuré : 2 cœurs demandés,
+    # 1,7 libres → « OutOfcpu »). La demande est donc plafonnée à ce qui reste,
+    # moins une marge. Elle ne fixe que le poids du voisin face aux autres pods
+    # quand tout le monde veut du CPU ; le stress occupe de toute façon les
+    # $coeurs cœurs.
+    local libre demande_m=$((intensite * 1000)); libre=$(millicoeurs_libres "$cible")
+    if [ -n "$libre" ] && [ "$demande_m" -gt $((libre - 100)) ]; then
+        demande_m=$(( (libre - 100) / 100 * 100 ))
+        [ "$demande_m" -ge 100 ] || fail "« $cible » n'a plus de CPU allouable (${libre}m libres) : pas de place pour un voisin"
+        warn "« $cible » n'a que ${libre}m allouables libres : le voisin en réclame ${demande_m}m au lieu de $intensite cœur(s)"
+    fi
     local sur; sur=$(repliques | awk -F'\t' -v h="$cible" '$2==h {print $1}' | paste -sd, -)
     [ -n "$sur" ] || warn "aucune réplique de $CONSO sur « $cible » : la file ne sentira rien"
 
-    say "cause  : hote — un voisin occupe les $coeurs cœurs de « $cible » en en réclamant $intensite, pendant $duree min"
+    say "cause  : hote — un voisin occupe les $coeurs cœurs de « $cible » en en réclamant ${demande_m}m, pendant $duree min"
     say "         répliques de $CONSO sur cet hôte : ${sur:-aucune}"
     say "outil  : pod $VOISIN_NS/voisin-bruyant + Chaos Mesh StressChaos $VOISIN_NS/panne-hote"
     local demande; demande=$(maintenant)
@@ -386,7 +408,7 @@ spec:
       image: $VOISIN_IMAGE
       command: ["sh", "-c", "while true; do sleep 3600; done"]
       resources:
-        requests: { cpu: "$intensite", memory: 64Mi }
+        requests: { cpu: "${demande_m}m", memory: 64Mi }
 EOF
     local reste=90 phase=""
     while [ "$reste" -gt 0 ]; do
