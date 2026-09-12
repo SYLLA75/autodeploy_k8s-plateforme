@@ -22,29 +22,48 @@ DEUX EXIGENCES DE L'EXPÉRIENCE, ET COMMENT ELLES SONT TENUES
 
 CE QUI TRAVERSE LES FILES DE MESSAGES
 
-Le parcours « réserver » est le plus important des quatre, car il alimente les
-DEUX files à lui seul :
-  - ts-preserve-service dépose dans la file « email » ;
-  - et quand le voyageur commande un repas, ts-food-service dépose dans la file
-    « food_delivery ».
+Deux parcours déposent dans « food_delivery », par le même service et le même
+message :
+  - « commander un repas » — un seul appel, direct, à ts-food-service. C'est
+    LUI qui fixe le débit de la file : un appel par voyageur et par rythme,
+    donc un débit proportionnel au nombre de voyageurs.
+  - « réserver un billet » — la chaîne complète (chercher, contacts, réserver),
+    où un voyageur sur deux commande un repas au passage. C'est elle qui
+    produit les relations d'appel entre services.
+Et « déclencher un courriel » alimente « email ».
 
-TROIS PARCOURS SEULEMENT, ET C'EST VOLONTAIRE
+POURQUOI LE DÉBIT DE LA FILE NE PEUT PAS VENIR DE LA RÉSERVATION SEULE
+
+Mesuré sur une référence d'une heure : à 10, 30 puis 55 voyageurs, la file
+recevait 0,5 puis 0,5 puis 0,25 message par seconde. Le débit ne suit pas les
+voyageurs, il BAISSE. Une réservation passe par la recherche de train, l'appel
+lourd de l'application ; dès 10 voyageurs elle ralentit, et à 55 chaque
+voyageur réserve moins qu'à 10. Avec ce seul parcours, « plus de charge en
+amont » ne peut pas exister, et la référence oscille du simple au quadruple.
+D'où le parcours direct, et des poids qui gardent la recherche à un niveau que
+l'application tient encore à 50 voyageurs.
+
+QUATRE PARCOURS, ET C'EST VOLONTAIRE
 
 Chaque parcours supplémentaire ajoute de la variance à la charge de référence.
 Or la grandeur cherchée est un écart de quelques pour cent entre le débit
 déposé et le débit retiré : plus la référence bouge, moins cet écart se voit.
-
 Les parcours de consultation qui n'appellent qu'un seul service et ne touchent
-aucune file ont donc été retirés — ils produisaient du volume sans produire ni
-arête ni message.
+aucune file ont été retirés — du volume sans arête ni message.
 
-  réserver un billet     poids 5   chaîne d'appels + alimente food_delivery
-  chercher un train      poids 3   signal de charge en amont
-  déclencher un courriel poids 2   alimente email
+  commander un repas     poids 6   alimente food_delivery, débit ∝ voyageurs
+  réserver un billet     poids 2   chaîne d'appels + un repas sur deux
+  chercher un train      poids 1   signal de charge en amont
+  déclencher un courriel poids 1   alimente email
+
+Avec un rythme de 5 s : 0,12 message/s par voyageur pour food_delivery,
+soit 3 messages/s à 25 voyageurs et 6 à 50. Les poids se règlent par
+TT_POIDS_REPAS, TT_POIDS_RESERVER, TT_POIDS_CHERCHER, TT_POIDS_COURRIEL.
 """
 import os
 import random
 import time
+import uuid
 from datetime import datetime, timedelta
 
 from locust import HttpUser, task, constant_pacing, events
@@ -81,6 +100,16 @@ SESSION_TTL = float(os.getenv("TT_SESSION_TTL_SECONDS", "1200"))
 
 # Nombre de jours d'avance pour la recherche de trains.
 JOURS_AVANCE = int(os.getenv("TT_JOURS_AVANCE", "1"))
+
+# Les poids des parcours — voir l'en-tête pour ce qu'ils fixent.
+POIDS_REPAS = int(os.getenv("TT_POIDS_REPAS", "6"))
+POIDS_RESERVER = int(os.getenv("TT_POIDS_RESERVER", "2"))
+POIDS_CHERCHER = int(os.getenv("TT_POIDS_CHERCHER", "1"))
+POIDS_COURRIEL = int(os.getenv("TT_POIDS_COURRIEL", "1"))
+
+# Le repas commandé, identique pour tous : la référence n'a pas à varier là.
+REPAS = {"foodType": 2, "foodName": "Bone Soup", "price": 2.5,
+         "storeName": "Roman Holiday"}
 
 
 def _date_de_depart() -> str:
@@ -173,7 +202,29 @@ class Voyageur(HttpUser):
         return True
 
     # ------------------------------------------------------------- parcours 1
-    @task(3)
+    @task(POIDS_REPAS)
+    def commander_un_repas(self):
+        """
+        Le parcours qui fixe le débit de « food_delivery ».
+
+        Un seul appel : ts-food-service enregistre la commande et dépose le
+        message de livraison dans la file — exactement ce que fait la
+        réservation quand le voyageur prend un repas, sans la recherche de
+        train devant. Le service exige seulement un numéro de commande inédit
+        (un identifiant unique), il ne le vérifie pas auprès du service des
+        commandes.
+        """
+        self._session_fraiche()
+        depart, _ = random.choice(PLACE_PAIRS)
+        charge = dict(REPAS, orderId=str(uuid.uuid4()), stationName=depart)
+        self._verifier(self.client.post(
+            "/api/v1/foodservice/orders",
+            json=charge,
+            name="40 commander un repas",
+        ))
+
+    # ------------------------------------------------------------- parcours 2
+    @task(POIDS_CHERCHER)
     def chercher_un_train(self):
         """Le parcours le plus courant : consulter les trains disponibles."""
         self._session_fraiche()
@@ -189,11 +240,12 @@ class Voyageur(HttpUser):
         )
         self._verifier(r)
 
-    # ------------------------------------------------------------- parcours 2
-    @task(5)
+    # ------------------------------------------------------------- parcours 3
+    @task(POIDS_RESERVER)
     def reserver(self):
         """
-        LE parcours qui compte : il alimente les deux files.
+        La chaîne complète : elle produit les relations d'appel du graphe, et
+        alimente les deux files au passage.
 
         Il enchaîne quatre appels — chercher, lire ses contacts, éventuellement
         choisir un repas, puis réserver. C'est cette chaîne qui produit les
@@ -271,8 +323,8 @@ class Voyageur(HttpUser):
             name="30 réserver un billet",
         )
 
-    # ------------------------------------------------------------- parcours 3
-    @task(2)
+    # ------------------------------------------------------------- parcours 4
+    @task(POIDS_COURRIEL)
     def declencher_un_courriel(self):
         """
         Alimente la SECONDE file, « email ».

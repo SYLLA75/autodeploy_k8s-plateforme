@@ -312,6 +312,25 @@ bash ~/autodeploy/apps/loadgen.sh isolate workers6
 Sans trafic, l'application ne fait rien : les services ne s'appellent pas et les
 files restent vides.
 
+Quatre parcours, avec des poids choisis pour que le débit de la file suive le
+nombre de voyageurs :
+
+| parcours | poids | rôle |
+|---|---|---|
+| 40 commander un repas | 6 | un appel direct à `ts-food-service` → un message dans `food_delivery`. **C'est lui qui fixe le débit de la file** |
+| 30 réserver un billet | 2 | la chaîne complète (chercher, contacts, réserver) → les relations d'appel du graphe |
+| 10 chercher un train | 1 | l'appel lourd de l'application, gardé bas |
+| 60 déclencher un courriel | 1 | un message dans `email` |
+
+Avec un rythme de 5 s : **0,12 message/s par voyageur**, soit 3/s à 25
+voyageurs, 6/s à 50.
+
+Pourquoi la réservation seule ne suffisait pas : mesuré sur une heure, à 10,
+30 puis 55 voyageurs, la file recevait 0,5 puis 0,5 puis 0,25 message/s. Le
+débit ne suivait pas les voyageurs, il baissait — la recherche de train
+ralentit dès 10 voyageurs, et chaque voyageur réserve moins. « Plus de charge
+en amont » n'aurait jamais pu exister.
+
 **Vérification**, après deux minutes de trafic :
 
 ```bash
@@ -320,6 +339,66 @@ bash ~/autodeploy/apps/loadgen.sh bilan
 
 Chaque parcours doit avoir des appels et presque aucun échec. Un parcours à zéro
 appel est aussi grave qu'un parcours qui échoue — voir « Avant chaque campagne ».
+
+---
+
+## Étape 7 bis — Dimensionner le consommateur
+
+**Où** : sur le master · **Durée** : 3 minutes (une minute de redémarrage roulant)
+
+```bash
+bash ~/autodeploy/apps/consommateur.sh dimensionner --temps 0.8
+```
+
+**Pourquoi** : une faute de coordination n'apparaît que si le consommateur est
+taillé pour sa charge, avec peu de marge — comme dans tout système réel. Or
+`ts-delivery-service` ne fait presque rien par message :
+
+```
+   ce qui arrive dans la file        3 messages/s   (25 voyageurs)
+   ce que 3 répliques absorbent   ~500 messages/s   (6 ms par message)
+   marge                             × 170
+```
+
+Avec cette marge, une réplique gelée ou un hôte saturé ne changent rien à la
+file : les deux autres absorbent tout, le tas reste à zéro, et le symptôme
+central de l'étude n'existe pas. Deux réglages, **posés une fois, avant la
+référence saine, et jamais changés ensuite** :
+
+| réglage | ce que c'est | effet |
+|---|---|---|
+| temps de service `--temps 0.8` | un déclencheur SQL sur la table où le consommateur écrit : chaque insertion attend 0,8 s | 3 répliques absorbent 3,75 messages/s ; à 25 voyageurs, la file est occupée à **80 %** |
+| `--prefetch 1` (défaut) | le courtier ne confie qu'un message à la fois à chaque réplique, au lieu de 250 d'avance | le tas visible bouge dès le premier message en retard ; une réplique gelée n'en emporte pas 250 |
+
+Comment la valeur est choisie : capacité = répliques ÷ temps de service ;
+on vise 80 % à la charge de base, donc `temps = 0,8 × 3 ÷ 3 = 0,8 s`. Si le
+générateur ou la charge de base changent, la valeur est à recalculer — et la
+référence à refaire.
+
+Ce que ça donne pour les quatre causes, à 25 voyageurs de base :
+
+| cause | occupation attendue *(pas encore mesuré)* |
+|---|---|
+| charge 25 → 50 voyageurs | 80 % → 160 % : le tas grossit |
+| blocage d'une réplique | 80 % → 120 % : le tas grossit |
+| lenteur (+1 s réseau ≈ +3 s par message) | 80 % → 380 % : le tas grossit vite |
+| hote | faible : le temps par message est de l'attente, pas du CPU — à mesurer |
+
+**Vérification** :
+
+```bash
+bash ~/autodeploy/apps/consommateur.sh etat
+```
+
+```
+  consommateur : ts-delivery-service (3/3 répliques prêtes)
+  temps de service : 0.8 s par message   (déclencheur ts.delivery.temps_de_service)
+  prefetch : 1
+```
+
+Le pilote recopie cette sortie dans chaque compte rendu (`reglage_consommateur`) :
+deux campagnes ne se comparent que si elles l'ont identique. Le graphe doit
+ensuite montrer `process_time_p50` ≈ 0,8 s sur les trois répliques.
 
 ---
 
@@ -396,8 +475,9 @@ ssh master 'bash ~/autodeploy/apps/loadgen.sh bilan'
                                      total    total                 /s        /s      ms
    ------------------------------------------------------------------------------------
    01 connexion                        300        0   0.0%        0.10      0.00     120
-   10 chercher un train                900       12   1.3%        4.20      0.00     310
+   10 chercher un train                900       12   1.3%        1.50      0.00     310
    30 réserver un billet               180        2   1.1%        0.80      0.00     650
+   40 commander un repas              1800        0   0.0%        3.00      0.00      40
 
    Tous les parcours passent. La campagne peut être lancée.
 ```
@@ -509,7 +589,7 @@ causes font grossir le tas, chacune pour une raison différente :
 
 | `--panne` | ce qui est fait | avec quoi | ce qu'on s'attend à voir *(pas encore mesuré)* |
 |---|---|---|---|
-| `charge` | plus de voyageurs : on dépose plus vite qu'on ne retire | `loadgen.sh scale` | `publish_rate` ↑, `consume_rate` plafonne, `backlog` ↑ ; tout le reste sain |
+| `charge` | deux fois plus de voyageurs : on dépose plus vite qu'on ne retire | `loadgen.sh scale` | `publish_rate` ↑, `consume_rate` plafonne à 3,75/s, `backlog` ↑ ; tout le reste sain |
 | `lenteur` | les 3 répliques attendent 1 s de plus à chaque échange avec leur base | Chaos Mesh, retard réseau entre ces pods et `tsdb-mysql` | `process_time_p50` ↑ sur les 3 répliques, cpu normal, hôtes normaux, `backlog` ↑ |
 | `hote` | un pod voisin, hors du graphe, occupe tous les cœurs de l'hôte d'UNE réplique | Chaos Mesh, stress CPU sur ce voisin | `cpu_pressure` ↑ sur cet hôte seul ; la réplique qui y vit ralentit, les 2 autres vont bien ; les autres services de cet hôte aussi |
 | `blocage` | une seule réplique est gelée, sans être tuée | `SIGSTOP` sur son processus Java | `consume_rate` 0 et cpu ≈ 0 sur elle, mémoire inchangée ; les 2 autres absorbent ; hôte normal ; après ~2 min le courtier ne compte plus que 2 consommateurs |
@@ -533,7 +613,7 @@ tmux new -s campagne
 | `--panne <cause>` | `charge`, `lenteur`, `hote`, `blocage` | — |
 | `--a <min[,min…]>` | minute(s) de début, depuis le premier palier ; `--a 5,35,65` répète | — |
 | `--duree <min>` | durée de chaque injection | — |
-| `--intensite <n>` | voyageurs (`charge`) · ms de retard (`lenteur`) · cœurs réclamés par le voisin (`hote`) | 4 × la charge · 1000 · la moitié de l'hôte |
+| `--intensite <n>` | voyageurs (`charge`) · ms de retard (`lenteur`) · cœurs réclamés par le voisin (`hote`) | 2 × la charge · 1000 · la moitié de l'hôte |
 | `--cible <x>` | nœud (`hote`) ou pod (`blocage`) | le moins chargé des hôtes portant une réplique · la première réplique |
 
 Le pilote décide **quand** ; `apps/panne.sh`, sur le master, décide **comment**
@@ -562,32 +642,22 @@ ssh master 'bash ~/autodeploy/apps/panne.sh retirer'
 
 ### Dans quel ordre
 
-1. **Étalonner** : trouver la charge où les trois répliques saturent. À 0,3
-   message par seconde et 6 ms par message, il faudra peut-être beaucoup de
-   voyageurs — c'est justement ce qu'on mesure.
+1. **La référence saine**, avec le consommateur dimensionné (étape 7 bis) et
+   une charge qui reste sous les 80 % — donc jamais plus de 25 voyageurs :
 
    ```bash
-   ./campagne.sh etalonnage --profil "10:10,20:10,40:10,80:10,160:10"
+   ./campagne.sh saine-04 --profil "10:15,25:30,20:15"
    ```
 
-   Puis l'étape 12 sur cette campagne (`export.scaler: apply` — la référence
-   reste la campagne saine), et une ligne par fenêtre pour la file :
+   Puis l'étape 12 avec `export.scaler: write`, et la lecture de la file :
 
    ```bash
    cd graphe_en && ./.venv/bin/python queues.py runs/<horodatage>
    ```
 
-   ```
-   window  start_utc                 backlog  …  publish_rate  consume_rate  rate_imbalance  consumers
-       12  2026-09-12T10:12:00Z            0         0.610         0.610           0.000          3
-       31  2026-09-12T10:31:00Z           12         2.400         1.100           1.300          3
-   ```
-
-   Le palier où `backlog` se met à grossir — ou `consume_rate` cesse de suivre
-   `publish_rate` — est celui où le consommateur sature. Les instants de chaque
-   palier sont dans `paliers_mesures` du compte rendu. Si aucun palier ne
-   sature, c'est un résultat aussi : la cause `charge` demandera plus que 160
-   voyageurs, ou le générateur lui-même plafonne avant.
+   Attendu : `publish_rate` ≈ 3/s à 25 voyageurs, `backlog` 0 partout, 3
+   consommateurs, et `process_time_p50` ≈ 0,8 s sur les répliques dans les
+   figures. Si le tas grossit déjà, le temps de service est trop grand.
 
 2. **Un essai court par cause**, figures à l'appui, avant de dépenser des
    heures : on vérifie que la trace attendue est visible.
@@ -601,7 +671,7 @@ ssh master 'bash ~/autodeploy/apps/panne.sh retirer'
    délicat.
 
    ```bash
-   ./campagne.sh charge-01 --profil "25:90" --panne charge --a 5,35,65 --duree 20
+   ./campagne.sh charge-01 --profil "25:90" --panne charge --a 5,35,65 --duree 20 --intensite 50
    ```
 
 L'intensité est un réglage d'expérience, pas une constante : celle qui produit
@@ -747,6 +817,7 @@ ssh master 'set -a; . ~/autodeploy/.env.secrets; set +a; \
 | `apps/instrument.sh` | attacher l'observateur aux services · `install --all` |
 | `apps/loadgen.sh` | le trafic · `install` `scale <n>` `bilan` `reset` `isolate` |
 | `apps/collecte.sh` | l'enregistrement · `demarrer` `arreter` `fenetre` `etat` |
+| `apps/consommateur.sh` | tailler le consommateur pour sa charge · `dimensionner` `etat` `retirer` |
 | `apps/chaos.sh` | l'injecteur de pannes · `install` `status` `isolate` |
 | `apps/panne.sh` | les quatre pannes · `verifier` `injecter` `retirer` `etat` `temoin` |
 | `campagne.sh` | une campagne entière depuis le nœud de contrôle — charge, panne, collecte, compte rendu |

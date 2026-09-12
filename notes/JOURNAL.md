@@ -7,7 +7,62 @@ refaire une erreur déjà faite.
 
 ---
 
-## 2026-09-12 — Le consommateur a mille fois trop de marge (DÉCISION EN COURS)
+## 2026-09-12 — Le débit de la file ne suit pas les voyageurs : nouveau parcours
+
+**Mesuré** (saine-03, `queues.py` sur l'heure entière) :
+
+| voyageurs | messages/s dans food_delivery |
+|---|---|
+| 10 | 0,40 – 0,60 |
+| 30 | 0,37 – 0,60 |
+| 10 | 0,22 – 0,53 |
+| 55 | 0,13 – 0,35 |
+
+Le débit **baisse** quand les voyageurs montent. Un message naît d'une
+réservation, qui passe par la recherche de train — l'appel lourd. Dès 10
+voyageurs la recherche ralentit ; à 55, chaque voyageur réserve moins qu'à 10.
+
+**Conséquences** : la cause `charge` (« plus de voyageurs ») était impossible
+par construction ; et un débit de 0,13 à 0,67 ne permet aucun dimensionnement
+stable (30 % ou 120 % selon la minute).
+
+**Décision** : un quatrième parcours dans le générateur, « commander un
+repas » — un appel direct à `ts-food-service` (`POST /foodservice/orders`,
+l'API existe, elle exige seulement un numéro de commande inédit), qui dépose
+le même message dans `food_delivery` sans la recherche devant. Poids : repas
+6, réserver 2, chercher 1, courriel 1. Le débit devient 0,12 message/s par
+voyageur — 3/s à 25, 6/s à 50 — et la recherche reste à un niveau que
+l'application tient à 50 voyageurs (moins de demande qu'avant à 25).
+
+## 2026-09-12 — Le consommateur dimensionné pour sa charge (`apps/consommateur.sh`)
+
+Deux réglages de plateforme, posés une fois avant la référence, jamais
+changés ensuite, recopiés dans chaque compte rendu (`reglage_consommateur`) :
+
+- **temps de service 0,8 s par message** : un déclencheur SQL sur la table
+  `delivery` (`BEFORE INSERT … SLEEP(0.8)`). Capacité des 3 répliques :
+  3,75 messages/s ; à 25 voyageurs (3/s), occupation 80 %. Formule :
+  `temps = 0,8 × répliques ÷ débit_de_base`.
+- **prefetch 1** (`SPRING_RABBITMQ_LISTENER_SIMPLE_PREFETCH=1`) : par défaut
+  le courtier confie 250 messages d'avance à chaque réplique ; le tas visible
+  (`messages_ready`) n'aurait bougé qu'après 750 messages en souffrance, et une
+  réplique gelée en aurait emporté 250. Entraîne un redémarrage roulant, donc
+  de nouveaux pods : d'où « avant la référence ».
+
+Pourquoi un déclencheur SQL et pas un retard réseau Chaos Mesh : le retard
+réseau est le mécanisme de la cause `lenteur` ; deux retards sur le même
+chemin se seraient mélangés. Le temps de service est passé dans l'appel à la
+base, là où un vrai service de livraison passerait le sien.
+
+Attendu avec ce réglage (à mesurer par les essais courts) : charge 25 → 50 :
+160 % ; blocage : 120 % ; lenteur +1 s réseau : ~380 % ; hote : faible, le
+temps par message étant de l'attente et non du CPU.
+
+La charge de base est 25 voyageurs ; la référence saine ne dépasse jamais 25
+(au-delà, le tas grossirait dans la référence elle-même). La cause `charge`
+vise 50 (`--intensite 50`, défaut 2 × la charge).
+
+## 2026-09-12 — Le consommateur a mille fois trop de marge (mesuré, résolu ci-dessus)
 
 **Mesuré** (étalonnage, profil 80/160/320) : la file reçoit 0,5 message/s à
 25–55 voyageurs ; trois répliques de `ts-delivery-service` en absorbent ~500/s

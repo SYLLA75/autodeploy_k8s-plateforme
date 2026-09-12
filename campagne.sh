@@ -279,7 +279,7 @@ echo
 # Écrit à la fin, et aussi sur interruption : le fichier décrit toujours ce qui
 # a réellement eu lieu.
 rates=0; echoues=0; injectees=0; non_injectees=0; INJECTION_ACTIVE=0; INTERROMPUE=0
-etat_avant=""; etat_apres=""; fenetre=""; registre=""; registre_pannes=""
+etat_avant=""; etat_apres=""; fenetre=""; registre=""; registre_pannes=""; reglage_consommateur=""
 plage_date=""; plage_de=""; plage_a=""
 
 ecrire_compte_rendu() {
@@ -308,6 +308,11 @@ ecrire_compte_rendu() {
             echo "  injections_confirmees: $injectees"
             echo "  injections_non_confirmees: $non_injectees"
         fi
+        echo
+        echo "# Réglage du consommateur (consommateur.sh etat), identique pour toutes les"
+        echo "# campagnes comparées entre elles."
+        echo "reglage_consommateur: |"
+        printf '%s\n' "${reglage_consommateur:-(non lu)}" | sed 's/^/  /'
         echo
         echo "plage_exploitable:"
         echo "  date: ${plage_date:-inconnue}"
@@ -432,6 +437,10 @@ trap interrompu INT TERM
 # ------------------------------------------------------------------ préparation
 etat_avant=$(distant collecte.sh etat)
 noter_action "action: etat_initial"
+# Le réglage du consommateur fait partie des conditions expérimentales : il est
+# relu et recopié dans le compte rendu, pour qu'aucune campagne ne soit
+# comparée à une autre sans qu'on sache si elles partagent le même.
+reglage_consommateur=$(distant consommateur.sh etat) || reglage_consommateur="(non lu : $reglage_consommateur)"
 
 if [ "$COLLECTE" = "1" ]; then
     say "Démarrage de la collecte…"

@@ -91,6 +91,7 @@ python3 -m venv .venv                 # la première fois seulement
      observability.sh       collecteurs, Prometheus, Jaeger, magasin d'objets
      instrument.sh          l'agent OpenTelemetry sur chaque service
      loadgen.sh             le générateur de trafic
+     consommateur.sh        tailler le consommateur pour sa charge
      collecte.sh            allumer et éteindre l'enregistrement
      chaos.sh               l'injecteur de pannes (Chaos Mesh)
      panne.sh               les quatre pannes : injecter, retirer, consigner

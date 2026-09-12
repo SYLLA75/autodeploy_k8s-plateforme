@@ -47,7 +47,7 @@
 #      bash ~/autodeploy/apps/panne.sh temoin
 #
 #  --intensite, selon la cause :
-#      charge     voyageurs                      (défaut : 4 × la charge en cours)
+#      charge     voyageurs                      (défaut : 2 × la charge en cours)
 #      lenteur    millisecondes de retard        (défaut : 1000)
 #      hote       cœurs réclamés par le voisin   (défaut : la moitié de l'hôte)
 #      blocage    sans objet
@@ -232,7 +232,7 @@ injecter_charge() {
     local duree="$1" intensite="$2"
     local actuel; actuel=$(JOURNAL_OFF=1 bash "$LOADGEN" voyageurs 2>/dev/null | tr -d '[:space:]')
     case "$actuel" in ''|*[!0-9]*) fail "Charge en cours illisible — le générateur tourne-t-il ?" ;; esac
-    [ -n "$intensite" ] || intensite=$((actuel * 4))
+    [ -n "$intensite" ] || intensite=$((actuel * 2))
     [ "$intensite" -gt "$actuel" ] || fail "$intensite voyageurs n'est pas une hausse par rapport aux $actuel en cours"
 
     say "cause  : charge — $intensite voyageurs au lieu de $actuel, pendant $duree min"
