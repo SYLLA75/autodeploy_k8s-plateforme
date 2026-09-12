@@ -326,10 +326,15 @@ nombre de voyageurs :
 | 60 déclencher un courriel | 1 | un message dans `email` |
 
 Avec un rythme de 5 s : **0,12 message/s par voyageur**, soit 3/s à 25
-voyageurs, 6/s à 50. Les voyageurs partent à des dates réparties sur le mois
-qui vient (`TT_JOURS_ETALEMENT`, défaut 30) : réservés tous le même jour, les
-commandes s'accumulent sur un seul train et une seule date, et c'est ce que
-le service des commandes ne supporte pas (voir « Avant chaque campagne »).
+voyageurs, 6/s à 50. Les voyageurs partent à des dates réparties sur l'année
+qui vient (`LG_JOURS_ETALEMENT`, défaut 365) : une seule liaison, un seul
+train, donc tout ce qui est réservé s'empile sur « ce train, cette date », et
+le service des commandes recharge et journalise la pile entière à chaque
+recherche. Mesuré sur charge-01 avec 30 jours : à ~150 commandes par date
+(une heure de campagne), il sature son CPU (500 m), la réservation monte à
+88 s, les voyageurs y restent coincés et l'entrée de la file s'effondre —
+la troisième injection n'a rien produit. À 365 jours, 2 h 15 de campagne
+laissent ~25 commandes par date.
 
 Pourquoi la réservation seule ne suffisait pas : mesuré sur une heure, à 10,
 30 puis 55 voyageurs, la file recevait 0,5 puis 0,5 puis 0,25 message/s. Le

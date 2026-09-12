@@ -99,9 +99,14 @@ SESSION_TTL = float(os.getenv("TT_SESSION_TTL_SECONDS", "1200"))
 
 
 # Les dates de départ : de JOURS_AVANCE à JOURS_AVANCE + JOURS_ETALEMENT - 1
-# jours après aujourd'hui, tirées au hasard.
+# jours après aujourd'hui, tirées au hasard. Une seule liaison, un seul train :
+# tout ce qui est réservé s'empile sur « ce train, cette date », et le service
+# des commandes recharge et journalise la pile entière à chaque recherche.
+# Mesuré : à ~150 commandes par date (30 jours d'étalement, 1 h de campagne),
+# il sature son CPU et les parcours s'allongent jusqu'à 88 s ; à 365 jours,
+# une campagne de 2 h 15 laisse ~25 commandes par date.
 JOURS_AVANCE = int(os.getenv("TT_JOURS_AVANCE", "1"))
-JOURS_ETALEMENT = int(os.getenv("TT_JOURS_ETALEMENT", "30"))
+JOURS_ETALEMENT = int(os.getenv("TT_JOURS_ETALEMENT", "365"))
 
 # Les poids des parcours — voir l'en-tête pour ce qu'ils fixent.
 POIDS_REPAS = int(os.getenv("TT_POIDS_REPAS", "6"))
@@ -116,7 +121,7 @@ REPAS = {"foodType": 2, "foodName": "Bone Soup", "price": 2.5,
 
 def _date_de_depart() -> str:
     """
-    La date cherchée : un jour au hasard dans le mois qui vient, jamais
+    La date cherchée : un jour au hasard dans l'année qui vient, jamais
     aujourd'hui.
 
     Jamais aujourd'hui : le service refuse les dates passées, mais il écarte

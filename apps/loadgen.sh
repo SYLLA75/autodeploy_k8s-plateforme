@@ -36,6 +36,8 @@
 #     LG_USERS         (défaut: 10)             nombre de voyageurs au démarrage
 #     LG_SPAWN_RATE    (défaut: 1)              voyageurs ajoutés par seconde
 #     LG_PACING        (défaut: 5)              secondes entre deux parcours
+#     LG_JOURS_ETALEMENT (défaut: 365)          jours sur lesquels les dates de
+#                                               départ sont tirées (voir locustfile)
 #     LG_IMAGE         (défaut: locustio/locust:2.32.4)
 #     LG_NODEPORT      (défaut: 30089)          port de la page de pilotage
 #     LG_ORIGINE       (défaut: demande)        qui demande le palier, dans le registre
@@ -58,6 +60,7 @@ TARGET_PORT="${LG_TARGET_PORT:-18888}"
 USERS="${LG_USERS:-10}"
 SPAWN_RATE="${LG_SPAWN_RATE:-1}"
 PACING="${LG_PACING:-5}"
+JOURS_ETALEMENT="${LG_JOURS_ETALEMENT:-365}"
 IMAGE="${LG_IMAGE:-locustio/locust:2.32.4}"
 NODEPORT="${LG_NODEPORT:-30089}"
 
@@ -127,6 +130,7 @@ spec:
             - "--autostart"
           env:
             - { name: TT_PACING_SECONDS, value: "${PACING}" }
+            - { name: TT_JOURS_ETALEMENT, value: "${JOURS_ETALEMENT}" }
           ports:
             - { name: web, containerPort: 8089 }
           volumeMounts:
