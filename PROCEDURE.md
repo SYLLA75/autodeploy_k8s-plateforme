@@ -740,8 +740,11 @@ ssh master 'bash ~/autodeploy/apps/panne.sh retirer'
    ./.venv/bin/python instances.py runs/<horodatage> delivery
    ```
 
-   Attendu : `process_time_p50` ≈ 0,7 s sur les trois répliques. Si le tas
-   grossit déjà, le temps de service est trop grand.
+   Attendu : `process_time_p50` ≈ 700 ms sur les trois répliques à 25
+   voyageurs (mesuré sur saine-07 : 706 ms, soit 5 échanges ; et 846 ms à 10
+   voyageurs — un échange de plus, la réserve de connexions vérifiant une
+   connexion restée inactive plus d'une demi-seconde). Si le tas grossit
+   déjà, le temps de service est trop grand.
 
 2. **Un essai court par cause**, figures à l'appui, avant de dépenser des
    heures : on vérifie que la trace attendue est visible.

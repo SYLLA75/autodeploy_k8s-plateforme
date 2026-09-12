@@ -9,9 +9,10 @@ components — by default:
 
     process_time_p50  process_time_p95  error_ratio  cpu_rate  memory_used
 
-process_time is in seconds (the time one replica takes to handle a message);
-this is how the consumer's service time is read after a reference campaign,
-and how a single replica is watched during a fault. Standard library only.
+process_time is in milliseconds (the time one replica takes to handle a
+message); this is how the consumer's service time is read after a reference
+campaign, and how a single replica is watched during a fault. Standard
+library only.
 """
 from __future__ import annotations
 

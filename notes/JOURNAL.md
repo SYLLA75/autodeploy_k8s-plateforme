@@ -7,6 +7,35 @@ refaire une erreur déjà faite.
 
 ---
 
+## 2026-09-12 — Référence saine-07 : la plateforme réglée se comporte comme calculé
+
+Campagne complète (10 / 25 / 20 voyageurs), `scaler.json` écrit dessus.
+Mesuré (`queues.py`, `instances.py`) :
+
+| palier | dépôts/s | tas | temps par message (p50) |
+|---|---|---|---|
+| 10 voyageurs | 1,2 – 1,5 | 0 | 846 ms |
+| 25 voyageurs | 3,3 – 3,75 | 0 – 4, redescend toujours | 706 ms |
+| 20 voyageurs | 2,6 – 3,1 | 0 – 3 | 706 ms |
+
+Le débit suit les voyageurs (0,12/s par voyageur, comme prévu), l'écart
+dépôt/retrait reste sous ±0,1, 3 consommateurs sans interruption, aucun
+point chaud sur les hôtes (pression CPU max 0,026 — les commandes réparties
+sur trente dates ne chargent plus le service des commandes).
+
+Le temps par message vaut 5 échanges × 140 ms à 25 voyageurs — le facteur 5
+estimé est exact — et 6 échanges à 10 voyageurs : une connexion restée
+inactive plus d'une demi-seconde est vérifiée avant réutilisation (Hikari,
+`aliveBypassWindow`), un aller-retour de plus. Le temps par message *baisse*
+donc quand la charge monte ; c'est une propriété de l'application, à
+connaître avant d'interpréter une figure. Occupation à 25 voyageurs :
+3,5 × 0,706 ÷ 3 = 82 %.
+
+Corrigé au passage : les fenêtres hors de la plage demandée entraient dans
+l'analyse (le rapatriement prend un fichier de plus de chaque côté) ; cinq
+fenêtres d'avant la campagne, sans compteurs du courtier, avaient été
+comptées dans la normale. Écartées désormais (« outside requested range »).
+
 ## 2026-09-12 — Redémarrer le service des commandes seul casse la recherche deux minutes
 
 **Mesuré** au départ de saine-04 : le pilote purgeait et redémarrait
