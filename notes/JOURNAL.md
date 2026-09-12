@@ -175,6 +175,54 @@ prototypique à peu d'exemples, rejet hors ensemble par distance aux
 prototypes. Le point aveugle asynchrone de la littérature RCA est confirmé.
 Rien ne change au graphe.
 
+## Avant le dépôt — la construction de la plateforme (jusqu'au 9 septembre)
+
+Résumé chronologique ; le détail, les mesures et les erreurs sont dans
+`notes/OBSERVABILITE.md` (§3 découvertes, §4 briques, §8 journal, puis une
+section par module du graphe), `notes/CHOIX.md` et `notes/RECOMMANDATIONS.md`.
+
+1. **La grappe** (`deploy.sh`, Kubespray sur SLICES-RI). Deux Helm sur le
+   master (v4 pour otel-demo, v3 pour les charts de train-ticket) ; une
+   `StorageClass` par défaut, sans laquelle MySQL et Nacos restent en
+   `Pending` ; une attente active des VMs à la place d'un `sleep` ; les
+   scripts d'application copiés et exécutés sur le master. (CHOIX.md)
+2. **L'application étudiée** : train-ticket (46 services, deux files RabbitMQ :
+   `food_delivery` et `email`). otel-demo retiré : collisions et machines.
+3. **La chaîne de mesure à nous** (`observability.sh`) : collecteur
+   OpenTelemetry, Prometheus, Jaeger, relevés des machines et de Kubernetes,
+   port de mesure du courtier. Découverte qui décide de tout le graphe : le
+   courtier ne donne PAS de débit par file — les débits déposé / retiré
+   viennent des traces, pas des compteurs. (OBSERVABILITE.md §3.2)
+4. **Faire parler les 46 services** (`instrument.sh`) : agent Java 2.31.1
+   attaché sans toucher au code, version figée ; téléchargé depuis Maven parce
+   que le registre d'images de GitHub est bloqué sur SLICES-RI. Un message
+   consommé donne deux notes (livraison par le courtier, traitement par
+   l'application) — c'est la seconde qui compte. (§8)
+5. **Le trafic** (`loadgen.sh`) : Locust dans la grappe, hors de l'espace
+   applicatif, non instrumenté ; trois parcours d'abord, choisis pour toucher
+   les files. La file `email` est morte dans cette version (l'envoi est
+   commenté par les auteurs) : un point d'entrée de test l'alimente. Trois
+   écarts constatés avec la documentation officielle (noms de champs, gares en
+   minuscules, date passée refusée). (§« Le générateur »)
+6. **Isoler la mesure** : un nœud réservé (`OBS_DEDICATED_NODE`), taché, où
+   vivent collecteur, Prometheus, Jaeger et Locust — leur coût ne se mêle pas
+   à celui des services mesurés.
+7. **Sortir les données** : magasin d'objets MinIO (survit à la destruction
+   des VMs), compression, traitement de la saturation du disque, compteurs
+   exportés eux aussi, liste des compteurs gardés (`metrics-keep.txt`).
+8. **Le graphe** (`graphe_en/`, ex-`graphe/`) : à quelle fenêtre appartient
+   une note (décision mesurée), largeur et pas, marge aux bords retirée sur
+   preuve, `null` jamais 0, aucun one-hot, format neutre puis PyTorch
+   Geometric, manifeste qui décrit le jeu de données. Trois écarts au papier,
+   tous mesurés. (sections « Le découpage », « Les valeurs », « Les flèches »)
+9. **Six correctifs au déploiement (2026-09-10)** : MySQL inaccessible en
+   IPv6, boucle arrêtée à la première base, `--apps-only` sans bastion,
+   `isolate` qui expulsait l'inexpulsable, épinglage avant étiquetage, profil
+   de dimensionnement périmé. (RECOMMANDATIONS.md, dernière section)
+10. **Revue de la formalisation (2026-09-09)** : neuf défauts dans le papier,
+    dont deux corrigés dans le code — voir l'entrée du 9 septembre ci-dessus.
+    (RECOMMANDATIONS.md §1)
+
 ## Règles qui ne bougent plus
 
 - `export.scaler: write` une seule fois, sur la référence saine ; `apply`
