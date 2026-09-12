@@ -322,7 +322,7 @@ injecter_lenteur() {
     say "outil  : Chaos Mesh NetworkChaos $NS/panne-lenteur, durée ${duree}m"
     local demande; demande=$(maintenant)
     ecrire_etat CAUSE=lenteur OUTIL=chaos-mesh "CIBLE=$CONSO ($n répliques) -> $BASE_LABEL" \
-                "INTENSITE=$intensite" "RETARD_BASE=${base:-}" "DEBUT=$demande" "DUREE=$duree"
+                "INTENSITE=$intensite" "RETARD_BASE=${base:-}" "DEBUT=$demande" "DUREE=$duree" MINUTEUR=
     [ -z "$base" ] || kubectl delete networkchaos "$REGLAGE" -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1
     yaml_retard panne-lenteur "$CONSO" "$total" "$duree" "panne=lenteur" | kubectl apply -f - >/dev/null \
         || fail "Chaos Mesh a refusé l'objet — voir ci-dessus."
@@ -330,7 +330,16 @@ injecter_lenteur() {
         local t; t=$(conteneurs_touches networkchaos "$NS" panne-lenteur)
         consigner "$demande" "$(maintenant)" injection lenteur "$intensite" "$CONSO x$n -> $BASE_LABEL" chaos-mesh/networkchaos confirmee
         ok "injectée — $t conteneur(s) touché(s), expire dans $duree min"
-        [ -z "$base" ] || warn "à l'expiration, le réglage de base n'est PAS reposé tout seul : « retirer » le fait."
+        # Chaos Mesh lève la panne seul, mais ne repose pas le réglage de base :
+        # sans lui, le consommateur serait mille fois trop rapide pour toute
+        # campagne suivante. Le retrait est donc programmé ici même, comme pour
+        # « charge » ; un pilote qui retire avant l'heure annule le minuteur.
+        if [ -n "$base" ]; then
+            nohup bash -c "sleep $((duree * 60 + 30)); [ -f '$ETAT' ] && JOURNAL_OFF=1 bash '$_ici/panne.sh' retirer" \
+                >/dev/null 2>&1 < /dev/null &
+            sed -i "s/^MINUTEUR=.*/MINUTEUR='$!'/" "$ETAT"
+            say "le réglage de base ($base ms) sera reposé à l'expiration, par un minuteur sur le master"
+        fi
         return 0
     fi
     consigner "$demande" "" injection lenteur "$intensite" "$CONSO x$n -> $BASE_LABEL" chaos-mesh/networkchaos NON_CONFIRMEE
@@ -525,6 +534,7 @@ retirer_app() {
             [ -n "${MINUTEUR:-}" ] && [ "$MINUTEUR" != "$PPID" ] && kill "$MINUTEUR" >/dev/null 2>&1
             LG_ORIGINE=retour_panne JOURNAL_OFF=1 bash "$LOADGEN" scale "$RETOUR" || resultat=ECHEC ;;
         lenteur)
+            [ -n "${MINUTEUR:-}" ] && [ "$MINUTEUR" != "$PPID" ] && kill "$MINUTEUR" >/dev/null 2>&1
             kubectl delete networkchaos panne-lenteur -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 \
                 || resultat=ECHEC
             if [ -n "${RETARD_BASE:-}" ]; then

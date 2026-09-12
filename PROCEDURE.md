@@ -707,7 +707,8 @@ et consigne **qui** a été touché. Le compte rendu reçoit en plus :
 ```
 
 **Chaque injection expire d'elle-même** sur le master : Chaos Mesh lève la
-sienne à l'échéance, la levée du gel est programmée dans le conteneur gelé, le
+sienne à l'échéance (et pour `lenteur`, un minuteur repose ensuite le réglage
+de base), la levée du gel est programmée dans le démon Chaos Mesh du nœud, le
 retour de charge par un minuteur. Un pilote qui meurt ne laisse pas la panne
 derrière lui. Et `Ctrl-C` ne jette rien : l'injection est retirée, la collecte
 close, le compte rendu écrit avec ce qui a eu lieu.
