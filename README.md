@@ -55,6 +55,7 @@ exécute.
 | savoir pourquoi c'est fait ainsi | [notes/CHOIX.md](notes/CHOIX.md) |
 | combien de machines, quel gabarit | [notes/DIMENSIONNEMENT.md](notes/DIMENSIONNEMENT.md) |
 | l'état des questions ouvertes | [notes/RECOMMANDATIONS.md](notes/RECOMMANDATIONS.md) |
+| ce qui a été décidé, quand, et pourquoi | [notes/JOURNAL.md](notes/JOURNAL.md) |
 
 En bref, une fois installé :
 
