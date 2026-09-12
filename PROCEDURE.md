@@ -742,9 +742,23 @@ ssh master 'bash ~/autodeploy/apps/panne.sh retirer'
    ./campagne.sh charge-01 --profil "25:90" --panne charge --a 5,35,65 --duree 20 --intensite 50
    ```
 
+4. **La sensibilité au réglage**, après les campagnes principales : les
+   mêmes pannes à deux autres taux d'occupation, en ne changeant *que* le
+   retard — ~90 ms pour 50 %, ~165 ms pour 95 % — chacune avec sa propre
+   référence saine. Si les conclusions tiennent aux trois niveaux, elles ne
+   tiennent pas à la valeur 80 %. C'est la réponse à « vous avez réglé la
+   plateforme pour trouver de bons résultats ».
+
+   ```bash
+   ssh master 'bash ~/autodeploy/apps/consommateur.sh dimensionner --retard 90'
+   ./campagne.sh saine-50pct --profil "10:15,25:30,20:15"
+   ```
+
 L'intensité est un réglage d'expérience, pas une constante : celle qui produit
 la trace attendue est à lire dans les figures de l'essai, puis à figer dans le
-nom et le compte rendu de la campagne.
+nom et le compte rendu de la campagne. Ce qui ne se fait pas : régler les
+seuils du modèle sur les campagnes qui servent à l'évaluer, ou retirer une
+cause qui ne laisse pas de trace — celle-là se rapporte comme un résultat.
 
 ---
 
