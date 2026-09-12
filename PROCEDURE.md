@@ -667,12 +667,12 @@ Le fil qu'on casse est toujours le même : `ts-food-service` dépose dans
 `food_delivery`, les trois répliques de `ts-delivery-service` retirent. Quatre
 causes font grossir le tas, chacune pour une raison différente :
 
-| `--panne` | ce qui est fait | avec quoi | ce qu'on s'attend à voir *(pas encore mesuré)* |
+| `--panne` | ce qui est fait | avec quoi | ce qu'on s'attend à voir, et ce qui a été mesuré |
 |---|---|---|---|
-| `charge` | deux fois plus de voyageurs : on dépose plus vite qu'on ne retire | `loadgen.sh scale` | `publish_rate` ↑, `consume_rate` plafonne à 3,75/s, `backlog` ↑ ; tout le reste sain |
-| `lenteur` | les 3 répliques attendent 300 ms de plus à chaque échange avec leur base, en plus du réglage de base | Chaos Mesh, retard réseau entre ces pods et `tsdb-mysql` (remplace le réglage le temps de la panne, le repose après) | `process_time_p50` ↑ sur les 3 répliques, cpu normal, hôtes normaux, `backlog` ↑ |
-| `hote` | un pod voisin, hors du graphe, occupe tous les cœurs de l'hôte d'UNE réplique | Chaos Mesh, stress CPU sur ce voisin | `cpu_pressure` ↑ sur cet hôte seul ; la réplique qui y vit ralentit, les 2 autres vont bien ; les autres services de cet hôte aussi |
-| `blocage` | une seule réplique est gelée, sans être tuée | `SIGSTOP` sur son processus Java, envoyé depuis la machine par le démon Chaos Mesh | `consume_rate` 0 et cpu ≈ 0 sur elle, mémoire inchangée ; les 2 autres absorbent ; hôte normal ; après ~2 min le courtier ne compte plus que 2 consommateurs |
+| `charge` | deux fois plus de voyageurs : on dépose plus vite qu'on ne retire | `loadgen.sh scale` | `publish_rate` ↑, `consume_rate` plafonne à 4,25/s, `backlog` ↑ ; tout le reste sain. **Mesuré (essai-charge)** : 3,65 → 7,1/s, tas +170/min |
+| `lenteur` | les 3 répliques attendent 300 ms de plus à chaque échange avec leur base, en plus du réglage de base | Chaos Mesh, retard réseau entre ces pods et `tsdb-mysql` (posé par-dessus le réglage, puis le réglage retiré ; à l'inverse au retrait — jamais un instant sans retard) | `process_time_p50` ↑ sur les 3 répliques, cpu normal, hôtes normaux, `backlog` ↑. **Mesuré (essai-lenteur)** : 706 → 2 206 ms (5 échanges × 300), sortie 1,35/s |
+| `hote` | un pod voisin, hors du graphe, occupe tous les cœurs de l'hôte d'UNE réplique | Chaos Mesh, stress CPU sur ce voisin | `cpu_busy` et `cpu_pressure` ↑ sur cet hôte seul. **Mesuré (essai-hote-02)** : 0,04 → 0,83 et 0,01 → 0,63 ; mais la réplique qui y vit ne ralentit que de 0,5 % et la file reste à zéro — sa demande CPU (100 m) lui garantit sa part, et 4 m lui suffisent. Un voisin bruyant ne touche pas un consommateur borné par ses échanges réseau : c'est un résultat, pas une panne de coordination |
+| `blocage` | une seule réplique est gelée, sans être tuée | `SIGSTOP` sur son processus Java, envoyé depuis la machine par le démon Chaos Mesh | `consume_rate` 0 et cpu ≈ 0 sur elle, mémoire inchangée ; les 2 autres absorbent ; hôte normal ; après ~2 min le courtier ne compte plus que 2 consommateurs. **Mesuré (essai-blocage-02)** : conforme |
 
 Une campagne de panne est un profil de charge ordinaire sur lequel une
 injection est posée à une minute donnée :

@@ -7,6 +7,40 @@ refaire une erreur déjà faite.
 
 ---
 
+## 2026-09-12 — essai-hote-02 : la quatrième cause se voit sur l'hôte, pas sur la file
+
+Voisin à 100 % des 4 cœurs de `workers0` de la minute 3 à 8, plage 21:01 →
+21:08 (`campagnes/essai-hote-02/lecture.txt`) :
+
+```
+   fenêtre   workers0 cpu_busy  cpu_pressure   réplique r5pwb p50   backlog
+   21:01          0,24             0,08              706 ms             0
+   21:02          0,84             0,62              711 ms             4
+   21:05          0,84             0,63              709 ms             0
+   21:07          0,05             0,01              706 ms             0
+```
+
+L'hôte est saturé, et seulement lui. La réplique qui y vit ralentit de
+0,5 % ; la file ne bouge pas. Explication : sa demande CPU (100 m) lui
+garantit sa part quand tout le monde veut du processeur, et 4 m lui
+suffisent — son temps est fait d'attente réseau, pas de calcul. **Résultat
+retenu tel quel** (règle : une cause sans trace se rapporte, ne se retire
+pas) : un voisin bruyant sur l'hôte d'une réplique n'est pas une panne de
+coordination sur cette plateforme. Pour le modèle, c'est une anomalie
+d'hôte *sans* symptôme sur la file — utile pour apprendre à ne pas
+attribuer un tas à un hôte chargé. Si un jour il faut qu'un hôte pèse sur
+la file, viser l'hôte de la base (les trois répliques y passent cinq fois
+par message) serait la voie ; c'est une autre cause, à décider, pas à
+glisser.
+
+**Décision pour les grandes campagnes** (`PROCEDURE.md`, étape 11, point
+3) : profil `25:135`, injections à 5, 50 et 95 min, 20 min chacune, 25 min
+de retour — le temps que le tas du gel (0,7/s, sans réglage possible)
+fonde à 0,6/s. `charge` à 35 voyageurs et `lenteur` à +75 ms pour que les
+trois causes fassent monter le tas au même rythme (~0,7/s) : le modèle ne
+peut alors pas les distinguer à la taille du symptôme. `hote` à sa
+valeur par défaut. Ordre : charge, blocage, lenteur, hote.
+
 ## 2026-09-12 — essai-lenteur : troisième cause validée, et un trou comblé
 
 +300 ms par échange de la minute 3 à la minute 8, plage 20:31 → 20:38
