@@ -1,0 +1,12 @@
+  instant : 2026-09-12T19:17:28Z
+  file food_delivery : 162 en attente, 2 non acquitté(s), 2 consommateur(s)
+  voyageurs : 25
+  répliques de ts-delivery-service :
+      ts-delivery-service-79c46f4f45-bmgvs          workers2   cpu 0m  mém 408Mi
+      ts-delivery-service-79c46f4f45-r5pwb          workers0   cpu 6m  mém 409Mi
+      ts-delivery-service-79c46f4f45-tvmfl          workers5   cpu 5m  mém 417Mi
+  hôtes :
+      workers0   cpu 218m (6%)  mém 5504Mi (78%)
+      workers2   cpu 181m (5%)  mém 6055Mi (85%)
+      workers5   cpu 192m (5%)  mém 4861Mi (68%)
+  injection : blocage depuis 2026-09-12T19:12:57Z

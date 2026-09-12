@@ -1,0 +1,5 @@
+# instant_demande	instant_effectif	action	cause	intensite	cible	outil	resultat
+2026-09-12T19:01:45Z		injection	blocage		ts-delivery-service-79c46f4f45-bmgvs@workers2	sigstop	NON_CONFIRMEE
+2026-09-12T19:08:32Z	2026-09-12T19:08:33Z	retrait	blocage		ts-delivery-service-79c46f4f45-bmgvs	sigstop	ok
+2026-09-12T19:12:57Z	2026-09-12T19:12:59Z	injection	blocage		ts-delivery-service-79c46f4f45-bmgvs@workers2	sigstop	confirmee
+2026-09-12T19:17:55Z	2026-09-12T19:17:56Z	retrait	blocage		ts-delivery-service-79c46f4f45-bmgvs	sigstop	ok
