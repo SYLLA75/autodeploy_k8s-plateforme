@@ -126,7 +126,13 @@ dimensionner_app() {
 
     say "Temps de service : $temps s par message, sur la table $DB.$TABLE"
     local tables; tables=$(sql "SHOW TABLES LIKE '$TABLE';")
-    [ "$tables" = "$TABLE" ] || fail "Table « $TABLE » absente de la base « $DB » — le consommateur a-t-il déjà démarré ? (CONSO_TABLE, CONSO_DB)"
+    if [ "$tables" != "$TABLE" ]; then
+        [ -z "$tables" ] || printf '%s\n' "$tables" | sed 's/^/      /' >&2
+        warn "table « $TABLE » introuvable dans la base « $DB ». Tables dont le nom contient « $TABLE », toutes bases :"
+        sql "SELECT CONCAT(table_schema, '.', table_name) FROM information_schema.tables WHERE table_name LIKE '%$TABLE%';" \
+            | sed 's/^/      /' >&2
+        fail "Donne la bonne base et la bonne table :  CONSO_DB=… CONSO_TABLE=… bash $0 dimensionner --temps $temps"
+    fi
     local sortie
     sortie=$(sql "DROP TRIGGER IF EXISTS $DECLENCHEUR; CREATE TRIGGER $DECLENCHEUR BEFORE INSERT ON $TABLE FOR EACH ROW SET @attente = SLEEP($temps);")
     [ -z "$sortie" ] || { printf '%s\n' "$sortie" | sed 's/^/      /' >&2; consigner dimensionner "$temps" "$prefetch" ECHEC; fail "La base a refusé le déclencheur."; }
