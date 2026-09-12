@@ -92,6 +92,8 @@ python3 -m venv .venv                 # la première fois seulement
      instrument.sh          l'agent OpenTelemetry sur chaque service
      loadgen.sh             le générateur de trafic
      consommateur.sh        tailler le consommateur pour sa charge
+     donnees.sh             remettre les tables de commandes à zéro
+     mysql.sh               parler à la base, partagé par les deux précédents
      collecte.sh            allumer et éteindre l'enregistrement
      chaos.sh               l'injecteur de pannes (Chaos Mesh)
      panne.sh               les quatre pannes : injecter, retirer, consigner

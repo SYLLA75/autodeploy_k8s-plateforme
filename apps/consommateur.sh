@@ -53,10 +53,7 @@ set -uo pipefail
 _ici="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ -f "$_ici/journal.sh" ] && JOURNAL_NOM="consommateur" . "$_ici/journal.sh"
 
-NS="${CONSO_NAMESPACE:-train-ticket}"
 DEPLOY="${CONSO_DEPLOY:-ts-delivery-service}"
-MYSQL_LABEL="${CONSO_MYSQL_LABEL:-app=tsdb-mysql}"
-DB="${CONSO_DB:-ts}"
 TABLE="${CONSO_TABLE:-delivery}"
 DECLENCHEUR="temps_de_service"
 ENV_PREFETCH="SPRING_RABBITMQ_LISTENER_SIMPLE_PREFETCH"
@@ -77,29 +74,7 @@ consigner() {
     printf '%s\t%s\t%s\t%s\t%s\n' "$(maintenant)" "$1" "$2" "$3" "$4" >> "$REGISTRE" 2>/dev/null
 }
 
-# ------------------------------------------------------------------------------
-# La base : on parle au chef (les écritures y vont), avec le mot de passe que
-# le pod porte lui-même dans son environnement.
-# ------------------------------------------------------------------------------
-pod_mysql() {
-    local p
-    p=$(kubectl get pods -n "$NS" -l "$MYSQL_LABEL,role=leader" --no-headers \
-        -o custom-columns=:metadata.name 2>/dev/null | head -1)
-    [ -n "$p" ] || p=$(kubectl get pods -n "$NS" -l "$MYSQL_LABEL" --no-headers \
-        -o custom-columns=:metadata.name 2>/dev/null | head -1)
-    echo "$p"
-}
-
-sql() {   # <requête> — sur la base $DB, sortie brute
-    local pod; pod=$(pod_mysql)
-    [ -n "$pod" ] || fail "Aucun pod « $MYSQL_LABEL » dans $NS : la base du consommateur est introuvable."
-    # Sans mot de passe dans l'environnement du pod, « -p » seul demanderait le
-    # mot de passe au terminal et son invite salirait la sortie.
-    kubectl exec -n "$NS" "$pod" -c mysql -- sh -c \
-        'mysql -uroot ${MYSQL_ROOT_PASSWORD:+-p"$MYSQL_ROOT_PASSWORD"} --database="$1" -N -B -e "$2" 2>&1 \
-         | grep -v "Using a password" | sed "s/^Enter password: //"' \
-        sh "$DB" "$1"
-}
+. "$_ici/mysql.sh"
 
 declencheur_actuel() {   # la définition posée, vide s'il n'y en a pas
     sql "SELECT ACTION_STATEMENT FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='$DB' AND TRIGGER_NAME='$DECLENCHEUR';" 2>/dev/null

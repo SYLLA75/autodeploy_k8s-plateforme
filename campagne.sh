@@ -84,6 +84,7 @@
 #      --intensite <n>    voyageurs (charge), millisecondes (lenteur), cœurs (hote)
 #      --cible <x>        nœud (hote) ou pod (blocage) ; sinon choisi par panne.sh
 #      --sans-collecte    ne pilote pas la collecte (elle est déjà en route)
+#      --sans-purge       ne remet pas les tables de commandes à zéro au départ
 #      --marge <min>      marge écartée de chaque côté (défaut : celle de collecte.sh)
 #
 #  Variables reconnues :
@@ -126,7 +127,7 @@ usage() {
 
 # ------------------------------------------------------------------------------
 NOM=""; PROFIL=""; PANNE=""; DEBUTS_BRUTS=""; DUREE=""; INTENSITE=""; CIBLE_PANNE=""
-COLLECTE=1; MARGE=""
+COLLECTE=1; PURGE=1; MARGE=""
 [ $# -gt 0 ] || usage
 NOM="$1"; shift
 case "$NOM" in -*|'') usage ;; *[!A-Za-z0-9._-]*) fail "Nom invalide : « $NOM »" ;; esac
@@ -141,6 +142,7 @@ while [ $# -gt 0 ]; do
         --cible)         CIBLE_PANNE="${2:-}"; shift 2 ;;
         --marge)         MARGE="${2:-}"; shift 2 ;;
         --sans-collecte) COLLECTE=0; shift ;;
+        --sans-purge)    PURGE=0; shift ;;
         -h|--help)       usage ;;
         *) fail "Option inconnue : $1" ;;
     esac
@@ -279,7 +281,7 @@ echo
 # Écrit à la fin, et aussi sur interruption : le fichier décrit toujours ce qui
 # a réellement eu lieu.
 rates=0; echoues=0; injectees=0; non_injectees=0; INJECTION_ACTIVE=0; INTERROMPUE=0
-etat_avant=""; etat_apres=""; fenetre=""; registre=""; registre_pannes=""; reglage_consommateur=""
+etat_avant=""; etat_apres=""; fenetre=""; registre=""; registre_pannes=""; reglage_consommateur=""; etat_donnees=""
 plage_date=""; plage_de=""; plage_a=""
 
 ecrire_compte_rendu() {
@@ -313,6 +315,11 @@ ecrire_compte_rendu() {
         echo "# campagnes comparées entre elles."
         echo "reglage_consommateur: |"
         printf '%s\n' "${reglage_consommateur:-(non lu)}" | sed 's/^/  /'
+        echo
+        echo "# Données de l'application au départ (donnees.sh etat), après remise à zéro"
+        echo "# sauf --sans-purge : le comportement de train-ticket en dépend."
+        echo "donnees_au_depart: |"
+        printf '%s\n' "${etat_donnees:-(non lu)}" | sed 's/^/  /'
         echo
         echo "plage_exploitable:"
         echo "  date: ${plage_date:-inconnue}"
@@ -441,6 +448,21 @@ noter_action "action: etat_initial"
 # relu et recopié dans le compte rendu, pour qu'aucune campagne ne soit
 # comparée à une autre sans qu'on sache si elles partagent le même.
 reglage_consommateur=$(distant consommateur.sh etat) || reglage_consommateur="(non lu : $reglage_consommateur)"
+
+# Les tables de commandes aussi : deux campagnes ne se comparent que si elles
+# partent des mêmes données. On les vide, AVANT la collecte, pour que le
+# redémarrage du service des commandes reste hors de la fenêtre mesurée.
+if [ "$PURGE" = "1" ]; then
+    say "Remise à zéro des données de l'application…"
+    if sortie=$(distant donnees.sh purger); then
+        printf '%s\n' "$sortie" | sed 's/^/      /'
+        noter_action "action: donnees_remises_a_zero"
+    else
+        printf '%s\n' "$sortie" | sed 's/^/      /' >&2
+        fail "La remise à zéro des données a échoué (--sans-purge pour s'en passer, en connaissance de cause)."
+    fi
+fi
+etat_donnees=$(distant donnees.sh etat) || etat_donnees="(non lu : $etat_donnees)"
 
 if [ "$COLLECTE" = "1" ]; then
     say "Démarrage de la collecte…"

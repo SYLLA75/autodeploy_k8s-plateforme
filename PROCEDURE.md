@@ -323,7 +323,10 @@ nombre de voyageurs :
 | 60 déclencher un courriel | 1 | un message dans `email` |
 
 Avec un rythme de 5 s : **0,12 message/s par voyageur**, soit 3/s à 25
-voyageurs, 6/s à 50.
+voyageurs, 6/s à 50. Les voyageurs partent à des dates réparties sur le mois
+qui vient (`TT_JOURS_ETALEMENT`, défaut 30) : réservés tous le même jour, les
+commandes s'accumulent sur un seul train et une seule date, et c'est ce que
+le service des commandes ne supporte pas (voir « Avant chaque campagne »).
 
 Pourquoi la réservation seule ne suffisait pas : mesuré sur une heure, à 10,
 30 puis 55 voyageurs, la file recevait 0,5 puis 0,5 puis 0,25 message/s. Le
@@ -502,6 +505,32 @@ connexion avait expiré, tous les parcours s'arrêtaient à leur première ligne
 L'application tournait, les pods étaient `Running`, la collecte écrivait dans le
 magasin. Rien ne le montrait — sauf ce tableau.
 
+**Les données de l'application** comptent autant que le trafic. Chaque
+réservation ajoute une commande, et pour compter les places vendues le
+service des sièges fait charger en mémoire *toutes* les commandes du train à
+cette date. Mesuré : à 5 000 commandes sur le même train le même jour,
+`ts-order-service` (tas Java de 200 Mo) se fige, le service des sièges
+l'attend, la recherche attend le service des sièges en gardant ses 10
+connexions à la base — et toute recherche répond `500` après 30 s, même à 1
+voyageur, même après redémarrage des services du dessus. Dans `bilan`, la
+signature est un `p50` de **30 000** sur « chercher un train ».
+
+Le pilote remet donc les tables de commandes à zéro au départ de chaque
+campagne (`donnees.sh purger`, avant la collecte), et le compte rendu note
+l'état des tables (`donnees_au_depart`). À la main :
+
+```bash
+ssh master 'bash ~/autodeploy/apps/donnees.sh etat'
+ssh master 'bash ~/autodeploy/apps/donnees.sh purger'
+```
+
+Si, après une purge, la recherche reste à 30 000 : redémarrer la chaîne
+dans l'ordre — commandes, sièges, recherche — puis `bilan` à nouveau.
+
+```bash
+ssh master 'for d in ts-order-service ts-seat-service ts-travel-service; do kubectl rollout restart deploy/$d -n train-ticket && kubectl rollout status deploy/$d -n train-ticket --timeout=300s; done'
+```
+
 Et une vérification de deux secondes : les instants du compte rendu viennent
 de deux horloges, celle du nœud de contrôle et celle du master. Les deux
 doivent être tenues par NTP, sinon les étiquettes ne s'alignent pas sur les
@@ -532,6 +561,7 @@ Le pilote prend en charge **tout le cycle**, y compris les deux bouts de la
 collecte :
 
 ```
+   0. remet les données à zéro      donnees.sh purger     (--sans-purge pour s'en passer)
    1. démarre la collecte           collecte.sh demarrer
    2. pour chaque palier            loadgen.sh scale <n>
         vérifie la charge réelle
@@ -818,6 +848,7 @@ ssh master 'set -a; . ~/autodeploy/.env.secrets; set +a; \
 | `apps/loadgen.sh` | le trafic · `install` `scale <n>` `bilan` `reset` `isolate` |
 | `apps/collecte.sh` | l'enregistrement · `demarrer` `arreter` `fenetre` `etat` |
 | `apps/consommateur.sh` | tailler le consommateur pour sa charge · `dimensionner` `etat` `retirer` |
+| `apps/donnees.sh` | remettre les tables de commandes à zéro · `etat` `purger` |
 | `apps/chaos.sh` | l'injecteur de pannes · `install` `status` `isolate` |
 | `apps/panne.sh` | les quatre pannes · `verifier` `injecter` `retirer` `etat` `temoin` |
 | `campagne.sh` | une campagne entière depuis le nœud de contrôle — charge, panne, collecte, compte rendu |

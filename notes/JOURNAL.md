@@ -7,6 +7,47 @@ refaire une erreur déjà faite.
 
 ---
 
+## 2026-09-12 — L'application s'étouffe sur ses propres données (`apps/donnees.sh`)
+
+**Symptôme** : après l'étalonnage, « chercher un train » répond `500` à 100 %,
+`p50` = 30 000 ms, même à 1 voyageur, même après redémarrage de
+`ts-travel-service`, puis de `ts-seat-service`.
+
+**Diagnostic, de haut en bas** (connexions ouvertes lues dans `/proc/net/tcp`
+de chaque pod, requêtes vues côté MySQL, journaux) :
+
+1. `ts-travel-service` : ses 10 connexions à la base dorment (`Sleep 232 s`),
+   tenues par des requêtes qui attendent `ts-seat-service` (4 connexions sans
+   réponse). Spring garde la connexion pendant toute la requête
+   (`open-in-view`) : au-delà de 10 recherches en attente, les suivantes
+   attendent 30 s et rendent `500`.
+2. `ts-seat-service` : aucune erreur ; il attend `ts-order-service`
+   (4 connexions sans réponse).
+3. `ts-order-service` : 41 connexions à la base pour une réserve de 10,
+   dormant depuis 20 min à 2 h ; journal : *« Thread starvation or clock leap
+   detected (55 s) »* — la JVM (tas de 200 Mo) se fige.
+4. La base : 9 643 commandes, dont **5 229 sur le train D1345 le 12 et 4 408
+   le 13** — toutes les réservations visaient le même train à la même date
+   (« demain »). Pour compter les places vendues, le service des sièges fait
+   charger toutes ces commandes en mémoire à chaque recherche.
+
+**Conséquence** : le comportement de train-ticket dépend du volume de ses
+tables ; deux campagnes ne se comparent que si elles partent des mêmes
+données. C'est aussi ce qui faisait baisser le débit au fil de l'heure dans
+saine-03.
+
+**Décisions** :
+- `apps/donnees.sh purger` vide `orders`, `orders_other`, `food_order`,
+  `delivery` (le déclencheur reste) et redémarre `ts-order-service`. Le pilote
+  l'appelle au départ de chaque campagne, avant la collecte ; le compte rendu
+  note l'état des tables (`donnees_au_depart`).
+- Le générateur étale les dates de départ sur trente jours
+  (`TT_JOURS_ETALEMENT`) : trente fois moins de commandes par train et par
+  date.
+- Remède documenté si la signature revient : redémarrer commandes, sièges,
+  recherche, dans cet ordre.
+- `apps/mysql.sh`, sourcé par `consommateur.sh` et `donnees.sh`.
+
 ## 2026-09-12 — Le débit de la file ne suit pas les voyageurs : nouveau parcours
 
 **Mesuré** (saine-03, `queues.py` sur l'heure entière) :

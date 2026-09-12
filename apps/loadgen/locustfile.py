@@ -98,8 +98,10 @@ PLACE_PAIRS = [
 SESSION_TTL = float(os.getenv("TT_SESSION_TTL_SECONDS", "1200"))
 
 
-# Nombre de jours d'avance pour la recherche de trains.
+# Les dates de départ : de JOURS_AVANCE à JOURS_AVANCE + JOURS_ETALEMENT - 1
+# jours après aujourd'hui, tirées au hasard.
 JOURS_AVANCE = int(os.getenv("TT_JOURS_AVANCE", "1"))
+JOURS_ETALEMENT = int(os.getenv("TT_JOURS_ETALEMENT", "30"))
 
 # Les poids des parcours — voir l'en-tête pour ce qu'ils fixent.
 POIDS_REPAS = int(os.getenv("TT_POIDS_REPAS", "6"))
@@ -114,18 +116,24 @@ REPAS = {"foodType": 2, "foodName": "Bone Soup", "price": 2.5,
 
 def _date_de_depart() -> str:
     """
-    La date cherchée : demain par défaut, jamais aujourd'hui.
+    La date cherchée : un jour au hasard dans le mois qui vient, jamais
+    aujourd'hui.
 
-    Le service refuse les dates passées, mais il écarte aussi les trains dont
-    l'heure de départ est déjà dépassée. Chercher « aujourd'hui » rend donc une
-    liste vide dès la fin de journée — mesuré : 0 trajet le 10 au soir, 1 à 3 le
-    lendemain, pour les mêmes gares.
+    Jamais aujourd'hui : le service refuse les dates passées, mais il écarte
+    aussi les trains dont l'heure de départ est déjà dépassée. Chercher
+    « aujourd'hui » rend donc une liste vide dès la fin de journée — mesuré :
+    0 trajet le 10 au soir, 1 à 3 le lendemain, pour les mêmes gares. Le
+    parcours de réservation s'arrêtait alors sans erreur et sans trace.
 
-    Le parcours de réservation s'arrête alors sur cette liste vide, sans erreur
-    et sans trace : le générateur produit du trafic le matin et cesse d'alimenter
-    la file le soir, sans que rien ne le signale.
+    Étalé sur un mois : pour compter les places vendues, le service des sièges
+    charge en mémoire TOUTES les commandes du train à cette date. Avec une seule
+    date, elles s'y accumulent toutes — mesuré : 5 000 commandes sur le même
+    train le même jour, et le service des commandes s'est figé. Des voyageurs
+    qui partent des jours différents répartissent les commandes sur trente
+    dates.
     """
-    return (datetime.now() + timedelta(days=JOURS_AVANCE)).strftime("%Y-%m-%d")
+    jours = JOURS_AVANCE + random.randrange(max(1, JOURS_ETALEMENT))
+    return (datetime.now() + timedelta(days=jours)).strftime("%Y-%m-%d")
 
 
 @events.quitting.add_listener
