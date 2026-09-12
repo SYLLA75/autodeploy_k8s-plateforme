@@ -45,6 +45,9 @@ set -euo pipefail
 # Journal d'exécution : la sortie est dupliquée dans un fichier, consultable
 # depuis une autre connexion si celle-ci tombe. JOURNAL_OFF=1 désactive.
 _ici="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Une simple lecture ne laisse pas de journal : il n'y a rien à garder, et
+# un relevé répété toutes les 20 s en écrirait des centaines.
+case "${1:-}" in bilan|voyageurs) JOURNAL_OFF=1 ;; esac
 [ -f "$_ici/journal.sh" ] && JOURNAL_NOM="loadgen" . "$_ici/journal.sh"
 
 

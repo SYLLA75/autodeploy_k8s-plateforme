@@ -55,6 +55,9 @@
 set -uo pipefail
 
 _ici="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Une simple lecture ne laisse pas de journal : il n'y a rien à garder, et
+# un relevé répété toutes les 20 s en écrirait des centaines.
+case "${1:-}" in etat) JOURNAL_OFF=1 ;; esac
 [ -f "$_ici/journal.sh" ] && JOURNAL_NOM="donnees" . "$_ici/journal.sh"
 . "$_ici/mysql.sh"
 
