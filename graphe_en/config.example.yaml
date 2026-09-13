@@ -25,6 +25,8 @@ range:
   date:       "today"        # or "today"
   from:       "00:00"
   to:         "23:59"
+  # An end that is not after its start ("23:46" -> "01:56") lies on the next
+  # day: a campaign that crosses midnight keeps its start date here.
   # Fetch one window more on each side than the period to analyse: the outermost
   # windows are only partially covered by the data and are discarded.
   max_files:  400               # refuse to download more than this

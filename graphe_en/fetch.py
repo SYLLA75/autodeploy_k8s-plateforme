@@ -63,27 +63,36 @@ def human_bytes(n: float) -> str:
 
 
 def list_objects(source: dict, day: Date, start: str, end: str) -> list[dict]:
-    """List the objects of the range. Only the day's prefix is walked."""
+    """
+    List the objects of the range. Only the day's prefix is walked — two of
+    them when the range crosses midnight: an end that is not after its start
+    ("23:46" -> "01:56") lies on the next day. Positions are minutes since the
+    start day's midnight, so the second day sorts after the first.
+    """
+    from datetime import timedelta
     s3 = _client(source)
-    prefix = (f"{source['prefix'].rstrip('/')}/"
-              f"year={day.year:04d}/month={day.month:02d}/day={day.day:02d}/")
     lo, hi = _hhmm(start), _hhmm(end)
+    days = [(day, lo, hi, 0)] if lo < hi else \
+           [(day, lo, 24 * 60, 0), (day + timedelta(days=1), 0, hi, 24 * 60)]
     found = []
     paginator = s3.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=source["bucket"], Prefix=prefix):
-        for obj in page.get("Contents", []):
-            pos = _minute_of_day(obj["Key"])
-            if pos is None or not (lo <= pos <= hi):
-                continue
-            name = obj["Key"].rsplit("/", 1)[-1]
-            if name.startswith("traces_"):
-                kind = "traces"
-            elif name.startswith("metrics_"):
-                kind = "metrics"
-            else:
-                continue
-            found.append({"key": obj["Key"], "size": obj["Size"],
-                          "kind": kind, "position": pos})
+    for d, lo, hi, offset in days:
+        prefix = (f"{source['prefix'].rstrip('/')}/"
+                  f"year={d.year:04d}/month={d.month:02d}/day={d.day:02d}/")
+        for page in paginator.paginate(Bucket=source["bucket"], Prefix=prefix):
+            for obj in page.get("Contents", []):
+                pos = _minute_of_day(obj["Key"])
+                if pos is None or not (lo <= pos <= hi):
+                    continue
+                name = obj["Key"].rsplit("/", 1)[-1]
+                if name.startswith("traces_"):
+                    kind = "traces"
+                elif name.startswith("metrics_"):
+                    kind = "metrics"
+                else:
+                    continue
+                found.append({"key": obj["Key"], "size": obj["Size"],
+                              "kind": kind, "position": pos + offset})
     return sorted(found, key=lambda o: (o["position"], o["key"]))
 
 

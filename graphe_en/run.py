@@ -138,13 +138,19 @@ def _fetch(console: Console, conf) -> "fetch.Fetched":
 
 
 def _range_bounds(conf) -> tuple[int, int]:
-    """range.from / range.to on range.date, as UTC epoch nanoseconds."""
-    from datetime import time, timezone
-    def at(hhmm: str) -> int:
+    """
+    range.from / range.to on range.date, as UTC epoch nanoseconds. An end that
+    is not after its start crosses midnight: it lies on the next day.
+    """
+    from datetime import time, timedelta, timezone
+    def at(day, hhmm: str) -> int:
         h, m = (int(x) for x in hhmm.split(":")[:2])
-        return int(datetime.combine(conf.day, time(h, m), tzinfo=timezone.utc)
+        return int(datetime.combine(day, time(h, m), tzinfo=timezone.utc)
                    .timestamp() * 1_000_000_000)
-    return at(conf.range["from"]), at(conf.range["to"])
+    start, end = at(conf.day, conf.range["from"]), at(conf.day, conf.range["to"])
+    if end <= start:
+        end = at(conf.day + timedelta(days=1), conf.range["to"])
+    return start, end
 
 
 def _window(console: Console, conf, got):

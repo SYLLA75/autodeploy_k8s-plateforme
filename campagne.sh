@@ -417,7 +417,7 @@ cloturer() {
     plage_de=$(date -u -d "@$origine" +%H:%M)
     plage_a=$(date -u -d "@$fin" +%H:%M)
     [ "$(date -u -d "@$fin" +%Y-%m-%d)" = "$plage_date" ] \
-        || warn "La campagne a traversé minuit : la plage ne peut pas être décrite sur un seul jour."
+        || say "La campagne a traversé minuit : « to » est le lendemain de « date » — run.py le comprend (fin ≤ début)."
     [ "$fin" -gt "$origine" ] || { warn "Plage vide : campagne trop courte pour la marge de $((MARGE_S / 60)) min."; plage_de=""; }
 
     say "Rapatriement des registres et des journaux…"
