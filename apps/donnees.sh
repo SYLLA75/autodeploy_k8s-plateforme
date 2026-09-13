@@ -131,7 +131,11 @@ dimensionner_app() {
         return 0
     fi
     say "Limite CPU de $COMMANDES : $avant → $cpu (redémarrage roulant, puis la chaîne)…"
-    kubectl set resources deploy/"$COMMANDES" -n "$NS" --limits=cpu="$cpu" >/dev/null         || { consigner dimensionner "$avant" ECHEC; fail "kubectl set resources a échoué."; }
+    # -c : le conteneur du service seul. Sans lui, la limite irait aussi au
+    # conteneur d'initialisation de l'agent (instrument.sh), qui n'a pas de
+    # demande : Kubernetes lui donnerait une demande égale à la limite, et le
+    # pod ne trouverait plus de nœud (mesuré : « Insufficient cpu »).
+    kubectl set resources deploy/"$COMMANDES" -n "$NS" -c "$COMMANDES" --limits=cpu="$cpu" >/dev/null         || { consigner dimensionner "$avant" ECHEC; fail "kubectl set resources a échoué."; }
     # Le service redémarre seul ; les deux du dessus gardent des connexions
     # vers le pod disparu (voir plus haut) : on redémarre la chaîne entière.
     redemarrer_chaine || { consigner dimensionner "$avant" ECHEC; fail "La chaîne n'est pas revenue."; }
