@@ -42,15 +42,26 @@
 #  de redémarrer : le pilote purge sans, et « loadgen.sh bilan » dit si la
 #  chaîne va bien.
 #
+#  LE SERVICE DES COMMANDES A BESOIN DE PLUS D'UN DEMI-CŒUR
+#
+#  Même étalées sur l'année, les commandes coûtent : mesuré (charge-02), le
+#  CPU du service des commandes croît avec leur TOTAL — 97 m à 1 900
+#  commandes, 212 m à 4 700, 444 m à 5 900 — jusqu'à sa limite de 500 m, où
+#  la réservation passe de 0,3 à 5 s et les voyageurs y restent coincés. Une
+#  campagne de deux heures en produit 8 000. « dimensionner » relève sa
+#  limite CPU (2 cœurs par défaut) ; une fois, après l'installation.
+#
 #  Usage (depuis le master) :
 #      bash ~/autodeploy/apps/donnees.sh etat
 #      bash ~/autodeploy/apps/donnees.sh purger [--redemarrer]
 #      bash ~/autodeploy/apps/donnees.sh redemarrer          la chaîne seule
+#      bash ~/autodeploy/apps/donnees.sh dimensionner [--cpu 2000m]
 #
 #  Variables reconnues : celles de apps/mysql.sh (CONSO_NAMESPACE, CONSO_DB…)
 #      DONNEES_TABLES   (défaut: "orders orders_other food_order delivery")
 #      DONNEES_CHAINE   (défaut: "ts-order-service ts-seat-service ts-travel-service")
 #                       les services redémarrés, dans cet ordre, avec --redemarrer
+#      DONNEES_CPU      (défaut: 2000m) limite CPU du service des commandes
 # ==============================================================================
 set -uo pipefail
 
@@ -63,6 +74,8 @@ case "${1:-}" in etat) JOURNAL_OFF=1 ;; esac
 
 TABLES="${DONNEES_TABLES:-orders orders_other food_order delivery}"
 CHAINE="${DONNEES_CHAINE:-ts-order-service ts-seat-service ts-travel-service}"
+CPU_COMMANDES="${DONNEES_CPU:-2000m}"
+COMMANDES="${CHAINE%% *}"          # le premier de la chaîne : ts-order-service
 
 JOURNAUX="$(cd "$_ici/.." && pwd)/journaux"
 REGISTRE="$JOURNAUX/donnees.tsv"
@@ -97,7 +110,33 @@ etat_app() {
     local pire; pire=$(sql "SELECT CONCAT(n, ' sur ', train_number, ' le ', travel_date) FROM (SELECT travel_date, train_number, COUNT(*) n FROM orders GROUP BY 1,2 ORDER BY n DESC LIMIT 1) x;" 2>/dev/null | tail -1)
     [ -n "$pire" ] && echo "  commandes les plus concentrées : $pire"
     echo "  total : $total lignes"
+    echo "  limite CPU de $COMMANDES : $(limite_cpu_commandes)"
     return 0
+}
+
+limite_cpu_commandes() {
+    kubectl get deploy "$COMMANDES" -n "$NS" -o jsonpath='{.spec.template.spec.containers[0].resources.limits.cpu}' 2>/dev/null || echo "?"
+}
+
+dimensionner_app() {
+    local cpu="$CPU_COMMANDES"
+    while [ $# -gt 0 ]; do
+        case "$1" in --cpu) cpu="${2:-}"; shift 2 ;; *) fail "Option inconnue : $1" ;; esac
+    done
+    case "$cpu" in ''|*[!0-9m]*) fail "--cpu : une quantité Kubernetes, par exemple 2000m" ;; esac
+    kubectl get deploy "$COMMANDES" -n "$NS" >/dev/null 2>&1 || fail "Déploiement « $COMMANDES » introuvable dans $NS."
+    local avant; avant=$(limite_cpu_commandes)
+    if [ "$avant" = "$cpu" ]; then
+        say "$COMMANDES a déjà une limite CPU de $cpu — rien à faire"
+        return 0
+    fi
+    say "Limite CPU de $COMMANDES : $avant → $cpu (redémarrage roulant, puis la chaîne)…"
+    kubectl set resources deploy/"$COMMANDES" -n "$NS" --limits=cpu="$cpu" >/dev/null         || { consigner dimensionner "$avant" ECHEC; fail "kubectl set resources a échoué."; }
+    # Le service redémarre seul ; les deux du dessus gardent des connexions
+    # vers le pod disparu (voir plus haut) : on redémarre la chaîne entière.
+    redemarrer_chaine || { consigner dimensionner "$avant" ECHEC; fail "La chaîne n'est pas revenue."; }
+    consigner dimensionner "$avant->$cpu" ok
+    ok "$COMMANDES limité à $cpu — à faire une fois, avant la référence saine"
 }
 
 redemarrer_chaine() {   # commandes, sièges, recherche — l'un après l'autre
@@ -139,5 +178,6 @@ case "${1:-etat}" in
     etat)   etat_app ;;
     purger) shift; purger_app "${1:-}" ;;
     redemarrer) redemarrer_chaine && ok "chaîne redémarrée" ;;
-    *) echo "Usage: $0 {etat|purger [--redemarrer]|redemarrer}" >&2; exit 2 ;;
+    dimensionner) shift; dimensionner_app "$@" ;;
+    *) echo "Usage: $0 {etat|purger [--redemarrer]|redemarrer|dimensionner [--cpu <q>]}" >&2; exit 2 ;;
 esac

@@ -452,6 +452,22 @@ donne le temps par message réellement mesuré (`process_time_p50`).
 
 ---
 
+### Et le service des commandes : deux cœurs, une fois
+
+Mesuré sur charge-02 : le CPU de `ts-order-service` croît avec le **total**
+des commandes en table — 97 m à 1 900, 212 m à 4 700, 444 m à 5 900 —
+jusqu'à sa limite de 500 m, où la réservation passe de 0,3 à 5 s, les
+voyageurs y restent coincés et l'entrée de la file s'effondre. Une campagne
+de 2 h 15 produit 8 000 commandes. Une fois, après l'installation :
+
+```bash
+ssh master 'bash ~/autodeploy/apps/donnees.sh dimensionner'      # limite CPU 2000m, chaîne redémarrée
+```
+
+`donnees.sh etat` affiche la limite en place. Comme le retard du consommateur,
+c'est une condition de l'expérience : à poser **avant** la référence saine et
+à ne plus toucher.
+
 ## Étape 8 — Vérifier que tout est mesurable
 
 **Où** : sur le master · **Durée** : 2 minutes
@@ -964,7 +980,7 @@ ssh master 'set -a; . ~/autodeploy/.env.secrets; set +a; \
 | `apps/loadgen.sh` | le trafic · `install` `scale <n>` `bilan` `reset` `isolate` |
 | `apps/collecte.sh` | l'enregistrement · `demarrer` `arreter` `fenetre` `etat` |
 | `apps/consommateur.sh` | tailler le consommateur pour sa charge · `dimensionner` `etat` `retirer` |
-| `apps/donnees.sh` | remettre les tables de commandes à zéro · `etat` `purger [--redemarrer]` `redemarrer` |
+| `apps/donnees.sh` | remettre les tables de commandes à zéro, donner au service des commandes son CPU · `etat` `purger [--redemarrer]` `redemarrer` `dimensionner` |
 | `apps/chaos.sh` | l'injecteur de pannes · `install` `status` `isolate` |
 | `apps/panne.sh` | les quatre pannes · `verifier` `injecter` `retirer` `etat` `temoin` |
 | `campagne.sh` | une campagne entière depuis le nœud de contrôle — charge, panne, collecte, compte rendu |
