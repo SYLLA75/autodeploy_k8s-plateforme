@@ -286,6 +286,16 @@ if [ -n "$PANNE" ]; then
     fi
 fi
 
+# Les parcours doivent déjà passer AVANT le départ : un service laissé
+# cassé par la campagne précédente (mesuré : le service des commandes à court
+# de mémoire, recherche à 100 % d'échecs) ferait purger, collecter, puis
+# abandonner à la minute 2. Le bilan juge les dix dernières secondes.
+if ! sortie=$(distant loadgen.sh bilan); then
+    printf '%s\n' "$sortie" | grep -E "^\s+[0-9]{2} |motif|défaut" | sed 's/^/      /' >&2
+    fail "Un parcours échoue avant même le départ.
+             Remède habituel :  ssh $CIBLE 'bash $DISTANT/apps/donnees.sh redemarrer'  (puis 2 min)"
+fi
+
 say "Départ dans 10 secondes — Ctrl-C pour annuler."
 sleep 10
 echo
