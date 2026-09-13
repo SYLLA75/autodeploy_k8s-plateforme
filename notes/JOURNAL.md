@@ -7,6 +7,43 @@ refaire une erreur déjà faite.
 
 ---
 
+## 2026-09-13 — saine-08 et charge-03 : la référence refaite, la première campagne propre
+
+**saine-08** (10/25/20 voyageurs, 60 min, service des commandes à 2 cœurs,
+dates sur l'année) : identique à saine-07 en tout point mesuré — entrée
+1,4 / 3,4 / 2,7 msg/s, tas 0 à 5, 3 consommateurs, 706 ms par message
+(846 à 10 voyageurs). `scaler.json` recalculé dessus.
+
+**charge-03** (`campagnes/charge-03/lecture.txt`) : les trois injections
+sont exactement le calcul.
+
+```
+   injection   entrée    tas au retrait   fondu à 0 à la minute
+   1 (min 5)   4,8–5,1     692            40
+   2 (min 50)  4,8–5,0     792            88
+   3 (min 95)  4,8–5,2     764           128
+```
+
+Sortie plafonnée à 4,25/s, répliques à 706 ms, 3 consommateurs, hôtes
+calmes. Le service des commandes est monté jusqu'à 532 m de CPU — au-dessus
+de son ancienne limite : la correction était nécessaire.
+
+**Réserve, à écrire** : fenêtres 05:41–05:45 (minutes 126–130, après la
+dernière fonte) — `ts-order-service` à court de tas Java
+(`java -Xmx200m`, `OutOfMemoryError: Java heap space` dans ses journaux,
+~8 500 commandes en table) : recherche et réservation gelées 3 min, entrée
+de la file à 0, puis reprise seule. Les injections ne sont pas touchées ;
+ces fenêtres sont à écarter, ou à étiqueter « anomalie non injectée ».
+
+**Décision : le tas Java n'est pas relevé.** `memory_used` est un attribut
+du graphe ; un tas plus grand changerait le niveau de ce nœud dans toutes
+les fenêtres, et la référence serait à refaire une seconde fois. Les
+trois campagnes restantes tournent à 25 voyageurs d'un bout à l'autre :
+~7 300 commandes en 135 min, sous les ~8 500 où le tas a manqué (charge-03
+en a produit 9 000 avec ses trois paliers à 35). Si le gel réapparaît, il
+se rapporte. Limite connue de la plateforme : **une campagne ne doit pas
+dépasser ~8 000 commandes** avec le tas de 200 Mo du service des commandes.
+
 ## 2026-09-13 — charge-01 et charge-02 : l'application s'étouffe au bout d'une heure, deux couches
 
 Deux campagnes de 135 min (25 voyageurs, 35 pendant les injections à 5, 50

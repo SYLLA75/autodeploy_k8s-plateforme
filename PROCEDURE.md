@@ -468,6 +468,16 @@ ssh master 'bash ~/autodeploy/apps/donnees.sh dimensionner'      # limite CPU 20
 c'est une condition de l'expérience : à poser **avant** la référence saine et
 à ne plus toucher.
 
+Le mur suivant est le tas Java du même service (`java -Xmx200m`, dans
+l'image) : mesuré sur charge-03, vers 8 500 commandes en table, il manque de
+mémoire et gèle recherche et réservation trois minutes. Il n'est pas relevé
+— `memory_used` est un attribut du graphe, et la référence serait à refaire.
+**Une campagne ne doit donc pas dépasser ~8 000 commandes** : 135 min à 25
+voyageurs en font ~7 300 ; les paliers à 35 en ajoutent 40 % pendant leur
+durée. Au-delà, raccourcir la campagne, ou accepter et écarter les fenêtres
+gelées (elles se voient : entrée de la file à 0, `request_time` de
+`ts-travel-service` en secondes).
+
 ## Étape 8 — Vérifier que tout est mesurable
 
 **Où** : sur le master · **Durée** : 2 minutes
