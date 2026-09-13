@@ -71,7 +71,9 @@ dernière fonte) — `ts-order-service` à court de tas Java
 de la file à 0, puis reprise seule. Les injections ne sont pas touchées ;
 ces fenêtres sont à écarter, ou à étiqueter « anomalie non injectée ».
 
-**Décision : le tas Java n'est pas relevé.** `memory_used` est un attribut
+**Décision : le tas Java n'est pas relevé pour ces campagnes** (la commande
+existe depuis pour les suivantes : `donnees.sh dimensionner --tas 1g`,
+testée puis retirée, à poser avant une nouvelle référence). `memory_used` est un attribut
 du graphe ; un tas plus grand changerait le niveau de ce nœud dans toutes
 les fenêtres, et la référence serait à refaire une seconde fois. Les
 trois campagnes restantes tournent à 25 voyageurs d'un bout à l'autre :

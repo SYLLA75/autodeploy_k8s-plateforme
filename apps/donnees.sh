@@ -55,13 +55,23 @@
 #      bash ~/autodeploy/apps/donnees.sh etat
 #      bash ~/autodeploy/apps/donnees.sh purger [--redemarrer]
 #      bash ~/autodeploy/apps/donnees.sh redemarrer          la chaîne seule
-#      bash ~/autodeploy/apps/donnees.sh dimensionner [--cpu 2000m]
+#      bash ~/autodeploy/apps/donnees.sh dimensionner [--cpu 2000m] [--tas 1g]
+#      bash ~/autodeploy/apps/donnees.sh tas-de-l-image        retour au 200m de l'image
+#
+#  Le mur suivant est son tas Java : « java -Xmx200m » dans l'image. Mesuré
+#  (charge-03) : vers 8 500 commandes en table, il manque de mémoire et gèle
+#  recherche et réservation trois minutes. « --tas 1g » le relève par la
+#  variable _JAVA_OPTIONS, que la JVM lit APRÈS la ligne de commande — elle
+#  l'emporte donc sur le -Xmx de l'image. La mémoire du service est un nombre
+#  du graphe (memory_used) : à poser AVANT une référence saine, jamais entre
+#  une référence et ses campagnes.
 #
 #  Variables reconnues : celles de apps/mysql.sh (CONSO_NAMESPACE, CONSO_DB…)
 #      DONNEES_TABLES   (défaut: "orders orders_other food_order delivery")
 #      DONNEES_CHAINE   (défaut: "ts-order-service ts-seat-service ts-travel-service")
 #                       les services redémarrés, dans cet ordre, avec --redemarrer
 #      DONNEES_CPU      (défaut: 2000m) limite CPU du service des commandes
+#      DONNEES_TAS      (défaut: vide = celui de l'image, 200m) tas Java du même service
 # ==============================================================================
 set -uo pipefail
 
@@ -75,6 +85,8 @@ case "${1:-}" in etat) JOURNAL_OFF=1 ;; esac
 TABLES="${DONNEES_TABLES:-orders orders_other food_order delivery}"
 CHAINE="${DONNEES_CHAINE:-ts-order-service ts-seat-service ts-travel-service}"
 CPU_COMMANDES="${DONNEES_CPU:-2000m}"
+TAS_COMMANDES="${DONNEES_TAS:-}"
+ENV_TAS="_JAVA_OPTIONS"
 COMMANDES="${CHAINE%% *}"          # le premier de la chaîne : ts-order-service
 
 JOURNAUX="$(cd "$_ici/.." && pwd)/journaux"
@@ -111,6 +123,7 @@ etat_app() {
     [ -n "$pire" ] && echo "  commandes les plus concentrées : $pire"
     echo "  total : $total lignes"
     echo "  limite CPU de $COMMANDES : $(limite_cpu_commandes)"
+    echo "  tas Java de $COMMANDES : $(tas_commandes)"
     return 0
 }
 
@@ -118,16 +131,46 @@ limite_cpu_commandes() {
     kubectl get deploy "$COMMANDES" -n "$NS" -o jsonpath='{.spec.template.spec.containers[0].resources.limits.cpu}' 2>/dev/null || echo "?"
 }
 
+millicoeurs() {   # « 2 » et « 2000m » sont la même limite : Kubernetes range la première forme
+    case "$1" in *m) echo "${1%m}" ;; ''|*[!0-9.]*) echo "?" ;; *) awk -v v="$1" 'BEGIN { printf "%d", v * 1000 }' ;; esac
+}
+
+tas_commandes() {   # « 1g » si posé par ce script, sinon « celui de l'image (200m) »
+    local v; v=$(kubectl get deploy "$COMMANDES" -n "$NS" \
+        -o jsonpath="{.spec.template.spec.containers[0].env[?(@.name=='$ENV_TAS')].value}" 2>/dev/null)
+    case "$v" in *-Xmx*) echo "${v##*-Xmx}" ;; *) echo "celui de l'image (200m)" ;; esac
+}
+
 dimensionner_app() {
-    local cpu="$CPU_COMMANDES"
+    local cpu="$CPU_COMMANDES" tas="$TAS_COMMANDES"
     while [ $# -gt 0 ]; do
-        case "$1" in --cpu) cpu="${2:-}"; shift 2 ;; *) fail "Option inconnue : $1" ;; esac
+        case "$1" in
+            --cpu) cpu="${2:-}"; shift 2 ;;
+            --tas) tas="${2:-}"; shift 2 ;;
+            *) fail "Option inconnue : $1" ;;
+        esac
     done
     case "$cpu" in ''|*[!0-9m]*) fail "--cpu : une quantité Kubernetes, par exemple 2000m" ;; esac
+    case "$tas" in ''|[0-9]*[mg]) ;; *) fail "--tas : une taille Java, par exemple 1g ou 512m" ;; esac
     kubectl get deploy "$COMMANDES" -n "$NS" >/dev/null 2>&1 || fail "Déploiement « $COMMANDES » introuvable dans $NS."
     local avant; avant=$(limite_cpu_commandes)
-    if [ "$avant" = "$cpu" ]; then
-        say "$COMMANDES a déjà une limite CPU de $cpu — rien à faire"
+    local tas_avant; tas_avant=$(tas_commandes)
+    local a_faire=0
+    [ "$(millicoeurs "$avant")" = "$(millicoeurs "$cpu")" ] || a_faire=1
+    [ -z "$tas" ] || [ "$tas_avant" = "$tas" ] || a_faire=1
+    if [ "$a_faire" = "0" ]; then
+        say "$COMMANDES a déjà une limite CPU de $cpu${tas:+ et un tas de $tas} — rien à faire"
+        return 0
+    fi
+    if [ -n "$tas" ] && [ "$tas_avant" != "$tas" ]; then
+        say "Tas Java de $COMMANDES : $tas_avant → $tas ($ENV_TAS=-Xmx$tas)"
+        kubectl set env deploy/"$COMMANDES" -n "$NS" -c "$COMMANDES" "$ENV_TAS=-Xmx$tas" >/dev/null \
+            || { consigner dimensionner "$tas_avant" ECHEC; fail "kubectl set env a échoué."; }
+    fi
+    if [ "$(millicoeurs "$avant")" = "$(millicoeurs "$cpu")" ]; then
+        redemarrer_chaine || { consigner dimensionner "$tas_avant->$tas" ECHEC; fail "La chaîne n'est pas revenue."; }
+        consigner dimensionner "tas:$tas_avant->$tas" ok
+        ok "$COMMANDES avec un tas de $tas — à faire une fois, avant la référence saine"
         return 0
     fi
     say "Limite CPU de $COMMANDES : $avant → $cpu (redémarrage roulant, puis la chaîne)…"
@@ -183,5 +226,9 @@ case "${1:-etat}" in
     purger) shift; purger_app "${1:-}" ;;
     redemarrer) redemarrer_chaine && ok "chaîne redémarrée" ;;
     dimensionner) shift; dimensionner_app "$@" ;;
-    *) echo "Usage: $0 {etat|purger [--redemarrer]|redemarrer|dimensionner [--cpu <q>]}" >&2; exit 2 ;;
+    tas-de-l-image)
+        # Retour au tas de l'image (200m) : même règle, avant une référence seulement.
+        kubectl set env deploy/"$COMMANDES" -n "$NS" -c "$COMMANDES" "$ENV_TAS-" >/dev/null \
+            && redemarrer_chaine && consigner dimensionner "tas:image" ok && ok "tas Java de $COMMANDES : celui de l'image" ;;
+    *) echo "Usage: $0 {etat|purger [--redemarrer]|redemarrer|dimensionner [--cpu <q>] [--tas <t>]|tas-de-l-image}" >&2; exit 2 ;;
 esac

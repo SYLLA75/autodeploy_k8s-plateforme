@@ -470,13 +470,27 @@ c'est une condition de l'expérience : à poser **avant** la référence saine e
 
 Le mur suivant est le tas Java du même service (`java -Xmx200m`, dans
 l'image) : mesuré sur charge-03, vers 8 500 commandes en table, il manque de
-mémoire et gèle recherche et réservation trois minutes. Il n'est pas relevé
-— `memory_used` est un attribut du graphe, et la référence serait à refaire.
-**Une campagne ne doit donc pas dépasser ~8 000 commandes** : 135 min à 25
-voyageurs en font ~7 300 ; les paliers à 35 en ajoutent 40 % pendant leur
-durée. Au-delà, raccourcir la campagne, ou accepter et écarter les fenêtres
-gelées (elles se voient : entrée de la file à 0, `request_time` de
-`ts-travel-service` en secondes).
+mémoire et gèle recherche et réservation trois minutes. Les campagnes du 13
+septembre 2026 ont été faites avec ce tas de 200 Mo : **une campagne ne doit
+alors pas dépasser ~8 000 commandes** (135 min à 25 voyageurs en font
+~7 300 ; les paliers à 35 en ajoutent 40 % pendant leur durée). Au-delà,
+raccourcir, ou accepter et écarter les fenêtres gelées (elles se voient :
+entrée de la file à 0, `request_time` de `ts-travel-service` en secondes).
+
+Pour des campagnes plus longues ou plus chargées, le tas se relève — mais la
+mémoire du service est un nombre du graphe (`memory_used`) : **à poser avant
+une nouvelle référence saine, jamais entre une référence et ses campagnes**,
+et la référence se refait ensuite avec `scaler: write`.
+
+```bash
+ssh master 'bash ~/autodeploy/apps/donnees.sh dimensionner --tas 1g'   # _JAVA_OPTIONS=-Xmx1g, chaîne redémarrée
+ssh master 'bash ~/autodeploy/apps/donnees.sh tas-de-l-image'          # retour au 200m de l'image
+```
+
+`donnees.sh etat` affiche le tas en place. Testé le 13 septembre : la JVM
+écrit « Picked up _JAVA_OPTIONS: -Xmx1g » dans les journaux du pod ; la
+variable est lue après la ligne de commande, elle l'emporte donc sur le
+`-Xmx` de l'image.
 
 ## Étape 8 — Vérifier que tout est mesurable
 
@@ -1017,7 +1031,7 @@ ssh master 'set -a; . ~/autodeploy/.env.secrets; set +a; \
 | `apps/loadgen.sh` | le trafic · `install` `scale <n>` `bilan` `reset` `isolate` |
 | `apps/collecte.sh` | l'enregistrement · `demarrer` `arreter` `fenetre` `etat` |
 | `apps/consommateur.sh` | tailler le consommateur pour sa charge · `dimensionner` `etat` `retirer` |
-| `apps/donnees.sh` | remettre les tables de commandes à zéro, donner au service des commandes son CPU · `etat` `purger [--redemarrer]` `redemarrer` `dimensionner` |
+| `apps/donnees.sh` | remettre les tables de commandes à zéro, donner au service des commandes son CPU et son tas · `etat` `purger [--redemarrer]` `redemarrer` `dimensionner [--cpu] [--tas]` `tas-de-l-image` |
 | `apps/chaos.sh` | l'injecteur de pannes · `install` `status` `isolate` |
 | `apps/panne.sh` | les quatre pannes · `verifier` `injecter` `retirer` `etat` `temoin` |
 | `campagne.sh` | une campagne entière depuis le nœud de contrôle — charge, panne, collecte, compte rendu |
