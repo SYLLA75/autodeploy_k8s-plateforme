@@ -162,13 +162,12 @@ def load(path: Path) -> Settings:
         h, m = text.split(":")
         return int(h) * 60 + int(m)
 
-    if _minutes(rng["from"]) >= _minutes(rng["to"]):
+    # An end that is not after its start lies on the next day: the store is
+    # walked under both date prefixes (fetch.list_objects). Only an empty
+    # range is refused.
+    if _minutes(rng["from"]) == _minutes(rng["to"]):
         raise ConfigError(
-            f"range.from ({rng['from']}) is not before range.to ({rng['to']})\n"
-            f"  a range is read inside ONE day and cannot cross midnight:\n"
-            f"  the store is walked under a single date prefix, so a range\n"
-            f"  from 22:00 to 02:00 would silently match nothing\n"
-            f"  split a campaign that spans midnight into two runs")
+            f"range.from and range.to are both {rng['from']}: the range is empty")
 
     w = merged["windows"]
     if float(w["width_s"]) <= 0:
