@@ -7,6 +7,42 @@ refaire une erreur déjà faite.
 
 ---
 
+## 2026-09-13 — Les quatre campagnes sont faites : le jeu de données existe
+
+Après saine-08 et charge-03 (entrée précédente) :
+
+| campagne | plage UTC | tas au retrait (×3) | fondu avant la suivante |
+|---|---|---|---|
+| blocage-02 | 06:15 → 08:25 | 744 / 711 / 745 | oui (minutes 46, 86, 133) |
+| lenteur-01 | 08:31 → 10:41 | 824 / 877 / 883 | oui (4 et 7 avant les injections 2 et 3) |
+| hote-01 | 10:48 → 12:58 | 0 – 9 | rien à fondre |
+
+Chaque cause laisse la trace attendue et seulement elle : blocage →
+`consumers` 3 → 2 et une réplique à cpu 0 sans temps de traitement ;
+lenteur → 706 → 1 081 ms par message sur les trois répliques (5 × 75,
+exact) ; hote → `cpu_busy` 0,04 → 0,83 et `cpu_pressure` 0,01 → 0,66 sur un
+seul hôte, et la file ne bouge pas (réplique +0,5 %). Entrée stable à
+3,4–3,7 msg/s dans les trois. Le service des commandes n'a plus gelé :
+~7 300 commandes par campagne, sous le seuil.
+
+**blocage-01** a été abandonnée par le pilote à la minute 2 : le service des
+commandes, à court de mémoire à la fin de charge-03, répondait 500 à toute
+recherche — la purge ne le redémarre pas, par choix. Le pilote relit
+maintenant le bilan des parcours **avant** de partir, avec le remède
+(`donnees.sh redemarrer`, puis deux minutes).
+
+**État du jeu de données** : 1 référence (55 fenêtres) + 4 campagnes (130
+fenêtres chacune) = 575 fenêtres, dont 180 sous injection (60 par cause
+pour charge, blocage, lenteur, et 60 « hôte saturé, file saine »).
+`scaler.json` calé sur saine-08. Les dossiers `campagnes/*` sont la
+provenance ; les runs sont à reconstruire depuis le magasin d'objets avec
+la plage de chaque `campagne.yaml`.
+
+**Ce qui reste** : l'étiquetage par fenêtre depuis les déroulés (avec une
+période de garde autour des transitions), le découpage par injection
+(jamais au hasard), le modèle et ses deux comparaisons imposées, puis
+l'étude à 50 % et 95 % d'occupation avec sa propre référence chacune.
+
 ## 2026-09-13 — saine-08 et charge-03 : la référence refaite, la première campagne propre
 
 **saine-08** (10/25/20 voyageurs, 60 min, service des commandes à 2 cœurs,

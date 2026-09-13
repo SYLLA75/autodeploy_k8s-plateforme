@@ -754,11 +754,12 @@ ssh master 'bash ~/autodeploy/apps/panne.sh retirer'
 
 ### Dans quel ordre
 
-1. **La référence saine**, avec le consommateur dimensionné (étape 7 bis) et
-   une charge qui reste sous les 80 % — donc jamais plus de 25 voyageurs :
+1. **La référence saine**, avec le consommateur dimensionné et le service des
+   commandes à 2 cœurs (étape 7 bis), et une charge qui reste sous les 80 % —
+   donc jamais plus de 25 voyageurs :
 
    ```bash
-   ./campagne.sh saine-04 --profil "10:15,25:30,20:15"
+   ./campagne.sh saine-08 --profil "10:15,25:30,20:15"
    ```
 
    Puis l'étape 12 avec `export.scaler: write`, et la lecture de la file :
@@ -815,6 +816,28 @@ ssh master 'bash ~/autodeploy/apps/panne.sh retirer'
 
    Ce qui reste visible à ces intensités : `publish_rate` +40 % (`charge`),
    `process_time_p50` +53 % (`lenteur`), `consumers` 3 → 2 (`blocage`).
+
+   **Fait le 13 septembre 2026** (`campagnes/saine-08`, `charge-03`,
+   `blocage-02`, `lenteur-01`, `hote-01`, chacune avec sa `lecture.txt`) :
+
+   | campagne | tas au retrait (×3) | ce qui a bougé | ce qui n'a pas bougé |
+   |---|---|---|---|
+   | charge-03 | 692 / 792 / 764 | entrée 3,5 → 4,8–5,2/s | temps par message 706 ms, 3 consommateurs, hôtes |
+   | blocage-02 | 744 / 711 / 745 | 3 → 2 consommateurs, réplique gelée à cpu 0 | entrée 3,4–3,6/s, les 2 autres répliques |
+   | lenteur-01 | 824 / 877 / 883 | 706 → 1 081 ms par message, sortie 2,77/s | entrée, cpu, hôtes |
+   | hote-01 | 0 – 9 | `cpu_busy` 0,04 → 0,83 et `cpu_pressure` 0,01 → 0,66 sur un hôte | **la file**, la réplique (+0,5 %) |
+
+   Dans les trois premières, le tas est revenu à 0 avant chaque injection
+   suivante. Les campagnes `charge-01`, `charge-02` et `blocage-01`, gardées
+   dans le dépôt, sont les tentatives qui ont révélé les limites de
+   l'application (étape 7 bis, « Et le service des commandes ») ; leurs
+   comptes rendus le disent.
+
+   Pour la figure d'ensemble (tas minute par minute, pannes grisées) :
+
+   ```bash
+   cd graphe_en && ./.venv/bin/python figure_campagnes.py ../campagnes figure.png
+   ```
 
 4. **La sensibilité au réglage**, après les campagnes principales : les
    mêmes pannes à deux autres taux d'occupation, en ne changeant *que* le
@@ -999,7 +1022,7 @@ ssh master 'set -a; . ~/autodeploy/.env.secrets; set +a; \
 | `apps/panne.sh` | les quatre pannes · `verifier` `injecter` `retirer` `etat` `temoin` |
 | `campagne.sh` | une campagne entière depuis le nœud de contrôle — charge, panne, collecte, compte rendu |
 | `graphe_en/run.py` | le graphe d'une plage : rapatrie, découpe, exporte, dessine |
-| `graphe_en/queues.py` · `instances.py` · `lecture.py` | lire la file, lire les répliques, garder les deux avec la campagne |
+| `graphe_en/queues.py` · `instances.py` · `lecture.py` · `figure_campagnes.py` | lire la file, lire les répliques, garder les deux avec la campagne, dessiner le tas de toutes les campagnes |
 | `apps/metrics-keep.txt` | la liste des compteurs sauvegardés, un par ligne |
 | `destroy.sh` | tout libérer |
 
