@@ -895,6 +895,10 @@ Pour refaire les figures sans retélécharger :
 ./.venv/bin/python run.py --render-only runs/<horodatage>
 ```
 
+`raw/` (les archives rapatriées, ~2,5 Go par campagne de 2 h) reste dans le
+magasin d'objets : une fois la lecture faite, `rm -rf runs/<horodatage>/raw`
+ne perd rien.
+
 Ce que veut dire chaque colonne — d'où vient le nombre, son unité, sa valeur
 saine, quelle panne le fait bouger — est dans `graphe_en/LEXIQUE.md`. À lire
 avant les tableaux.

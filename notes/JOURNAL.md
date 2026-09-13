@@ -7,6 +7,53 @@ refaire une erreur déjà faite.
 
 ---
 
+## 2026-09-13 — charge-01 et charge-02 : l'application s'étouffe au bout d'une heure, deux couches
+
+Deux campagnes de 135 min (25 voyageurs, 35 pendant les injections à 5, 50
+et 95 min). Dans les deux, les injections 1 et 2 sont exactement le calcul
+(entrée 3,5 → 4,9/s, tas ~700–800, fondu en 19 min, file à 0–10 avant la
+suivante). Dans les deux, la troisième ne produit rien : l'entrée de la
+file s'effondre à 0,6–2/s **avant** elle, dès la 75ᵉ–80ᵉ minute
+(`campagnes/charge-01/lecture.txt`, `charge-02/lecture.txt`).
+
+**Mesuré, pas deviné** (Locust `/stats/requests`, `kubectl top`) : la
+réservation passe de 0,3 s à 5, 28 puis 60 s (p95) ; les voyageurs y
+restent coincés et ne commandent plus de repas — ce sont les repas qui
+déposent dans la file. Derrière, `ts-order-service` à 500 m de CPU, sa
+limite.
+
+**Première couche** (charge-01) : 6 400 commandes empilées sur 30 dates
+(~240 par date, un seul train sur la liaison) ; le service recharge et
+journalise la pile à chaque recherche. Correction : dates étalées sur
+365 jours (`LG_JOURS_ETALEMENT`, passé au conteneur Locust).
+
+**Deuxième couche** (charge-02, dates étalées, 16 commandes par date) : le
+CPU croît quand même, avec le **total** — 97 m à 1 900 commandes, 212 m à
+4 700, 444 m à 5 900, 500 m à 7 000. Le service fait un travail
+proportionnel à toutes les commandes du train, pas de la date.
+Correction : `donnees.sh dimensionner`, limite CPU 500 m → 2 000 m, une
+fois. Testé avec 7 600 commandes en table, 25 voyageurs, 6 min : 308 m,
+réservation médiane 430 ms, repas à 3,3/s — personne de coincé.
+
+**Résidu accepté, à écrire** : même sans saturation, la réservation passe
+de 110 ms (table vide) à ~430 ms (8 000 commandes) — le `request_time`
+des trois services de la chaîne dérive lentement pendant toute campagne,
+de la même façon dans toutes, et n'atteint pas la file. C'est
+l'application ; on ne la corrige pas.
+
+**Pourquoi la référence est refaite** (saine-08) : la limite CPU est un
+attribut du graphe (`cpu_quota` du service des commandes). Une référence
+doit partager toutes les conditions des campagnes qu'on lui compare.
+saine-07 reste dans le dépôt ; le `scaler.json` est recalculé sur saine-08.
+
+**Deux pièges au passage** : `kubectl set resources` sans `-c` touche aussi
+le conteneur d'initialisation de l'agent, qui n'a pas de demande —
+Kubernetes lui donne alors une demande égale à la limite et le pod ne
+trouve plus de nœud (« Insufficient cpu ») ; corrigé. Et une campagne qui
+traverse minuit (charge-02, 23:46 → 01:56) : `fetch.py` parcourt
+maintenant les deux jours, `run.py` borne la plage sur le lendemain quand
+la fin n'est pas après le début.
+
 ## 2026-09-12 — essai-hote-02 : la quatrième cause se voit sur l'hôte, pas sur la file
 
 Voisin à 100 % des 4 cœurs de `workers0` de la minute 3 à 8, plage 21:01 →
