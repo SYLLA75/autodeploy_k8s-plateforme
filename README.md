@@ -21,7 +21,9 @@ C'est le principe d'organisation du dépôt : les fichiers sont rangés par
    │   destroy.sh     détruit tout, poste local compris     │
    │   lib/           les briques que ces deux-là partagent │
    │   graphe_en/     lit le magasin d'objets → figures     │
-   │                  et export PyTorch Geometric           │
+   │                  et export PyTorch Geometric ;         │
+   │                  LEXIQUE.md dit ce que vaut chaque     │
+   │                  nombre du graphe                      │
    └────────────────────────────────────────────────────────┘
                             │  deploy.sh copie apps/ sur le master
                             ▼

@@ -879,6 +879,10 @@ Pour refaire les figures sans retélécharger :
 ./.venv/bin/python run.py --render-only runs/<horodatage>
 ```
 
+Ce que veut dire chaque colonne — d'où vient le nombre, son unité, sa valeur
+saine, quelle panne le fait bouger — est dans `graphe_en/LEXIQUE.md`. À lire
+avant les tableaux.
+
 Puis **lire, et garder la lecture avec la campagne** — `runs/` ne se versionne
 pas, mais ces deux tableaux sont ce qu'un rapport cite :
 
