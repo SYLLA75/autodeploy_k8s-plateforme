@@ -5,6 +5,7 @@ The edges of the graph: who talks to whom, in each window.
     publishes     instance -> queue       1 number
     consumes      queue    -> instance    1 number
     executes on   instance -> host        0 numbers, purely structural
+    queries       instance -> instance    5 numbers, a call to a database
 
 HOW A CALL IS RECONSTRUCTED
 
@@ -26,6 +27,17 @@ TWO PITFALLS, both measured and reported:
   2. The parent may be in the SAME instance. That is an internal call, not a
      relation between two nodes. It is set aside and counted separately.
 
+A CALL TO A DATABASE HAS ONLY ONE SIDE. The database runs no agent, so it never
+writes the SERVER span that a "calls" edge starts from. The caller still writes
+its CLIENT span, with db.system and the address it connected to. That address is
+a Kubernetes service name, not a pod: graph.databases in the configuration says
+which pod answers it, and the edge points to that pod's instance node.
+
+Its numbers are measured AT THE CALLER, network included, whereas those of
+"calls" are measured at the callee. That is why it is a relation of its own
+rather than more "calls" edges: the same column would otherwise mean two
+different things.
+
 THE "EXECUTES ON" EDGE CARRIES NOTHING. It is not useless for that: it is what
 makes co-location observable, and co-location can explain a fault without the
 edge itself carrying any measurement.
@@ -37,7 +49,7 @@ from dataclasses import dataclass, field
 
 from features import quantile, ratio
 from nodes import Node
-from otlp import SERVER, Span, failed
+from otlp import CLIENT, SERVER, Span, failed
 from windows import Window
 
 CALL_COLUMNS = ["call_rate", "latency_p50", "latency_p95", "latency_p99",
@@ -49,6 +61,7 @@ RELATIONS = {
     "publishes":   ("instance", "queue", RATE_COLUMNS),
     "consumes":    ("queue", "instance", RATE_COLUMNS),
     "executes_on": ("instance", "host", []),
+    "queries":     ("instance", "instance", CALL_COLUMNS),
 }
 
 
@@ -62,7 +75,8 @@ class Edge:
 
 
 def build(window: Window, nodes: dict[str, Node], width_s: float,
-          eta: float, quantiles: tuple) -> tuple[list[Edge], dict]:
+          eta: float, quantiles: tuple,
+          databases: dict[str, str] | None = None) -> tuple[list[Edge], dict]:
     edges: list[Edge] = []
     known = set(nodes)
 
@@ -117,6 +131,10 @@ def build(window: Window, nodes: dict[str, Node], width_s: float,
         if target in known:
             edges.append(Edge("executes_on", key, target, [], []))
 
+    db_edges, db_report = _queries(window, nodes, width_s, eta, quantiles,
+                                   databases or {})
+    edges.extend(db_edges)
+
     total_parents = resolved + orphaned
     report = {
         "server_spans_with_parent": total_parents,
@@ -125,5 +143,48 @@ def build(window: Window, nodes: dict[str, Node], width_s: float,
         "resolution": resolved / total_parents if total_parents else None,
         "internal_calls": internal,
         "out_of_scope": out_of_scope,
+        **db_report,
     }
     return edges, report
+
+
+def _queries(window: Window, nodes: dict[str, Node], width_s: float,
+             eta: float, quantiles: tuple,
+             databases: dict[str, str]) -> tuple[list[Edge], dict]:
+    """
+    Caller -> database edges, from the callers' CLIENT spans alone.
+
+    An address absent from `databases` is counted and left aside: guessing
+    which pod answers it would draw an edge that nothing measured.
+    """
+    by_pod_name = {n.name: key for key, n in nodes.items()
+                   if n.kind == "instance"}
+    target_of = {address: by_pod_name.get(pod)
+                 for address, pod in databases.items()}
+    grouped: dict[tuple[str, str], list[Span]] = defaultdict(list)
+    seen = unmapped = out_of_scope = 0
+
+    for s in window.spans:
+        if s.kind != CLIENT or "db.system" not in s.attributes:
+            continue
+        seen += 1
+        address = s.attributes.get("server.address")
+        if address not in target_of:
+            unmapped += 1
+            continue
+        target = target_of[address]
+        if target is None or s.pod_uid not in nodes or s.pod_uid == target:
+            out_of_scope += 1
+            continue
+        grouped[(s.pod_uid, target)].append(s)
+
+    edges = []
+    for (source, target), group in grouped.items():
+        latencies = [s.duration_ns / 1e6 for s in group]
+        edges.append(Edge("queries", source, target, CALL_COLUMNS, [
+            ratio(len(group) / eta, width_s),
+            *[quantile(latencies, q) for q in quantiles],
+            ratio(sum(1 for s in group if failed(s)), len(group)),
+        ]))
+    return edges, {"db_spans": seen, "db_unmapped": unmapped,
+                   "db_out_of_scope": out_of_scope}

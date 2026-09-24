@@ -256,24 +256,29 @@ def _features(console: Console, conf, kept, node_series):
 def _edges(console: Console, conf, kept, vectors):
     import edges as edges_module
 
-    console.step("edges", "calls, publishes, consumes, executes on")
+    console.step("edges", "calls, publishes, consumes, executes on, queries")
     built = []
     rows = []
     for w, vecs in zip(kept, vectors):
         found = {key: v.node for key, v in vecs.items()}
         group, report = edges_module.build(
             w, found, conf.width, float(conf.graph["sampling_rate"]),
-            tuple(conf.graph["quantiles"]))
+            tuple(conf.graph["quantiles"]), conf.graph["databases"])
         built.append((group, report))
         counts = {r: sum(1 for e in group if e.relation == r)
                   for r in edges_module.RELATIONS}
         res = report["resolution"]
         rows.append([w.label, counts["calls"], counts["publishes"],
                      counts["consumes"], counts["executes_on"],
+                     counts["queries"],
                      f"{100*res:.1f}%" if res is not None else "-"])
     console.ok(f"{sum(len(g) for g, _ in built)} edges over {len(kept)} windows")
     console.table(["window", "calls", "publishes", "consumes", "executes on",
-                   "resolved"], rows)
+                   "queries", "resolved"], rows)
+    unmapped = sum(r["db_unmapped"] for _, r in built)
+    if unmapped:
+        console.warn(f"{unmapped} database calls to an address absent from "
+                     f"graph.databases — no queries edge drawn for them")
 
     worst = min((r["resolution"] for _, r in built
                  if r["resolution"] is not None), default=None)

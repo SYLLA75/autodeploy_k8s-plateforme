@@ -29,7 +29,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "windows": {"width_s": 60.0, "step_s": None, "max": None, "edge_margin": 0},
     "graph": {
         "namespace": None, "slope_horizon": 3, "sampling_rate": 1.0,
-        "quantiles": [0.50, 0.95, 0.99],
+        "quantiles": [0.50, 0.95, 0.99], "databases": {},
     },
     "export": {
         "pytorch_geometric": False, "missing": "mask", "scaler": "none",

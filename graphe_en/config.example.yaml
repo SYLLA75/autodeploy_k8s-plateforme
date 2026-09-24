@@ -47,6 +47,11 @@ graph:
   slope_horizon: 3              # H, how many consecutive windows the slope spans
   sampling_rate: 1.0            # eta, the fraction of traces kept by the collector
   quantiles:     [0.50, 0.95, 0.99]
+  databases:                    # address a caller connects to -> pod that answers.
+    tsdb-mysql-leader: tsdb-mysql-0   # The database writes no trace, so its
+                                # "queries" edges come from the callers alone.
+                                # Leader read on the cluster:
+                                #   kubectl -n train-ticket get endpoints tsdb-mysql-leader
 
 export:
   pytorch_geometric: true       # also write a .pt file
