@@ -708,3 +708,30 @@ adresse inconnue, résolution des appels inchangée (100 %).
 Une base lente ferait donc monter d'un coup les quinze arêtes ; la cause 2 ne fait
 monter que celles des répliques. Les figures ne dessinent pas encore la relation
 (étape A.7).
+
+## 2026-09-24 — Phase A.4 : quatre attributs réseau pour l'hôte
+
+Code : `apps/metrics-keep.txt` (six compteurs node-exporter), `graphe_en/features.py`
+(`net_rx_rate`, `net_tx_rate`, `net_drop_rate`, `tcp_retrans_ratio`, interface
+physique seulement), `export_pyg.py` (échelle log), `LEXIQUE.md`. Le vecteur hôte
+passe de 5 à 9 nombres. Les campagnes du 13 septembre n'ont pas ces compteurs :
+absents, jamais 0. La mise à l'échelle calée sur saine-08 ne correspond plus
+(`_check_scaler` refuse) : une nouvelle référence normale est nécessaire.
+
+Déploiement : `git pull && ./deploy.sh --push-scripts` sur vms0, puis sur le master
+`observability.sh tune`. PIÈGE vécu : `tune` lancé sans l'environnement de l'étape 3
+a réinstallé Prometheus et la passerelle sans le nœud réservé ni l'envoi S3 (pods
+Pending, puis passerelle en boucle, dix minutes, hors campagne). La seule forme
+correcte, sur le master :
+
+    set -a; . ~/autodeploy/.env.secrets; set +a
+    export OBS_DEDICATED_NODE=workers6
+    bash ~/autodeploy/apps/observability.sh tune
+
+`tune` rallume aussi la passerelle, donc la collecte : la refermer ensuite avec
+`collecte.sh arreter` si aucune expérience ne suit.
+
+Vérifié : les six compteurs arrivent dans S3 dès 16:52 UTC pour les huit machines,
+interface physique `enp6s18`. Graphe de 16:51 à 16:57 sur vms0, fenêtre 16:53 :
+réception 13 à 134 ko/s (workers6, la mesure, en tête), envoi 17 à 113 ko/s,
+2 paquets jetés par minute partout, aucune retransmission TCP. Collecte refermée.
