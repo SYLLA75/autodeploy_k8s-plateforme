@@ -690,3 +690,21 @@ l'uid, qui changerait si le pod était recréé.
 Vérifié sur le cluster le 24 septembre : `tsdb-mysql-leader` pointe vers
 `tsdb-mysql-0`, uid 35b0f5fb-f49f-4241-a901-7f58fd832737, démarré le 11 septembre à
 21:02 UTC. C'est le même pod que pendant les cinq campagnes.
+
+## 2026-09-24 — Phase A.2 : la relation queries (appelant → base)
+
+Code : `graphe_en/edges.py` (relation `queries`, fonction `_queries`), `settings.py`
+(`graph.databases`, vide par défaut), `run.py` (colonne et alerte), `config.example.yaml`.
+Exécuté sur vms0, blocage-02, 06:23 à 06:28, configuration hors du dépôt
+(`~/configs-hors-git/config-a2.yaml`, elle contient les identifiants).
+
+Résultat, fenêtre 06:25 : 15 arêtes `queries`, toutes vers `tsdb-mysql-0`, aucune
+adresse inconnue, résolution des appels inchangée (100 %).
+
+- r5pwb et tvmfl : 2,8 appels/s, p50 141 ms (le retard réglé de 140 ms).
+- bmgvs, gelée : aucune arête `queries`, comme pour consumes.
+- les douze autres appelants : p50 de 0,2 à 0,8 ms.
+
+Une base lente ferait donc monter d'un coup les quinze arêtes ; la cause 2 ne fait
+monter que celles des répliques. Les figures ne dessinent pas encore la relation
+(étape A.7).
