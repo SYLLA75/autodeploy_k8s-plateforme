@@ -189,6 +189,19 @@ Every instance whose name contains the word, with `process_time_p50`,
 instance column can be named instead). This is how the consumer's service
 time is read after a reference, and how one replica is watched during a fault.
 
+### The baselines, before any model
+
+```bash
+./.venv/bin/python ligne_de_base.py saine-08 charge-03 blocage-02 lenteur-01 hote-01
+```
+
+Reads `campagne.yaml` and `lecture.txt` of the campaigns named, labels each
+window from the timeline, splits by time and judges what a model must beat: a
+threshold on `backlog_slope`, the queue alone, a flat table of sixteen numbers
+without any arrow, and four hand rules. Writes `../campagnes/lignes_de_base.txt`.
+Nothing is fetched. The first run installs `scikit-learn`, in the virtual
+environment only. Method and numbers in `PROCEDURE.md`, step 13.
+
 Text goes where nodes are few (queues, hosts); the node fill carries the value
 where they are many (instances). `figures.node_value` and `figures.host_value`
 accept any component name.

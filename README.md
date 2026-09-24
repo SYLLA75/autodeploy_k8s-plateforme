@@ -53,6 +53,7 @@ exécute.
 |---|---|
 | partir d'une machine neuve | **[INSTALL.md](INSTALL.md)** — comptes, clés, dépendances |
 | lancer une campagne de mesure | **[PROCEDURE.md](PROCEDURE.md)** — de zéro aux figures |
+| mesurer ce qu'un modèle doit battre | **[PROCEDURE.md](PROCEDURE.md)**, étape 13 — les lignes de base sur les campagnes committées, résultat dans [campagnes/lignes_de_base.txt](campagnes/lignes_de_base.txt) |
 | comprendre les chiffres du graphe | **[graphe_en/LEXIQUE.md](graphe_en/LEXIQUE.md)** — chaque nombre, son unité, sa valeur saine ; et [notes/OBSERVABILITE.md](notes/OBSERVABILITE.md) pour la chaîne de mesure |
 | voir ce qui a été mesuré | [campagnes/](campagnes/) — une référence saine (`saine-08`) et quatre campagnes de pannes (`charge-03`, `blocage-02`, `lenteur-01`, `hote-01`), chacune avec son compte rendu et sa lecture |
 | savoir pourquoi c'est fait ainsi | [notes/CHOIX.md](notes/CHOIX.md) |
@@ -72,6 +73,7 @@ puis les étapes de `PROCEDURE.md`, et enfin :
 cd graphe_en
 python3 -m venv .venv                 # la première fois seulement
 ./.venv/bin/python run.py             # des données brutes aux figures
+./.venv/bin/python ligne_de_base.py saine-08 charge-03 blocage-02 lenteur-01 hote-01   # ce qu'un modèle doit battre
 ```
 
 ---
@@ -106,6 +108,7 @@ python3 -m venv .venv                 # la première fois seulement
      run.py                 les 8 étapes, du magasin aux figures
      config.example.yaml    tous les réglages de l'analyse
      README.md              ce que contient le graphe
+     ligne_de_base.py       les lignes de base sur les campagnes committées
 
    notes/                 notes de recherche, pas des modes d'emploi
    figures/               illustrations pour l'article

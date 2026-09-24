@@ -975,6 +975,69 @@ d'elle-même.
 
 ---
 
+## Étape 13 — Mesurer les lignes de base, avant tout modèle
+
+**Où** : sur le nœud de contrôle, sans la grappe · **Durée** : quelques secondes
+
+Une ligne de base est un programme simple qu'un modèle doit battre. Sur
+quatre causes injectées une à la fois, des programmes simples nomment déjà la
+cause, et un relecteur demandera si le graphe était nécessaire. Cette étape
+répond par un chiffre, sur les campagnes committées, avant que des semaines
+partent dans un modèle. Elle ne lit que `campagnes/<nom>/campagne.yaml` et
+`lecture.txt` : rien n'est rapatrié, les machines peuvent déjà être détruites.
+
+```bash
+cd graphe_en
+./.venv/bin/python ligne_de_base.py saine-08 charge-03 blocage-02 lenteur-01 hote-01
+```
+
+Le premier lancement installe `scikit-learn`, dans le venv uniquement. Nomme
+les campagnes de l'étude : sans nom, le script prend tous les dossiers qui
+portent les deux fichiers, sauf les essais `essai-*`, et les campagnes
+abandonnées (`charge-01`, `charge-02`) y seraient mélangées.
+
+**Ce qu'il fait** :
+
+1. La vérité de chaque fenêtre, d'après le `deroule` : entièrement dans une
+   injection confirmée, sa cause ; à cheval sur une injection ou un retrait,
+   écartée ; après un retrait tant que le tas dépasse 10 messages, plus une
+   fenêtre de garde, écartée (la panne est partie, la file se vide encore) ;
+   sinon `normal`. saine-08 est entièrement `normal`.
+2. Deux jeux, coupés par le temps : la troisième injection de chaque campagne,
+   avec les dix minutes qui la précèdent, sert de test ; le reste apprend.
+   Jamais au hasard, deux fenêtres qui se suivent sont presque jumelles.
+3. Quatre lignes de base sur les mêmes 150 fenêtres de test : le seuil
+   (`backlog_slope` > 20, trouve la panne, jamais la cause) ; la file seule
+   (6 nombres) ; le tableau plat (16 nombres, la file, les trois répliques de
+   `ts-delivery-service` et les hôtes résumés, aucune flèche), avec un arbre
+   de décision et une forêt aléatoire ; quatre règles à la main dont les
+   limites sont prises sur la référence saine.
+
+**Ce que tu obtiens** : `campagnes/lignes_de_base.txt`, le même texte à
+l'écran, à committer avec les campagnes. Mesuré le 18 septembre 2026 sur les
+cinq campagnes, 575 fenêtres, 406 gardées, 256 pour apprendre, 150 pour juger :
+
+| ligne de base | sur les 150 fenêtres de test |
+|---|---|
+| seuil | alarme sur 56 des 57 fenêtres de charge, blocage, lenteur ; jamais sur hote ; aucune fausse alerte ; jamais une cause |
+| file seule | 129 bien nommées par l'arbre ; hote jamais, la file ne bouge pas |
+| tableau plat | 150 bien nommées, arbre et forêt |
+| règles à la main | 150 bien nommées |
+
+L'arbre n'a eu besoin que de quatre questions : `rate_imbalance` > 0,21,
+`hote_cpu_busy_max` > 0,51, `process_time_p50_max` > 894 ms, `publish_rate`
+> 4,10. Chaque coupure est à mi-chemin entre la valeur saine et la valeur en
+panne.
+
+**Conséquence** : sur ces quatre causes, un modèle qui lit les flèches ne peut
+pas nommer la cause mieux qu'un tableau qui les ignore, au plus aussi bien.
+Sa valeur doit se montrer là où le tableau est aveugle : nommer la réplique
+ou l'hôte en faute, le même motif sous des pods renommés, une panne qui se
+propage, plusieurs files, deux pannes à la fois. Ce sont les prochaines
+campagnes. Détail dans `notes/JOURNAL.md`, entrée du 18 septembre.
+
+---
+
 ## Détruire
 
 **Où** : sur ton PC

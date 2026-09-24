@@ -7,6 +7,42 @@ refaire une erreur déjà faite.
 
 ---
 
+## 2026-09-18 — Les lignes de base sont mesurées : un tableau plat nomme la cause sur chaque fenêtre de test
+
+`graphe_en/ligne_de_base.py` (PROCEDURE.md, étape 13) sur les cinq campagnes,
+saine-08, charge-03, blocage-02, lenteur-01, hote-01. Vérité tirée des
+déroulés, fenêtres à cheval sur une transition et fenêtres de vidange (tas >
+10 après le retrait, plus une de garde) écartées. Coupure par le temps, la
+troisième injection de chaque campagne servant de test : 575 fenêtres, 406
+gardées, 256 pour l'apprentissage, 150 pour le test, 19 par cause.
+
+| ligne de base | sur les 150 fenêtres de test |
+|---|---|
+| seuil, `backlog_slope` > 20 | alarme sur 56 des 57 fenêtres de charge, blocage, lenteur ; jamais sur hote ; aucune fausse alerte ; jamais une cause |
+| file seule, 6 nombres | 129 bien nommées (arbre) ; hote jamais, la file ne bouge pas |
+| tableau plat, 16 nombres, aucune flèche | 150 bien nommées, arbre de décision et forêt aléatoire pareil |
+| règles à la main, limites prises sur saine-08 | 150 bien nommées |
+
+Les quatre questions de l'arbre : `rate_imbalance` > 0,21 (la file se
+remplit), `hote_cpu_busy_max` > 0,51 (hote), `process_time_p50_max` > 894 ms
+(lenteur, à mi-chemin entre 706 et 1 081), `publish_rate` > 4,10 msg/s
+(charge, sinon blocage).
+
+**Conséquence.** Sur quatre causes injectées une à la fois, un modèle qui lit
+les flèches ne peut pas nommer la cause mieux qu'un tableau qui les ignore,
+au plus aussi bien — la leçon de Fang et al. (2025), reproduite ici. Le
+graphe reste la représentation (les 16 nombres en viennent) et la
+contribution (la file comme nœud) ; l'argument pour un modèle sur graphe doit
+se faire là où le tableau est aveugle : nommer la réplique ou l'hôte en
+faute, le même motif sous des pods renommés, une panne qui se propage (la
+base ralentit les répliques qui remplissent la file), plusieurs files, deux
+pannes à la fois. À concevoir dans les prochaines campagnes. Rappel : `hote`
+n'atteint pas la file (la demande CPU garantit sa part à la réplique, son
+temps est de l'attente réseau) — anomalie d'hôte sans faute de coordination,
+témoin négatif, pas le cas à plusieurs sauts qu'un modèle sur graphe
+exigerait. Une cause d'hôte qui atteindrait la file passerait par le réseau
+de l'hôte de la réplique, ou par l'hôte de la base.
+
 ## 2026-09-13 — Les quatre campagnes sont faites : le jeu de données existe
 
 Après saine-08 et charge-03 (entrée précédente) :

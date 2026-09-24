@@ -46,6 +46,8 @@ REQUIREMENTS = {
                          optional=True),
     "pyg": Requirement("torch_geometric", "torch_geometric",
                        "heterogeneous graph objects", optional=True),
+    "baseline": Requirement("sklearn", "scikit-learn",
+                            "the baselines, a decision tree and a random forest", optional=True),
 }
 
 
