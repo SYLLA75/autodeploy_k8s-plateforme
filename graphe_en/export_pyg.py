@@ -66,7 +66,8 @@ LOG_COLUMNS = {
                  "request_time_p50", "request_time_p95", "request_time_p99",
                  "memory_used", "memory_limit", "cpu_quota", "rx_bytes"],
     "queue": ["backlog"],
-    "host": ["memory_available_min"],
+    "host": ["memory_available_min", "net_rx_rate", "net_tx_rate",
+             "net_drop_rate"],
 }
 
 

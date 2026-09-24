@@ -85,7 +85,7 @@ Une réplique gelée (blocage) n'a **plus** de `process_time` : elle ne traite
 rien, donc aucun span. L'absence est portée par un masque, pas par un zéro
 (`export.missing: mask`).
 
-## Un hôte (nœud `host`, une machine — 8 par fenêtre)
+## Un hôte (nœud `host`, une machine — 8 par fenêtre, 9 attributs)
 
 | attribut | en mots | calcul | sain | en panne (hote) |
 |---|---|---|---|---|
@@ -94,6 +94,16 @@ rien, donc aucun span. L'absence est portée par un masque, pas par un zéro
 | `memory_pressure` | idem pour la mémoire | rate | 0 | 0 |
 | `io_pressure` | idem pour le disque | rate | 0 | 0 |
 | `memory_available_min` | mémoire libre au pire moment de la minute | extreme (min) | 2,8 G | baisse si un voisin mange la mémoire |
+| `net_rx_rate` | octets reçus par seconde sur la carte réseau de la machine | rate | à mesurer | monte si un voisin inonde le réseau |
+| `net_tx_rate` | octets envoyés par seconde, même carte | rate | à mesurer | idem |
+| `net_drop_rate` | paquets jetés par seconde (reçus + envoyés), même carte | rate | à mesurer | monte quand la carte déborde |
+| `tcp_retrans_ratio` | part des segments TCP envoyés qui ont dû être renvoyés | ratio | à mesurer | monte quand le réseau perd ou encombre |
+
+Les quatre attributs réseau ne lisent que la carte physique de la machine
+(`enp6s18` sur les huit VM) : les interfaces virtuelles des pods (`cali*`), de
+l'overlay (`vxlan.calico`) et de kube-proxy compteraient le même trafic deux
+ou trois fois. Ils n'existent pas dans les cinq campagnes du 13 septembre
+(relevés à partir du 24 septembre) : là, ils sont absents, jamais 0.
 
 `cpu_pressure` n'est pas « part du processeur utilisée » (ça, c'est
 `cpu_busy`) : c'est une part de *temps d'attente*. À 0,63, les programmes
@@ -103,10 +113,11 @@ attendent un cœur 63 % du temps.
 
 | relation | attributs | en mots | exemple sain |
 |---|---|---|---|
-| `calls` (instance → instance) | `call_rate`, `latency_p50/p95/p99`, `error_ratio` | appels/s, durée de l'appel vu de l'appelant, part en erreur | travel → seat : 6,5/s, 5 / 6 / 10 ms, 0 |
+| `calls` (instance → instance) | `call_rate`, `latency_p50/p95/p99`, `error_ratio` | appels/s, durée de la réponse mesurée chez l'appelé (span SERVER), part en erreur | travel → seat : 6,5/s, 5 / 6 / 10 ms, 0 |
 | `publishes` (instance → file) | `rate` | messages déposés/s par ce service | food → food_delivery : 3,5/s |
 | `consumes` (file → instance) | `rate` | messages retirés/s par cette réplique | 1,2/s chacune (3 × 1,2 ≈ 3,5) |
 | `executes_on` (instance → hôte) | aucun | le lien, seulement | — |
+| `queries` (instance → base) | `call_rate`, `latency_p50/p95/p99`, `error_ratio` | appels/s vers la base, durée mesurée chez l'appelant (span CLIENT, réseau compris), part en erreur | delivery → tsdb-mysql-0 : 2,8/s, 141 ms ; route → tsdb-mysql-0 : 24,8/s, 0,2 ms |
 
 ## Quelle panne fait bouger quoi
 

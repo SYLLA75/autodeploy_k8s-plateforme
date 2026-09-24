@@ -30,6 +30,19 @@ node_memory_MemAvailable_bytes
 node_cpu_seconds_total
 
 
+# ---- Nœud MACHINE, réseau ------------------------------------------ 4 valeurs
+# Sans eux, une panne réseau de la machine est muette sur son propre nœud : ses
+# cinq valeurs ci-dessus ne bougent pas. Les octets donnent la charge, les paquets
+# jetés la saturation, les segments TCP renvoyés la congestion (lus en rapport
+# avec les segments envoyés). Filtrés sur l'interface physique dans le graphe.
+node_network_receive_bytes_total
+node_network_transmit_bytes_total
+node_network_receive_drop_total
+node_network_transmit_drop_total
+node_netstat_Tcp_RetransSegs
+node_netstat_Tcp_OutSegs
+
+
 # ---- Nœud COPIE DE SERVICE, ressources --------------------------- 6 valeurs
 # Le premier se lit en rapport avec le second : « combien de fois freiné, sur
 # combien d'occasions ». Seul, le numérateur ne veut rien dire.

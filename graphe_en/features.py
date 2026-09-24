@@ -3,7 +3,7 @@ The values carried by each node.
 
     instance   18 numbers
     queue       6 numbers
-    host        5 numbers
+    host        9 numbers
 
 FIVE WAYS OF SUMMARISING a window (the paper's operators):
 
@@ -68,6 +68,7 @@ is enabled to sustain load.
 from __future__ import annotations
 
 import math
+import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 
@@ -87,7 +88,17 @@ INSTANCE_COLUMNS = [
 QUEUE_COLUMNS = ["backlog", "backlog_slope", "publish_rate", "consume_rate",
                  "rate_imbalance", "consumers"]
 HOST_COLUMNS = ["cpu_pressure", "memory_pressure", "io_pressure",
-                "memory_available_min", "cpu_busy"]
+                "memory_available_min", "cpu_busy",
+                "net_rx_rate", "net_tx_rate", "net_drop_rate",
+                "tcp_retrans_ratio"]
+
+# The network columns read the machine's own interfaces only. The others are
+# virtual — loopback, the pods' veth ends (cali*), the overlay (vxlan.calico),
+# kube-proxy's dummy (kube-ipvs0), the DNS cache — and counting them would add
+# every pod's traffic a second time, overlay traffic a third.
+VIRTUAL_INTERFACE = re.compile(
+    r"^(lo|cali.*|vxlan.*|tunl.*|kube-ipvs.*|nodelocaldns|veth.*|docker.*|"
+    r"cni.*|flannel.*|cilium.*)$")
 
 COLUMNS = {"instance": INSTANCE_COLUMNS, "queue": QUEUE_COLUMNS,
            "host": HOST_COLUMNS}
@@ -310,12 +321,29 @@ def host_vector(node: Node, window: Window, width_s: float) -> Vector:
     cores = len({s.labels.get("cpu") for s in cpu if s.labels.get("cpu")})
     busy = _sum_increase([s for s in cpu if s.labels.get("mode") != "idle"])
 
+    def physical_rate(metric: str) -> float | None:
+        return ratio(_sum_increase([
+            s for s in samples if s.name == metric
+            and not VIRTUAL_INTERFACE.match(s.labels.get("device") or "lo")]),
+            width_s)
+
+    def total(metric: str) -> float | None:
+        return _sum_increase([s for s in samples if s.name == metric])
+
+    drops = [physical_rate("node_network_receive_drop_total"),
+             physical_rate("node_network_transmit_drop_total")]
+    sent = total("node_netstat_Tcp_OutSegs")
+
     return Vector(node, HOST_COLUMNS, [
         rate("node_pressure_cpu_waiting_seconds_total"),
         rate("node_pressure_memory_waiting_seconds_total"),
         rate("node_pressure_io_waiting_seconds_total"),
         extreme(available, "min"),
         ratio(busy, width_s * cores) if cores else None,
+        physical_rate("node_network_receive_bytes_total"),
+        physical_rate("node_network_transmit_bytes_total"),
+        None if None in drops else sum(drops),
+        ratio(total("node_netstat_Tcp_RetransSegs"), sent) if sent else None,
     ])
 
 
