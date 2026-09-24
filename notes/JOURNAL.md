@@ -665,8 +665,9 @@ section par module du graphe), `notes/CHOIX.md` et `notes/RECOMMANDATIONS.md`.
 
 ## 2026-09-24 — Phase A.1 : le pod leader de la base
 
-L'expérience SLICES `deployk8s_slices` a expiré : les VM n'existent plus, le bastion
-refuse d'ouvrir `master`. Le leader est donc lu dans les mesures archivées sur S3.
+Le leader est lu dans les mesures archivées sur S3, puis vérifié sur le cluster
+(expérience `deployk8s_slices_final`, accès par le contrôleur `vms0`, jamais
+directement depuis le poste).
 
 Méthode : débit reçu (`container_network_receive_bytes_total`) des trois pods
 `tsdb-mysql`, sur une minute au début et une vers la fin de chaque campagne. Le leader
@@ -685,3 +686,7 @@ Résultat : `tsdb-mysql-0` est le leader dans les cinq campagnes, avec le même 
 (service Kubernetes) : cette adresse se relie donc au pod `tsdb-mysql-0`. La
 correspondance se fait par le nom du pod, stable dans un StatefulSet, plutôt que par
 l'uid, qui changerait si le pod était recréé.
+
+Vérifié sur le cluster le 24 septembre : `tsdb-mysql-leader` pointe vers
+`tsdb-mysql-0`, uid 35b0f5fb-f49f-4241-a901-7f58fd832737, démarré le 11 septembre à
+21:02 UTC. C'est le même pod que pendant les cinq campagnes.
