@@ -662,3 +662,26 @@ section par module du graphe), `notes/CHOIX.md` et `notes/RECOMMANDATIONS.md`.
 - `DURATION=3d` pour les VMs. Horloges NTP des deux côtés.
 - Pas de code adapté à un incident : la règle dans le code, le récit dans le
   commit.
+
+## 2026-09-24 — Phase A.1 : le pod leader de la base
+
+L'expérience SLICES `deployk8s_slices` a expiré : les VM n'existent plus, le bastion
+refuse d'ouvrir `master`. Le leader est donc lu dans les mesures archivées sur S3.
+
+Méthode : débit reçu (`container_network_receive_bytes_total`) des trois pods
+`tsdb-mysql`, sur une minute au début et une vers la fin de chaque campagne. Le leader
+reçoit toutes les écritures, il reçoit donc bien plus que les deux autres.
+
+| campagne | minutes | tsdb-mysql-0 | tsdb-mysql-1 | tsdb-mysql-2 |
+|---|---|---|---|---|
+| saine-08 | 02:58, 03:25 | 50 / 37 ko/s | 6 / 5 | 7 / 6 |
+| charge-03 | 04:14, 05:45 | 49 / 8 | 7 / 3 | 7 / 3 |
+| blocage-02 | 06:52, 08:20 | 44 / 44 | 7 / 7 | 7 / 7 |
+| lenteur-01 | 09:07, 10:35 | 47 / 51 | 7 / 7 | 7 / 7 |
+| hote-01 | 11:24, 12:55 | 50 / 52 | 6 / 6 | 6 / 6 |
+
+Résultat : `tsdb-mysql-0` est le leader dans les cinq campagnes, avec le même uid
+(35b0f5fb…), jamais redémarré. Les appelants écrivent l'adresse `tsdb-mysql-leader`
+(service Kubernetes) : cette adresse se relie donc au pod `tsdb-mysql-0`. La
+correspondance se fait par le nom du pod, stable dans un StatefulSet, plutôt que par
+l'uid, qui changerait si le pod était recréé.
