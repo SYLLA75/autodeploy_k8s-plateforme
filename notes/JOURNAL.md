@@ -790,3 +790,43 @@ Essai sur vms0, collecte éteinte (`--sans-collecte`, rien dans S3), 12 min par 
 injections de 2 min aux minutes 3, 6 et 9 : six injections confirmées, chacune sur sa
 cible (pannes.tsv et déroulé concordent), réplique gelée à 0m de CPU, hôte visé à 4000m,
 rien de résiduel. Dossiers d'essai rangés hors du dépôt.
+
+## 2026-09-25 — Seconde série : blocage-03, hote-02, charge-04, lenteur-02
+
+Enchaînées sur vms0 (tmux `serie`, script hors dépôt), 11:10 → 20:13 UTC, chacune
+25 voyageurs pendant 135 min, injections de 20 min aux minutes 5, 50 et 95, mêmes
+intensités qu'en septembre (charge 35, lenteur +75 ms, hôte 2 cœurs). Cibles tournantes :
+bmgvs → r5pwb → tvmfl ; workers5 → workers2 → workers0. 12 injections sur 12 confirmées
+sur leur cible, 13 veilles « parcours ok » par campagne, aucun redémarrage de conteneur,
+retard de base reposé, S3 complet (aucune minute sans traces ni mesures).
+
+| campagne | plage | file 1 min après retrait | septembre |
+|---|---|---|---|
+| blocage-03 | 11:13–13:23 | 794 / 791 / 798 | 768 / 695 / 698 |
+| hote-02 | 13:29–15:39 | 0 / 0 / 7 | 0 à 9 |
+| charge-04 | 15:45–17:56 | 704 / 731 / 721 | 696 / 754 / 490 |
+| lenteur-02 | 18:01–20:11 | 814 / 813 / 896 | 847 / 853 / 883 |
+
+Graphes sur vms0 avec la mise à l'échelle de saine-09 appliquée (`scaler: apply`),
+130 ou 131 fenêtres, 0 avertissement, 29,5 à 29,8 % de valeurs absentes (saine-09 :
+29,7 %). Marques relevées dans le graphe, 5 fenêtres avant contre fenêtres pendant :
+- blocage : la réplique visée seule perd son temps de traitement, son CPU tombe à 0 et
+  son arête `queries` disparaît ; `consumers` 3 → 2 ; retrait 3,5 → 2,83 msg/s.
+- lenteur : les trois répliques 706 → 1 081 ms par message, leurs arêtes `queries`
+  141 → 216 ms (+75 exactement) ; les douze autres appelants de la base restent à 0,45 ms.
+- charge : dépôt 3,5 → 4,9 msg/s, répliques inchangées.
+- hote : l'hôte visé seul à `cpu_busy` 0,83 et `cpu_pressure` 0,64 à 0,72.
+
+**Constaté : la 3e injection d'hôte (workers0) remonte en amont.** Le dépôt dans la file
+tombe de 3,6 à 0,94 msg/s, ce que ni workers5 ni workers2 ne font, ni workers0 en
+septembre (hote-01, dépôt 3,4 à 3,9 pendant les trois injections). Cause :
+`donnees.sh purger --redemarrer`, lancé le 25 sept. vers 10:30 pour débloquer
+l'application avant l'essai à blanc, a recréé ts-order-service, ts-seat-service et
+ts-travel-service, et l'ordonnanceur les a replacés : ts-order-service workers1 →
+workers0, ts-seat-service workers3 → workers2, ts-travel-service workers4 → workers1.
+Sur workers0 saturé, ts-order-service passe de 3 à 640 ms par requête, la réservation
+(ts-preserve-service) de 0,2 à 84 s, donc moins de repas commandés et moins de messages
+déposés. L'étiquette reste juste (l'hôte workers0 est fautif), mais cette injection, qui
+est l'injection de test, se propage par le producteur alors que les deux premières
+restent sur l'hôte. Le placement des pods n'est pas figé par la plateforme ; il fait
+partie des conditions à noter dans chaque compte rendu.
