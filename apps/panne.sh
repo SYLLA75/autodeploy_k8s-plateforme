@@ -44,7 +44,7 @@
 #  injection en cours, il nettoie ce qui aurait pu rester.
 #
 #  Usage (depuis le master) :
-#      bash ~/autodeploy/apps/panne.sh verifier <cause>
+#      bash ~/autodeploy/apps/panne.sh verifier <cause> [--cible <x>]…
 #      bash ~/autodeploy/apps/panne.sh injecter <cause> [--duree <min>] [--intensite <n>] [--cible <x>]
 #      bash ~/autodeploy/apps/panne.sh retirer
 #      bash ~/autodeploy/apps/panne.sh etat
@@ -59,6 +59,8 @@
 #  --cible, selon la cause :
 #      hote       nom du nœud  (défaut : le moins chargé des hôtes portant une réplique)
 #      blocage    nom du pod   (défaut : la première réplique par ordre alphabétique)
+#  « verifier » accepte une ou plusieurs --cible et les contrôle toutes, pour
+#  qu'une campagne à cibles tournantes soit refusée avant son départ.
 #
 #  Registre : journaux/pannes.tsv — une ligne par injection et par retrait.
 #
@@ -230,11 +232,18 @@ for i in $p; do read -r _ _ s _ < /proc/$i/stat 2>/dev/null && echo "$i $s"; don
 # verifier — les préalables d'une cause, sans rien toucher
 # ------------------------------------------------------------------------------
 verifier_app() {
-    local cause="${1:-}" problemes=0
+    local cause="${1:-}" problemes=0 cibles=()
+    [ $# -gt 0 ] && shift
     case "$cause" in
         charge|lenteur|hote|blocage) ;;
         *) fail "Cause inconnue « $cause » — charge, lenteur, hote ou blocage" ;;
     esac
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --cible) [ -n "${2:-}" ] || fail "--cible : un nom"; cibles+=("$2"); shift 2 ;;
+            *) fail "Option inconnue : $1" ;;
+        esac
+    done
     if [ -f "$ETAT" ]; then
         . "$ETAT"
         warn "une injection est déjà en cours (« $CAUSE » depuis $DEBUT) — d'abord : $0 retirer"
@@ -268,9 +277,50 @@ verifier_app() {
                 demon_sur "$h" || { warn "pas de démon Chaos Mesh sur $h : le gel s'envoie depuis la machine, par lui — chaos.sh status"; problemes=1; }
             done ;;
     esac
+    [ "${#cibles[@]}" -eq 0 ] || verifier_cibles "$cause" "${cibles[@]}" || problemes=1
     [ "$problemes" = "0" ] && { ok "prêt pour « $cause »"; return 0; }
     warn "PAS prêt pour « $cause »"
     return 1
+}
+
+# Chaque cible passe les contrôles que son injection fera, sans rien toucher.
+# Pour hote, le nombre de cœurs est affiché : l'intensité par défaut en est la
+# moitié, et des hôtes de tailles différentes ne recevraient pas la même panne.
+verifier_cibles() {   # <cause> <cible>…
+    local cause="$1" c problemes=0 liste; shift
+    liste=$(repliques)
+    case "$cause" in
+        charge|lenteur) warn "--cible est sans objet pour « $cause »"; return 1 ;;
+    esac
+    for c in "$@"; do
+        case "$cause" in
+            hote)
+                if ! kubectl get node "$c" >/dev/null 2>&1; then
+                    warn "cible $c : nœud introuvable"; problemes=1; continue
+                fi
+                demon_sur "$c" || { warn "cible $c : pas de démon Chaos Mesh — chaos.sh status"; problemes=1; }
+                local coeurs libre sur
+                coeurs=$(kubectl get node "$c" -o jsonpath='{.status.capacity.cpu}' 2>/dev/null)
+                case "$coeurs" in ''|*[!0-9]*) warn "cible $c : nombre de cœurs illisible"; problemes=1; continue ;; esac
+                libre=$(millicoeurs_libres "$c")
+                [ -z "$libre" ] || [ "$libre" -ge 200 ] \
+                    || { warn "cible $c : ${libre}m allouables libres, pas de place pour un voisin"; problemes=1; }
+                sur=$(printf '%s\n' "$liste" | awk -F'\t' -v h="$c" '$2==h {print $1}' | paste -sd, -)
+                # La cause hote vise l'hôte d'une réplique : un autre nœud (une
+                # faute d'un chiffre, ou workers6, celui de la mesure) est refusé.
+                [ -n "$sur" ] || { warn "cible $c : aucune réplique de $CONSO dessus — pas une cible de la cause hote"; problemes=1; }
+                say "cible $c : $coeurs cœurs (intensité par défaut $((coeurs / 2))), ${libre:-?}m libres, répliques : ${sur:-aucune}" ;;
+            blocage)
+                local hote; hote=$(printf '%s\n' "$liste" | awk -F'\t' -v p="$c" '$1==p {print $2}')
+                if [ -z "$hote" ]; then
+                    warn "cible $c : pas une réplique en marche de $CONSO"; problemes=1
+                else
+                    say "cible $c : réplique en marche sur $hote"
+                fi ;;
+        esac
+    done
+    [ "$problemes" = "0" ] || return 1
+    ok "cibles vérifiées : $#"
 }
 
 # ------------------------------------------------------------------------------
@@ -658,10 +708,10 @@ temoin_app() {
 
 # ------------------------------------------------------------------------------
 case "${1:-etat}" in
-    verifier) verifier_app "${2:-}" ;;
+    verifier) shift; verifier_app "$@" ;;
     injecter) shift; injecter_app "$@" ;;
     retirer)  retirer_app ;;
     etat)     etat_app ;;
     temoin)   temoin_app ;;
-    *) echo "Usage: $0 {verifier <cause>|injecter <cause> [--duree <min>] [--intensite <n>] [--cible <x>]|retirer|etat|temoin}" >&2; exit 2 ;;
+    *) echo "Usage: $0 {verifier <cause> [--cible <x>]…|injecter <cause> [--duree <min>] [--intensite <n>] [--cible <x>]|retirer|etat|temoin}" >&2; exit 2 ;;
 esac

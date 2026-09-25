@@ -72,6 +72,8 @@
 #      tmux new -s campagne
 #      ./campagne.sh <nom> --profil "10:15,25:15,10:15,40:15"
 #      ./campagne.sh <nom> --profil "25:30" --panne lenteur --a 5 --duree 20
+#      ./campagne.sh <nom> --profil "25:135" --panne hote --a 5,50,95 --duree 20 \
+#                          --cible workers5,workers2,workers0
 #
 #  Le profil se lit « voyageurs:minutes », séparés par des virgules.
 #
@@ -82,7 +84,10 @@
 #                         depuis le premier palier
 #      --duree <min>      durée de chaque injection
 #      --intensite <n>    voyageurs (charge), millisecondes (lenteur), cœurs (hote)
-#      --cible <x>        nœud (hote) ou pod (blocage) ; sinon choisi par panne.sh
+#      --cible <x[,y…]>   nœud (hote) ou pod (blocage) ; sinon choisi par panne.sh.
+#                         Une liste donne une cible par injection, dans l'ordre
+#                         des --a (autant de cibles que d'injections) ; une
+#                         seule cible vaut pour toutes les injections
 #      --sans-collecte    ne pilote pas la collecte (elle est déjà en route)
 #      --sans-purge       ne remet pas les tables de commandes à zéro au départ
 #      --marge <min>      marge écartée de chaque côté (défaut : celle de collecte.sh)
@@ -128,7 +133,7 @@ usage() {
 }
 
 # ------------------------------------------------------------------------------
-NOM=""; PROFIL=""; PANNE=""; DEBUTS_BRUTS=""; DUREE=""; INTENSITE=""; CIBLE_PANNE=""
+NOM=""; PROFIL=""; PANNE=""; DEBUTS_BRUTS=""; DUREE=""; INTENSITE=""; CIBLE_PANNE=""; CIBLES=()
 COLLECTE=1; PURGE=1; MARGE=""
 [ $# -gt 0 ] || usage
 NOM="$1"; shift
@@ -195,7 +200,40 @@ if [ -n "$PANNE" ]; then
         DEBUTS+=("$m")
     done
     [ "${#DEBUTS[@]}" -gt 0 ] || fail "--a : aucune minute lisible"
-    mapfile -t DEBUTS < <(printf '%s\n' "${DEBUTS[@]}" | sort -n)
+
+    # Les cibles, une par injection, dans l'ordre où les --a sont écrits. Elles
+    # partent au master dans une ligne de commande : seuls les caractères d'un
+    # nom Kubernetes sont admis.
+    if [ -n "$CIBLE_PANNE" ]; then
+        case "$PANNE" in hote|blocage) ;;
+            *) fail "--cible est sans objet pour « $PANNE » : seules hote (un nœud) et blocage (un pod) visent un composant" ;; esac
+        # La chaîne entière d'abord : un retour à la ligne (liste collée depuis
+        # kubectl) couperait la lecture après le premier nom, sans erreur.
+        [[ "${CIBLE_PANNE// /}" =~ ^[a-z0-9.,-]+$ ]] \
+            || fail "--cible « $CIBLE_PANNE » : des noms séparés par des virgules (minuscules, chiffres, « - » et « . »)"
+        case "${CIBLE_PANNE// /}" in ,*|*,|*,,*) fail "--cible « $CIBLE_PANNE » : une cible vide dans la liste" ;; esac
+        IFS=',' read -ra MORCEAUX <<< "${CIBLE_PANNE// /}"
+        for c in "${MORCEAUX[@]}"; do
+            [[ "$c" =~ ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$ ]] \
+                || fail "--cible « $c » : pas un nom de nœud ou de pod (minuscules, chiffres, « - » et « . »)"
+            CIBLES+=("$c")
+        done
+        if [ "${#CIBLES[@]}" -eq 1 ]; then
+            for ((i = 1; i < ${#DEBUTS[@]}; i++)); do CIBLES+=("${CIBLES[0]}"); done
+        elif [ "${#CIBLES[@]}" -ne "${#DEBUTS[@]}" ]; then
+            fail "--cible donne ${#CIBLES[@]} cibles pour ${#DEBUTS[@]} injections : une seule, ou une par injection"
+        fi
+    fi
+
+    # Les débuts sont remis dans l'ordre du temps, chacun avec SA cible :
+    # « --a 95,5 --cible x,y » vise y à la minute 5 et x à la minute 95.
+    if [ "${#CIBLES[@]}" -gt 0 ]; then
+        mapfile -t PAIRES < <(for i in "${!DEBUTS[@]}"; do echo "${DEBUTS[$i]} ${CIBLES[$i]}"; done | sort -n -k1,1)
+        DEBUTS=(); CIBLES=()
+        for p in "${PAIRES[@]}"; do DEBUTS+=("${p%% *}"); CIBLES+=("${p#* }"); done
+    else
+        mapfile -t DEBUTS < <(printf '%s\n' "${DEBUTS[@]}" | sort -n)
+    fi
     precedent=-1
     for a in "${DEBUTS[@]}"; do
         [ "$a" -ge 1 ] || fail "--a $a : une injection commence au plus tôt à la minute 1"
@@ -231,9 +269,10 @@ done
 # déroulé mais sans arrêt. Une campagne de deux heures tourne sans personne
 # devant ; si l'application se casse à la minute 70, il faut pouvoir le lire.
 for ((m = 10; m < TOTAL; m += 10)); do EVENEMENTS+=("$((m * 60)) 5 veille -"); done
-for a in "${DEBUTS[@]}"; do
+for i in "${!DEBUTS[@]}"; do
+    a=${DEBUTS[$i]}
     EVENEMENTS+=("$((a * 60)) 1 temoin avant")
-    EVENEMENTS+=("$((a * 60)) 2 injecter -")
+    EVENEMENTS+=("$((a * 60)) 2 injecter $i")
     EVENEMENTS+=("$((a * 60 + DUREE * 30)) 1 temoin pendant")
     EVENEMENTS+=("$(((a + DUREE) * 60)) 3 retirer -")
     EVENEMENTS+=("$(((a + DUREE) * 60 + 60)) 4 temoin apres")
@@ -251,7 +290,7 @@ for ev in "${EVENEMENTS[@]}"; do
     case "$genre" in
         palier)   printf "      %4d   %s voyageurs\n" $((sec / 60)) "${arg%%:*}" ;;
         injecter) printf "      %4d   injection « %s »%s%s, pendant %s min\n" $((sec / 60)) "$PANNE" \
-                      "${INTENSITE:+ · intensité $INTENSITE}" "${CIBLE_PANNE:+ · cible $CIBLE_PANNE}" "$DUREE" ;;
+                      "${INTENSITE:+ · intensité $INTENSITE}" "${CIBLES[$arg]:+ · cible ${CIBLES[$arg]}}" "$DUREE" ;;
         retirer)  printf "      %4d   retrait\n" $((sec / 60)) ;;
         controle) printf "      %4d   contrôle des parcours\n" $((sec / 60)) ;;
         veille)   [ "$sec" -eq 600 ] && printf "      %4d   veille des parcours, puis toutes les 10 min\n" $((sec / 60)) ;;
@@ -278,12 +317,21 @@ if ! sortie=$(distant panne.sh etat); then
              À jour :   ./deploy.sh --push-scripts"
 fi
 if [ -n "$PANNE" ]; then
-    if sortie=$(distant panne.sh verifier "$PANNE"); then
+    # Chaque cible est vérifiée maintenant : une faute de frappe découverte à
+    # la troisième injection coûterait la campagne.
+    options_cibles=""
+    [ "${#CIBLES[@]}" -eq 0 ] \
+        || options_cibles=$(printf '%s\n' "${CIBLES[@]}" | sort -u | sed 's/^/--cible /' | paste -sd' ' -)
+    if sortie=$(distant panne.sh verifier "$PANNE" $options_cibles); then
         printf '%s\n' "$sortie" | sed 's/^/      /'
     else
         printf '%s\n' "$sortie" | sed 's/^/      /' >&2
         fail "Les préalables de « $PANNE » ne sont pas réunis."
     fi
+    # Une copie ancienne de panne.sh ignorerait les cibles sans rien dire.
+    [ "${#CIBLES[@]}" -eq 0 ] || printf '%s\n' "$sortie" | grep -q "cibles vérifiées" \
+        || fail "Le master n'a pas vérifié les cibles : sa copie de panne.sh n'est pas à jour.
+             À jour :   ./deploy.sh --push-scripts"
 fi
 
 # Les parcours doivent déjà passer AVANT le départ : un service laissé
@@ -329,7 +377,8 @@ ecrire_compte_rendu() {
             echo "panne:"
             echo "  cause: $PANNE"
             echo "  intensite: ${INTENSITE:-defaut}"
-            echo "  cible: ${CIBLE_PANNE:-automatique}"
+            if [ "${#CIBLES[@]}" -gt 0 ]; then echo "  cible: [$(IFS=,; echo "${CIBLES[*]}")]"
+            else echo "  cible: automatique"; fi
             echo "  debuts_min: [$(IFS=,; echo "${DEBUTS[*]}")]"
             echo "  duree_min: $DUREE"
             echo "  injections_confirmees: $injectees"
@@ -563,18 +612,21 @@ appliquer_palier() {
     fi
 }
 
-injecter() {
-    say "Injection « $PANNE » pendant $DUREE minutes"
+injecter() {   # <rang de l'injection, depuis 0>
+    local cible="${CIBLES[$1]:-}"
+    say "Injection « $PANNE » pendant $DUREE minutes${cible:+ sur $cible}"
     INJECTION_ACTIVE=1
+    # La cible est notée APRÈS le résultat : ligne_de_base.py lit « cause »
+    # puis « resultat », dans cet ordre et sans rien entre les deux.
     if sortie=$(distant panne.sh injecter "$PANNE" --duree "$DUREE" \
-                    ${INTENSITE:+--intensite "$INTENSITE"} ${CIBLE_PANNE:+--cible "$CIBLE_PANNE"}); then
+                    ${INTENSITE:+--intensite "$INTENSITE"} ${cible:+--cible "$cible"}); then
         printf '%s\n' "$sortie" | sed 's/^/      /'
-        noter_action "action: injection, cause: $PANNE, resultat: confirme"
+        noter_action "action: injection, cause: $PANNE, resultat: confirme${cible:+, cible: $cible}"
         injectees=$((injectees + 1))
     else
         printf '%s\n' "$sortie" | sed 's/^/      /' >&2
         warn "Injection non confirmée — la campagne continue, l'échec est enregistré."
-        noter_action "action: injection, cause: $PANNE, resultat: NON_CONFIRME"
+        noter_action "action: injection, cause: $PANNE, resultat: NON_CONFIRME${cible:+, cible: $cible}"
         non_injectees=$((non_injectees + 1))
     fi
 }
@@ -648,7 +700,7 @@ for ev in "${EVENEMENTS[@]}"; do
     attendre_jusqua $((T0 + sec))
     case "$genre" in
         palier)   appliquer_palier "$arg" ;;
-        injecter) injecter ;;
+        injecter) injecter "$arg" ;;
         retirer)  retirer ;;
         temoin)   temoin "$arg" ;;
         controle) controle_des_parcours ;;

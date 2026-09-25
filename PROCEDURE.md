@@ -739,13 +739,14 @@ tmux new -s campagne
 | `--a <min[,min…]>` | minute(s) de début, depuis le premier palier ; `--a 5,35,65` répète | — |
 | `--duree <min>` | durée de chaque injection | — |
 | `--intensite <n>` | voyageurs (`charge`) · ms de retard en plus (`lenteur`) · cœurs réclamés par le voisin (`hote`) | 2 × la charge · 300 · la moitié de l'hôte |
-| `--cible <x>` | nœud (`hote`) ou pod (`blocage`) | le moins chargé des hôtes portant une réplique · la première réplique |
+| `--cible <x[,y…]>` | nœud (`hote`) ou pod (`blocage`) ; une liste donne une cible par injection, dans l'ordre des `--a` (autant de cibles que d'injections), une seule vaut pour toutes ; toutes sont vérifiées avant le départ | le moins chargé des hôtes portant une réplique · la première réplique |
 
 Le pilote décide **quand** ; `apps/panne.sh`, sur le master, décide **comment**
 et consigne **qui** a été touché. Le compte rendu reçoit en plus :
 
 ```
-   panne:                  cause, intensité, cible, minutes de début, durée
+   panne:                  cause, intensité, cible(s), minutes de début, durée
+   deroule:                chaque injection avec son résultat, puis sa cible
    pannes_mesurees:        le registre de panne.sh — qui, quand, avec quoi
    # Témoins               file, consommateurs, charge des répliques et des
                            hôtes : juste avant, au milieu, une minute après
