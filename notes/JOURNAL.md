@@ -735,3 +735,30 @@ Vérifié : les six compteurs arrivent dans S3 dès 16:52 UTC pour les huit mach
 interface physique `enp6s18`. Graphe de 16:51 à 16:57 sur vms0, fenêtre 16:53 :
 réception 13 à 134 ko/s (workers6, la mesure, en tête), envoi 17 à 113 ko/s,
 2 paquets jetés par minute partout, aucune retransmission TCP. Collecte refermée.
+
+## 2026-09-25 — Référence normale saine-09 (seconde série)
+
+Pilote : `./campagne.sh saine-09 --profil "10:30,25:30,20:30,15:30"` sur vms0, tmux
+`normale`, le 24 septembre de 17:34 à 19:34 UTC. Données remises à zéro au départ
+(10 lignes), quatre paliers confirmés, douze veilles « parcours ok », file au plus à 3
+au palier de 25 voyageurs puis revenue à 0. Aucun redémarrage de conteneur, mesure
+restée sur workers6. Plage exploitable 17:37 à 19:32.
+
+Graphe sur vms0 (`~/configs-hors-git/config-saine-09.yaml`, `databases` et
+`scaler: write`), run `20260925-113438` : 1 547 116 spans, 115 fenêtres, 58/2/8 nœuds,
+cinq relations dont 15 ou 16 arêtes `queries` par fenêtre, résolution 100 %,
+0 avertissement. `scaler.json` recalé sur saine-09 (18 / 6 / 9 colonnes) ; l'ancien,
+calé sur saine-08, est gardé en `scaler-v1-saine-08.json`.
+
+Valeurs absentes 29,7 % contre 30,4 % pour saine-08, mêmes colonnes (temps de traitement
+et de requête des pods qui n'en ont pas) : structurel. Colonnes réseau de l'hôte
+remplies partout. Les trois répliques du consommateur interrogent la base en 143 ms,
+les autres appelants en quelques millisecondes.
+
+Observé grâce aux nouveaux compteurs : la réception de workers1 et l'envoi de workers4
+montent au fil de la campagne (50 ko/s à 1,2 Mo/s). C'est ts-order-service qui reçoit
+de plus en plus d'octets de tsdb-mysql-0 : la table des commandes grossit après la
+remise à zéro et chaque lecture la renvoie. saine-08 montrait déjà la même montée
+(15 à 896 ko/s). Comportement de l'application, identique dans toutes les campagnes
+tant que chacune part de la même purge et dure autant ; les hôtes visés par les pannes
+(workers0, 2, 5) ne sont pas concernés.
