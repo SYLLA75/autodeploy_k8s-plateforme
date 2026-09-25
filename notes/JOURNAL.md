@@ -762,3 +762,31 @@ remise à zéro et chaque lecture la renvoie. saine-08 montrait déjà la même 
 (15 à 896 ko/s). Comportement de l'application, identique dans toutes les campagnes
 tant que chacune part de la même purge et dure autant ; les hôtes visés par les pannes
 (workers0, 2, 5) ne sont pas concernés.
+
+## 2026-09-25 — Cibles tournantes : `--cible` en liste, essai à blanc réussi
+
+Code (commit 58c9691) : `campagne.sh --cible x,y,z` donne une cible par injection, dans
+l'ordre des `--a` (chaque cible suit sa minute au tri) ; une seule cible vaut pour
+toutes ; refusée pour charge et lenteur ; chaîne entière limitée aux caractères d'un nom
+Kubernetes. `panne.sh verifier <cause> --cible …` contrôle chaque cible avant le départ :
+réplique en marche (blocage) ; nœud qui porte une réplique, démon Chaos Mesh, place libre
+(hote). Le déroulé note la cible après le résultat, `ligne_de_base.py` lit les lignes
+comme avant (vérifié sur les essais et sur blocage-02). Relecture par quatre relecteurs
+indépendants : deux défauts réels corrigés avant le commit (liste collée avec des retours
+à la ligne réduite à son premier nom ; hôte sans réplique accepté comme cible).
+
+Ordre retenu pour la seconde série : blocage bmgvs (workers2) → r5pwb (workers0) →
+tvmfl (workers5) ; hôte workers5 → workers2 → workers0. Au même rang d'injection, les deux
+causes ne frappent jamais la même machine. Les huit machines ont 4 cœurs : l'intensité
+par défaut de l'hôte vaut 2 partout. La demande du voisin reste plafonnée par la place
+libre de chaque machine (1 400 à 1 700m, comme les 1 600m de hote-01) ; le stress, lui,
+occupe les 4 cœurs à 100 % partout.
+
+Avant l'essai, le pilote a refusé de partir : « chercher un train » à 43 % d'échecs,
+15 057 commandes après 15 h de Locust à 10 voyageurs depuis la fin de saine-09. Remède
+`donnees.sh purger --redemarrer`, recherche revenue à 0,9/s sans échec.
+
+Essai sur vms0, collecte éteinte (`--sans-collecte`, rien dans S3), 12 min par cause,
+injections de 2 min aux minutes 3, 6 et 9 : six injections confirmées, chacune sur sa
+cible (pannes.tsv et déroulé concordent), réplique gelée à 0m de CPU, hôte visé à 4000m,
+rien de résiduel. Dossiers d'essai rangés hors du dépôt.
