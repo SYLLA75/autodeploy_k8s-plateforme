@@ -944,3 +944,32 @@ règles de jugement étaient incomplètes ; complétées avant tout calcul :
 Et la lecture des campagnes à venir échoue bruyamment au lieu de se taire : campagne
 interrompue, nom de cause inconnu, retrait raté, injection jamais retirée, compte
 d'injections différent de l'en-tête, nombre de répliques de la lenteur.
+
+## 2026-09-26 — Phase B.2 : le juge commun
+
+`graphe_en/juge.py` (commits de B.2 jusqu'à 519c686) : tous les témoins, puis le GNN, passent
+par lui. Il lit les 10 graphes figés (refusés s'ils ne sont pas conformes au gel), étiquette
+chaque minute, coupe apprentissage et test, et note les réponses avec les règles de B.1.
+`campagnes/etiquettes.txt` en garde la trace (identique sur le poste et sur vms0).
+
+Étiquettes et coupure identiques à celles des lignes de base (`ligne_de_base.py`), minute
+par minute, sur les 1 211 minutes : 408 normales, 458 de panne, 303 de vidange, 42 à cheval.
+Test sans les écartées : 312 minutes, dont 153 de panne (8 injections, 6 avec un fautif) et
+159 normales (39 de saine-09, marquées « vues » par la mise à l'échelle).
+
+Une relecture indépendante (3 relecteurs, chaque constat revérifié) a trouvé de vrais
+défauts, corrigés avant qu'un seul témoin soit calculé :
+- le fautif n'était classé que parmi les nœuds notés par le témoin : un témoin qui ne
+  notait RIEN obtenait 100 %. Il est maintenant classé parmi tous les nœuds de la fenêtre ;
+- un NaN float32 (numpy, tenseur) sur le fautif le mettait premier ; classé dernier ;
+- une alarme « False » (texte) ou 0,03 (probabilité) comptait comme alarme ; refusée,
+  comme toute réponse mal formée ou un nœud nommé par son uid ;
+- la bonne cause dépendait de la liste passée à la notation ; fixée une fois à la lecture.
+Chaque correction a son essai dans le script (témoins factices de note connue, refus).
+
+**Constat honnête, à écrire dans le rapport.** Un témoin « a priori », qui ne lit AUCUNE
+donnée et classe les nœuds par le nombre de fois qu'ils ont été fautifs à l'apprentissage,
+obtient déjà 100 % en top-1 sur la lenteur et 100 % en top-3 sur le blocage : les fautifs
+sont toujours les trois mêmes répliques. Il fait 0 sur l'hôte. Sur les quatre causes
+actuelles, les mesures qui départagent vraiment sont donc le top-1 du blocage et de l'hôte ;
+et la base lente (C), dont le fautif n'a jamais été fautif, où ce plancher fait 0.

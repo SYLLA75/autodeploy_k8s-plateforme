@@ -33,6 +33,8 @@ pas en appliquant le diff tel quel. Décidé le 26 sept. : en une seule fois,
 | A.8 | le gel : ce qui est figé et sa vérification | `graphe_en/graphe_fige.json`, `gel.py` (nouveaux), `LEXIQUE.md`, `README.md` | 440e8af, 100945c, étiquette `graphe-fige` |
 | B.1 | le fautif de chaque injection et les règles de jugement, écrits avant tout calcul | `graphe_en/fautifs.py` (nouveau) | e338da4, 3c5aa84 |
 
+| B.2 | le juge commun : lecture des graphes figés, étiquette des minutes, coupure, notation, essais du juge | `graphe_en/juge.py` (nouveau), `fautifs.py` | 5 commits jusqu'à 519c686 |
+
 **Encore à coder, pas encore fait :**
 - avant la prochaine campagne (début de C) : `campagne.sh` écrit le
   placement des pods (pod → machine) dans le compte rendu de chaque campagne.
@@ -138,6 +140,13 @@ reprennent la perspective (19 et 20 de la version allégée, 16 de la plénière
     minute ET par injection ; une panne jamais vue a pour bonne cause
     « panne inconnue » (c'est là que sert le rejet du classifieur à
     prototypes).
+
+27b. **Le plancher « a priori »** (B.2) : une méthode qui ne lit aucune donnée,
+    et classe les nœuds par le nombre de fois qu'ils ont été fautifs à
+    l'apprentissage, a déjà 100 % en top-1 sur la lenteur et 100 % en top-3
+    sur le blocage (toujours les trois mêmes répliques), 0 sur l'hôte. Donner
+    ce plancher à côté de chaque méthode ; les mesures qui départagent sont le
+    top-1 du blocage et de l'hôte, et la base lente (fautif jamais vu).
 
 ### Limites à écrire honnêtement
 27. **Dérive** : toute méthode qui apprend le « normal » se trompe si le normal
