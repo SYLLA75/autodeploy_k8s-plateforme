@@ -25,7 +25,7 @@ Everything is set in `config.yaml`. Nothing is hard-coded elsewhere.
 
 ## The graph
 
-Three kinds of node, four relations, following the formalisation — with
+Three kinds of node, five relations, following the formalisation — with
 one departure: the paper puts 19 components on an instance, this puts 18.
 The nineteenth was the consumed-message rate, which is already a component
 of the consumption relation. See the header of `features.py`.
@@ -34,7 +34,7 @@ of the consumption relation. See the header of `features.py`.
 |------|-----------|------------|
 | `instance` | 18 | one running copy of a service — a pod |
 | `queue` | 6 | one message queue |
-| `host` | 5 | one machine of the cluster — a node |
+| `host` | 9 | one machine of the cluster — a node (the last four, network, only from the second series on) |
 
 | relation | direction | components |
 |----------|-----------|-----------|
@@ -42,6 +42,11 @@ of the consumption relation. See the header of `features.py`.
 | `publishes` | instance → queue | 1 |
 | `consumes` | queue → instance | 1 |
 | `executes_on` | instance → host | 0, purely structural |
+| `queries` | instance → instance (a database pod) | 5, the same as `calls`, measured at the caller |
+
+`queries` comes from the caller's database spans (`db.system`): the database
+emits no trace of its own. Its address is mapped to a pod by `graph.databases`
+in the configuration. See `LEXIQUE.md`.
 
 ## Output
 

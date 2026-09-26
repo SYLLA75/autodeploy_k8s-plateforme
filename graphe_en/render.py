@@ -12,6 +12,10 @@ THREE BANDS, bottom to top:
 Instances are ordered by host then by name, so the "executes on" lines group
 instead of crossing and membership can be read at a glance.
 
+THE QUEUE VIEW ALSO SHOWS THE DATABASES ITS INSTANCES QUERY. A slow database
+slows the consumer from two hops away; without it in the view, the one arrow
+that would show the cause — replica to database — could never be drawn.
+
 A QUEUE SITS ABOVE THE INSTANCES IT TOUCHES (the barycentre of its neighbours),
 not at an arbitrary rank. Placed by rank, its two edges cross the whole figure
 and nothing can be read.
@@ -58,6 +62,7 @@ from matplotlib.lines import Line2D                          # noqa: E402
 from matplotlib.patches import FancyArrowPatch                # noqa: E402
 
 LINE_GREY = "#9a9a9a"
+QUERY_GREY = "#5a5a5a"
 PALE_GREY = "#d8d8d8"
 INK = "#1a1a1a"
 ACCENT = "#c2410c"
@@ -133,6 +138,8 @@ def _campaign_neighbourhood(snapshots: list[dict], queue_name: str
 
     Taken over the union, not per window: a publisher that is idle for one
     minute must keep its place, or the figures stop being comparable.
+
+    The databases those instances query are added, with their hosts.
     """
     queue_keys, instance_keys = set(), set()
     for snap in snapshots:
@@ -149,6 +156,17 @@ def _campaign_neighbourhood(snapshots: list[dict], queue_name: str
                     instance_keys.add(snap["nodes"]["instance"]["keys"][edge[side][k]])
     if not queue_keys:
         raise SystemExit(f"queue '{queue_name}' never appears in this campaign")
+
+    databases = set()
+    for snap in snapshots:
+        edge = snap["edges"].get("queries")
+        if not edge:
+            continue
+        keys = snap["nodes"]["instance"]["keys"]
+        for k in range(len(edge["source"])):
+            if keys[edge["source"][k]] in instance_keys:
+                databases.add(keys[edge["target"][k]])
+    instance_keys |= databases
 
     host_names = set()
     for snap in snapshots:
@@ -346,6 +364,21 @@ def draw(snapshot: dict, layout: Layout, base: Path,
             _arrow(ax, pair[0], pair[1], LINE_GREY,
                    0.6 + 1.8 * (rates[k] / top), curve=0.16, alpha=0.75)
 
+    # Calls to a database, measured at the caller: dashed, bent the other way
+    # from calls so the two never merge. Absent from snapshots built before the
+    # relation existed.
+    block = snapshot["edges"].get("queries")
+    if block and block["source"]:
+        rates = [row[0] or 0 for row in block["X"]] or [1]
+        top = max(rates) or 1
+        for k in range(len(block["source"])):
+            pair = both_shown("instance", block["source"][k],
+                              "instance", block["target"][k])
+            if pair:
+                _arrow(ax, pair[0], pair[1], QUERY_GREY,
+                       0.6 + 1.8 * (rates[k] / top), curve=-0.22,
+                       style=(0, (4, 2)), alpha=0.85)
+
     for relation, sk, tk in (("publishes", "instance", "queue"),
                              ("consumes", "queue", "instance")):
         block = snapshot["edges"][relation]
@@ -386,6 +419,9 @@ def draw(snapshot: dict, layout: Layout, base: Path,
                     detail = (f"cpu {_num(pick('cpu_busy'), '%')}"
                               f"   mem {_num(pick('memory_available_min'), 'B')}"
                               f"\ncpu pressure {_num(pick('cpu_pressure'))}")
+                    if "net_rx_rate" in columns["host"]:
+                        detail += (f"\nnet in {_num(pick('net_rx_rate'), 'B')}/s"
+                                   f"  out {_num(pick('net_tx_rate'), 'B')}/s")
                     ax.text(x, y - 0.17, f"{name}\n{detail}", ha="center",
                             va="top", fontsize=7.8, color=INK, linespacing=1.5)
 
@@ -446,9 +482,11 @@ def draw(snapshot: dict, layout: Layout, base: Path,
     ax.legend(handles=[
         Line2D([], [], color=ACCENT, lw=1.9, label="publish / consume"),
         Line2D([], [], color=LINE_GREY, lw=1.4, label="calls (width = rate)"),
+        Line2D([], [], color=QUERY_GREY, lw=1.4, ls=(0, (4, 2)),
+               label="queries a database (width = rate)"),
         Line2D([], [], color=PALE_GREY, lw=1.0, ls=(0, (1, 2)),
                label="executes on"),
-    ], loc="lower right", frameon=False, fontsize=8.5, ncol=3,
+    ], loc="lower right", frameon=False, fontsize=8.5, ncol=4,
         bbox_to_anchor=(1.0, -0.16))
 
     ax.set_xlim(-0.06, 1.06)
