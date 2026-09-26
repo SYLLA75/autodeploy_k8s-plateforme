@@ -48,6 +48,43 @@ of the consumption relation. See the header of `features.py`.
 emits no trace of its own. Its address is mapped to a pod by `graph.databases`
 in the configuration. See `LEXIQUE.md`.
 
+## The frozen graph
+
+Since 26 September 2026 (git tag `graphe-fige`) the graph no longer changes:
+not a component, not a relation, not a window setting. The witnesses of phase B
+and the GNN of phase E must all read the same graph, and it was frozen before
+any data of the slow database (phase C): a graph adjusted after seeing that
+fault would be tailored to the answer.
+
+`graphe_fige.json` lists what is frozen — the components of each node kind in
+order, each relation with its direction and components, the components logged
+before scaling (nodes and relations), the settings that change the numbers, the
+database address and its pod, how tensors are written, the fingerprint of the
+scaling fitted on saine-09 — and the files that compute the graph. `gel.py`
+checks against it:
+
+```bash
+./.venv/bin/python gel.py                      # the code here
+./.venv/bin/python gel.py runs/20260926-010117 # and these graphs
+```
+
+The reference is read from the tag (`git show graphe-fige:…`), never from the
+disk, so editing `graphe_fige.json` loosens nothing: it is reported. A missing
+tag is reported too (`git fetch --tags` on a copy that lacks it).
+
+Without arguments: the tag, no difference from it in `graphe_fige.json` and the
+listed files (uncommitted edits included), the components and relations in the
+code, and `scaler.json` when present. With run directories, each one also: the
+code that built it (every run's manifest records the commit and the sha256 of
+each module, compared with the tagged files), its settings, how its tensors
+were written and scaled, each window's components, and its `queries` edges (at
+least one, all to the frozen database pod, no call to an unknown address). A
+graph built before the freeze is refused.
+
+A mismatch is never fixed silently. If the graph really has to change: say so,
+record it in `notes/JOURNAL.md`, edit `graphe_fige.json`, set a new tag, and
+rebuild every campaign.
+
 ## Output
 
 One timestamped directory per run; nothing is ever overwritten.
@@ -98,7 +135,8 @@ Never choose a width equal to the fault duration — that is the worst case, and
 no step guarantees seeing the fault whole.
 
 **Scaling.** `export.scaler: write` fits means and standard deviations on the
-current campaign; `apply` reuses them. Fit on the **healthy** campaign only,
+current campaign, for every node component and every edge component; `apply`
+reuses them. Fit on the **healthy** campaign only,
 then apply to the faulty one. Fitting on both lets the anomaly into the
 normalisation, which then partly erases it, and nothing signals that the results
 are wrong.
@@ -118,8 +156,12 @@ Recorded in every `manifest.json`, so the dataset documents itself.
 3. **Duplicated consumptions.** One consumed message emits two identical spans.
    They are deduplicated; otherwise the consume rate doubles and the imbalance
    turns negative on a healthy queue.
-4. **Reported, not fixed.** Instance component 4 and consumption relation
-   component 1 are the same quantity. It appears twice in the representation.
+4. **The consumed-message rate, once.** The paper writes it twice: instance
+   component 4 and consumption relation component 1. It is kept on the
+   consumption relation only, hence 18 instance components instead of 19 (see
+   the header of `features.py`). Manifests written before the graph was
+   frozen still carry the old wording, "reported, not fixed"; their numbers
+   are the same.
 
 ## Notes on the figures
 

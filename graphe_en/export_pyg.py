@@ -35,6 +35,14 @@ plumbing, and each one a setting.
    columns concerned are named below, not guessed, so a reviewer can dispute the
    list.
 
+EDGES ARE SCALED LIKE NODES, from the same healthy campaign. Their attributes
+span as much as the nodes' do (a call rate of 0.02/s next to one of 29/s, a
+latency of 0.3 ms next to one of 960 ms), and they carry the signal the graph
+exists for: a slow database shows only on the queries edges pointing at it.
+Decided when the graph was frozen, before any data of that fault, rather than
+left to the model. Edge values are never absent in practice (an edge exists
+only where calls were seen); a hole would still become 0.
+
 DEVICE. Tensors can be built on a GPU, but THE FILE ALWAYS STORES CPU TENSORS,
 deliberately: a file holding GPU tensors can only be reloaded on a machine that
 has one, sometimes only with the same CUDA release. That is the opposite of
@@ -68,6 +76,13 @@ LOG_COLUMNS = {
     "queue": ["backlog"],
     "host": ["memory_available_min", "net_rx_rate", "net_tx_rate",
              "net_drop_rate"],
+}
+# The same for relations: rates and latencies, never a ratio.
+LOG_EDGE_COLUMNS = {
+    "calls": ["call_rate", "latency_p50", "latency_p95", "latency_p99"],
+    "publishes": ["rate"],
+    "consumes": ["rate"],
+    "queries": ["call_rate", "latency_p50", "latency_p95", "latency_p99"],
 }
 
 
@@ -112,38 +127,46 @@ def environment(device: str) -> dict:
     }
 
 
+def _fit(blocks: list[dict], logged: set[str]) -> list[dict]:
+    """Mean and standard deviation per column of one node kind or relation."""
+    columns = blocks[0]["columns"]
+    stats = []
+    for j, name in enumerate(columns):
+        seen = []
+        for block in blocks:
+            for row in block["X"]:
+                v = row[j]
+                if v is None:
+                    continue
+                if name in logged:
+                    v = math.log1p(max(0.0, v))
+                seen.append(v)
+        if seen:
+            mean = sum(seen) / len(seen)
+            sd = math.sqrt(sum((x - mean) ** 2 for x in seen) / len(seen))
+        else:
+            mean, sd = 0.0, 1.0
+        stats.append({"column": name, "mean": mean,
+                      "std": sd if sd > 1e-12 else 1.0,
+                      "log": name in logged, "observations": len(seen)})
+    return stats
+
+
 def fit_scaler(snapshots: list[dict]) -> dict:
-    """Mean and standard deviation per column, absences ignored."""
-    scaler = {}
-    for kind in KINDS:
-        columns = snapshots[0]["nodes"][kind]["columns"]
-        logged = set(LOG_COLUMNS.get(kind, []))
-        stats = []
-        for j, name in enumerate(columns):
-            seen = []
-            for s in snapshots:
-                for row in s["nodes"][kind]["X"]:
-                    v = row[j]
-                    if v is None:
-                        continue
-                    if name in logged:
-                        v = math.log1p(max(0.0, v))
-                    seen.append(v)
-            if seen:
-                mean = sum(seen) / len(seen)
-                sd = math.sqrt(sum((x - mean) ** 2 for x in seen) / len(seen))
-            else:
-                mean, sd = 0.0, 1.0
-            stats.append({"column": name, "mean": mean,
-                          "std": sd if sd > 1e-12 else 1.0,
-                          "log": name in logged, "observations": len(seen)})
-        scaler[kind] = stats
+    """Mean and standard deviation per column, absences ignored: per node
+    kind, and under "relations" per relation carrying numbers."""
+    scaler = {kind: _fit([s["nodes"][kind] for s in snapshots],
+                         set(LOG_COLUMNS.get(kind, [])))
+              for kind in KINDS}
+    scaler["relations"] = {
+        relation: _fit([s["edges"][relation] for s in snapshots],
+                       set(LOG_EDGE_COLUMNS.get(relation, [])))
+        for relation, (_, _, columns) in RELATIONS.items() if columns}
     return scaler
 
 
 def _transform(row: list, stats: list[dict] | None, columns: list[str],
-               kind: str) -> tuple[list, list[bool]]:
-    logged = set(LOG_COLUMNS.get(kind, []))
+               logged: set[str]) -> tuple[list, list[bool]]:
     out, present = [], []
     for j, v in enumerate(row):
         present.append(v is not None)
@@ -170,12 +193,16 @@ def _check_scaler(snapshots: list[dict], scaler: dict) -> None:
     warning, just wrong numbers all the way to training. Each entry records the
     name it was fitted on, so the mismatch is caught here instead.
     """
-    for kind in KINDS:
-        expected = snapshots[0]["nodes"][kind]["columns"]
-        fitted = [s["column"] for s in scaler.get(kind, [])]
+    wanted = [(kind, snapshots[0]["nodes"][kind]["columns"],
+               scaler.get(kind, [])) for kind in KINDS]
+    wanted += [(relation, columns,
+                scaler.get("relations", {}).get(relation, []))
+               for relation, (_, _, columns) in RELATIONS.items() if columns]
+    for name, expected, stats in wanted:
+        fitted = [s["column"] for s in stats]
         if fitted != expected:
             raise SystemExit(
-                f"the saved scaling does not match the current {kind} vector\n"
+                f"the saved scaling does not match the current {name} vector\n"
                 f"    fitted on : {len(fitted)} components "
                 f"({', '.join(fitted) or 'none'})\n"
                 f"    needed    : {len(expected)} components "
@@ -200,7 +227,8 @@ def convert(snapshots: list[dict], scaler: dict | None, missing: str,
             buckets = [[] for _ in columns]
             for s in snapshots:
                 for row in s["nodes"][kind]["X"]:
-                    values, _ = _transform(row, stats, columns, kind)
+                    values, _ = _transform(row, stats, columns,
+                                           set(LOG_COLUMNS.get(kind, [])))
                     for j, v in enumerate(values):
                         if v is not None:
                             buckets[j].append(v)
@@ -215,7 +243,8 @@ def convert(snapshots: list[dict], scaler: dict | None, missing: str,
             stats = scaler.get(kind) if scaler else None
             rows, masks = [], []
             for row in block["X"]:
-                values, present = _transform(row, stats, columns, kind)
+                values, present = _transform(row, stats, columns,
+                                             set(LOG_COLUMNS.get(kind, [])))
                 filler = fillers.get(kind) if missing == "mean" else None
                 values = [(filler[j] if filler else 0.0) if v is None else v
                           for j, v in enumerate(values)]
@@ -236,8 +265,12 @@ def convert(snapshots: list[dict], scaler: dict | None, missing: str,
             block = snap["edges"][relation]
             index = torch.tensor([block["source"], block["target"]],
                                  dtype=torch.long).reshape(2, -1).to(device)
+            stats = (scaler.get("relations", {}).get(relation)
+                     if scaler else None)
+            logged = set(LOG_EDGE_COLUMNS.get(relation, []))
             attr = torch.tensor(
-                [[0.0 if v is None else float(v) for v in row]
+                [[0.0 if v is None else v for v in
+                  _transform(row, stats, block["columns"], logged)[0]]
                  for row in block["X"]],
                 dtype=torch.float32).reshape(len(block["X"]),
                                              len(block["columns"])).to(device)

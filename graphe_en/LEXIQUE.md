@@ -3,8 +3,15 @@
 Ce fichier dit, pour chaque attribut d'une fenêtre, d'où vient le nombre,
 dans quelle unité il est, ce qu'il vaut quand tout va bien, et quelle panne
 le fait bouger. Les valeurs « saines » sont celles de la référence saine-07
-(25 voyageurs) ; les valeurs « en panne » viennent des essais courts du 12
-septembre 2026 (`campagnes/essai-*/lecture.txt`).
+(25 voyageurs), sauf les quatre nombres réseau de l'hôte, mesurés sur saine-09
+(palier à 25 voyageurs, 18:08–18:34 UTC) ; les valeurs « en panne » viennent
+des essais courts du 12 septembre 2026 (`campagnes/essai-*/lecture.txt`) et de
+la seconde série pour le réseau.
+
+**Le graphe est figé depuis le 26 septembre 2026** (étiquette git
+`graphe-fige`) : les colonnes, les relations et les réglages décrits ici ne
+changent plus. `graphe_fige.json` les liste, `gel.py` vérifie le code et les
+graphes construits (README, « The frozen graph »).
 
 ## D'où viennent les nombres
 
@@ -94,16 +101,31 @@ rien, donc aucun span. L'absence est portée par un masque, pas par un zéro
 | `memory_pressure` | idem pour la mémoire | rate | 0 | 0 |
 | `io_pressure` | idem pour le disque | rate | 0 | 0 |
 | `memory_available_min` | mémoire libre au pire moment de la minute | extreme (min) | 2,8 G | baisse si un voisin mange la mémoire |
-| `net_rx_rate` | octets reçus par seconde sur la carte réseau de la machine | rate | à mesurer | monte si un voisin inonde le réseau |
-| `net_tx_rate` | octets envoyés par seconde, même carte | rate | à mesurer | idem |
-| `net_drop_rate` | paquets jetés par seconde (reçus + envoyés), même carte | rate | à mesurer | monte quand la carte déborde |
-| `tcp_retrans_ratio` | part des segments TCP envoyés qui ont dû être renvoyés | ratio | à mesurer | monte quand le réseau perd ou encombre |
+| `net_rx_rate` | octets reçus par seconde sur la carte réseau de la machine | rate | 35 à 70 ko/s, hors exceptions ci-dessous | monte si un voisin inonde le réseau |
+| `net_tx_rate` | octets envoyés par seconde, même carte | rate | 35 à 50 ko/s, hors exceptions ci-dessous | idem |
+| `net_drop_rate` | paquets jetés par seconde (reçus + envoyés), même carte | rate | constant par machine : 0,033 (2 par minute) ou 0,05 (3 par minute), voir plus bas | monte au-dessus de la constante de sa machine quand la carte déborde |
+| `tcp_retrans_ratio` | part des segments TCP envoyés qui ont dû être renvoyés | ratio | 0 (quelques fenêtres à ~1e-4 sur le master) | monte quand le réseau perd ou encombre ; ~1e-4 à 1e-3 sous la panne hôte |
 
 Les quatre attributs réseau ne lisent que la carte physique de la machine
 (`enp6s18` sur les huit VM) : les interfaces virtuelles des pods (`cali*`), de
 l'overlay (`vxlan.calico`) et de kube-proxy compteraient le même trafic deux
-ou trois fois. Ils n'existent pas dans les cinq campagnes du 13 septembre
-(relevés à partir du 24 septembre) : là, ils sont absents, jamais 0.
+ou trois fois. Ils n'existent pas dans la première série (relevés seulement à
+partir du 24 septembre) : là, ils sont absents, jamais 0.
+
+Quatre machines sortent de cette fourchette, et ce n'est pas une panne. Le
+master reçoit ~13 ko/s et envoie ~115 ko/s ; workers6, la machine de mesure
+(Locust), reçoit ~160 ko/s. Celle qui porte la base (`tsdb-mysql-0`, workers4)
+envoie, et celle qui porte `ts-order-service` reçoit, le même flux : la table
+des commandes, qui grossit depuis la dernière purge et que le service relit.
+Il va de quelques dizaines de ko/s juste après une purge à plusieurs Mo/s
+(saine-09 : 44 ko/s à 1,56 Mo/s, médiane 0,85 ; charge-04 : jusqu'à 5 Mo/s).
+Ce flux dépend donc du placement des pods et de l'âge de la purge, pas de la
+panne.
+
+`net_drop_rate` est une constante propre à chaque machine, jamais nulle :
+0,033 partout dans saine-09 (24 sept.) ; à partir du 25 sept., 0,05 sur le
+master, workers1 et workers6, 0,033 ailleurs, sans varier d'une fenêtre à
+l'autre. Seul un écart à la constante de la machine serait un signal.
 
 `cpu_pressure` n'est pas « part du processeur utilisée » (ça, c'est
 `cpu_busy`) : c'est une part de *temps d'attente*. À 0,63, les programmes
@@ -126,7 +148,7 @@ attendent un cœur 63 % du temps.
 | charge | `publish_rate` ↑, `backlog` ↑, `call_rate` en amont ↑ | `process_time`, `consumers`, hôtes |
 | lenteur | `process_time_*` des 3 répliques ↑, `latency_*` réplique → base ↑, `consume_rate` ↓, `backlog` ↑ | `publish_rate`, cpu, hôtes |
 | blocage | `consumers` 3 → 2, une réplique à `cpu_rate` 0 sans `process_time`, `backlog` ↑ | `publish_rate`, les 2 autres répliques |
-| hote | `cpu_busy`, `cpu_pressure` d'un hôte ↑ | **tout le reste, file comprise** (mesuré : la demande CPU du pod le protège) |
+| hote | `cpu_busy`, `cpu_pressure` d'un hôte ↑ ; `tcp_retrans_ratio` parfois > 0 sur l'hôte visé (2 fenêtres sur 20 à 12 sur 20) et sur le master (hote-02) | **la file, les répliques, le débit réseau** (mesuré : la demande CPU du pod le protège) — sauf si un service en amont tourne sur la machine visée : hote-02, 3e injection, `ts-order-service` sur workers0, le dépôt dans la file tombe de 3,6 à 0,94 msg/s et le trafic de toutes les machines baisse (workers0 en réception et workers4 en envoi −73 %, les autres −25 à −35 %) |
 
 Ce qui ne bouge pas compte autant que ce qui bouge : c'est ce qui permet
 d'exclure les autres causes.
@@ -136,11 +158,19 @@ d'exclure les autres causes.
 | où | forme | un `cpu_rate` négatif y veut dire |
 |---|---|---|
 | `window_*.json`, `lecture.txt` | valeurs **brutes** | une erreur (compteur remis à zéro) — ne devrait pas arriver |
-| `graph.pt` | valeurs **mises à l'échelle** : (valeur − moyenne saine) ÷ écart-type sain, avec `scaler.json` calculé sur la référence | « un peu en dessous de la moyenne saine » — normal |
+| `graph.pt` | valeurs **mises à l'échelle** : (valeur − moyenne saine) ÷ écart-type sain, avec `scaler.json` calculé sur la référence, pour les nœuds **et pour les flèches** | « un peu en dessous de la moyenne saine » — normal |
 
 Le modèle voit la forme mise à l'échelle : il apprend l'écart à la normale,
 en unités d'écart-type. Un `publish_rate` à +3, c'est « très au-dessus de ce
 qu'on voit sain » — c'est une charge.
+
+Les flèches sont mises à l'échelle comme les nœuds, sur la même référence
+saine : débits et durées passent au log, pas les parts d'erreurs. Décidé au
+gel du graphe, avant toute donnée de la base lente : c'est par les flèches
+`queries` qu'elle se verra. Les moyennes et écarts-types sont communs à toutes
+les flèches d'une relation : une flèche `queries` d'une réplique (141 ms) et
+celle d'un service web (0,45 ms) sont ramenées à la même échelle, pas chacune
+à sa propre normale.
 
 ## Pourquoi 60 secondes, et pourquoi ne pas y toucher
 

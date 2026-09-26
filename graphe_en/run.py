@@ -296,13 +296,18 @@ def _export(console: Console, conf, kept, vectors, built, got, cut_report):
                  for w, vecs, (group, report) in zip(kept, vectors, built)]
     graph_dir = conf.run_dir / "graph"
     paths = snapshot_module.write(snapshots, graph_dir)
-    (graph_dir / "manifest.json").write_text(
-        __import__("json").dumps(
-            snapshot_module.manifest(conf, got, cut_report, len(paths),
-                                     snapshots),
-            ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # The manifest is written last, once the tensors say how they were made:
+    # a run records its own scaling, its missing-value policy and its code.
+    def write_manifest(export: dict) -> None:
+        (graph_dir / "manifest.json").write_text(
+            __import__("json").dumps(
+                snapshot_module.manifest(conf, got, cut_report, len(paths),
+                                         snapshots, export),
+                ensure_ascii=False, indent=2), encoding="utf-8")
+
     total = sum(p.stat().st_size for p in graph_dir.glob("*.json"))
-    console.ok(f"{len(paths)} snapshots + manifest, {total/1024:.0f} KB")
+    console.ok(f"{len(paths)} snapshots, {total/1024:.0f} KB")
 
     holes = sum(1 for s in snapshots for kind in s["nodes"]
                 for row in s["nodes"][kind]["X"] for v in row if v is None)
@@ -311,7 +316,13 @@ def _export(console: Console, conf, kept, vectors, built, got, cut_report):
     console.ok(f"{holes}/{cells} node values absent "
                f"({100*holes/cells:.1f}%), written null, never 0")
 
+    export = {"pytorch_geometric": bool(conf.export["pytorch_geometric"]),
+              "missing": conf.export["missing"],
+              "add_reverse_edges": bool(conf.export["add_reverse_edges"]),
+              "scaler": conf.export["scaler"], "scaler_source": None,
+              "scaler_sha256": None}
     if not conf.export["pytorch_geometric"]:
+        write_manifest(export)
         console.skip("pytorch geometric export disabled")
         return snapshots
 
@@ -342,10 +353,15 @@ def _export(console: Console, conf, kept, vectors, built, got, cut_report):
     else:
         console.warn("no scaling — magnitudes span 1e-2 to 1e8, a model trained "
                      "as is would only see memory")
+    if scaler is not None:
+        raw = scaler_path.read_bytes()
+        export["scaler_source"] = __import__("json").loads(raw).get("source")
+        export["scaler_sha256"] = __import__("hashlib").sha256(raw).hexdigest()
 
     tensors = export_pyg.convert(snapshots, scaler, conf.export["missing"],
                                  bool(conf.export["add_reverse_edges"]), device)
     target = export_pyg.save(tensors, graph_dir / "graph.pt", device, False)
+    write_manifest(export)
     console.ok(f"{target.name}, {target.stat().st_size/1024:.0f} KB "
                f"(cpu tensors, portable)")
 
@@ -517,6 +533,13 @@ def main() -> int:
         _render(console, conf, snapshots)
     except SystemExit as exc:
         code = exc.code if isinstance(exc.code, int) else 1
+        if isinstance(exc.code, str):
+            # A refusal explains itself (a scaling fitted on other columns,
+            # an unusable device): its reason must reach the screen and run.log.
+            first, *rest = exc.code.strip().splitlines() or ["stopped"]
+            console.fail(first)
+            for line in rest:
+                console.note(line.strip())
         if code:
             console.done("aborted")
             console.close()

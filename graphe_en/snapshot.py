@@ -26,8 +26,10 @@ would manufacture measurements that were never taken.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -45,9 +47,9 @@ DEPARTURES = [
     "produce a negative rate.",
     "A consumed message emits two identical spans; they are deduplicated, "
     "otherwise the consume rate doubles.",
-    "REPORTED, NOT FIXED: instance component 4 and consumption relation "
-    "component 1 are the same quantity, so it appears twice in the "
-    "representation.",
+    "The consumed-message rate, written twice in the paper (instance "
+    "component 4 and consumption relation component 1), is kept on the "
+    "consumption relation only: the instance carries 18 components, not 19.",
 ]
 
 BEFORE_TRAINING = [
@@ -118,6 +120,7 @@ def build(window, vectors, edges, edge_report) -> dict:
         "nodes": node_block,
         "edges": edge_block,
         "call_resolution": edge_report["resolution"],
+        "db_unmapped": edge_report["db_unmapped"],
     }
 
 
@@ -143,8 +146,28 @@ def _counted(snapshots: list[dict]) -> dict:
     }
 
 
+def _code() -> dict:
+    """
+    Which code built the run: the commit, and the sha256 of every module here.
+
+    A run carries its own proof. gel.py compares these fingerprints with the
+    tagged frozen graph, so a graph built by modified code is refused even when
+    its columns look right: a changed quantile rule keeps every column name.
+    """
+    here = Path(__file__).resolve().parent
+    try:
+        commit = subprocess.run(["git", "-C", str(here), "rev-parse", "HEAD"],
+                                capture_output=True, text=True).stdout.strip()
+    except OSError:
+        commit = ""
+    return {"commit": commit or None,
+            "files": {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+                      for p in sorted(here.glob("*.py"))}}
+
+
 def manifest(settings, fetched, cut_report, written: int,
-             snapshots: list[dict] | None = None) -> dict:
+             snapshots: list[dict] | None = None,
+             export: dict | None = None) -> dict:
     origin = {}
     if fetched and fetched.manifest.exists():
         raw = json.loads(fetched.manifest.read_text())
@@ -163,6 +186,9 @@ def manifest(settings, fetched, cut_report, written: int,
             "slope_horizon": settings.graph["slope_horizon"],
             "sampling_rate": settings.graph["sampling_rate"],
             "quantiles": list(settings.graph["quantiles"]),
+            "databases": dict(settings.graph["databases"] or {}),
+            "edge_margin": int(settings.windows["edge_margin"] or 0),
+            "max_windows": settings.windows["max"],
             "assignment": "a span belongs to the window of its START",
             "edges": "windows not fully covered by the data are discarded",
         },
@@ -178,6 +204,8 @@ def manifest(settings, fetched, cut_report, written: int,
              "spans": len(w.spans), "reason": reason}
             for w, reason in cut_report.get("discarded", [])
         ],
+        "export": export,
+        "code": _code(),
         "departures_from_paper": DEPARTURES,
         "before_training": BEFORE_TRAINING,
     }

@@ -1,0 +1,174 @@
+{
+ "fige_le": "2026-09-26",
+ "etiquette": "graphe-fige",
+ "pourquoi": "Les témoins (phase B) puis le GNN (phase E) lisent tous ce graphe. Figé avant toute donnée de la base lente (phase C) : un graphe retouché après l'avoir vue serait taillé pour la réponse.",
+ "fichiers": [
+  "fetch.py",
+  "otlp.py",
+  "windows.py",
+  "nodes.py",
+  "features.py",
+  "edges.py",
+  "snapshot.py",
+  "export_pyg.py",
+  "settings.py",
+  "run.py"
+ ],
+ "noeuds": {
+  "instance": [
+   "process_time_p50",
+   "process_time_p95",
+   "process_time_p99",
+   "request_time_p50",
+   "request_time_p95",
+   "request_time_p99",
+   "error_ratio",
+   "cpu_throttle_ratio",
+   "cpu_rate",
+   "memory_used",
+   "memory_slope",
+   "memory_limit",
+   "cpu_quota",
+   "restarts",
+   "rx_packets_dropped",
+   "tx_packets_dropped",
+   "rx_errors",
+   "rx_bytes"
+  ],
+  "queue": [
+   "backlog",
+   "backlog_slope",
+   "publish_rate",
+   "consume_rate",
+   "rate_imbalance",
+   "consumers"
+  ],
+  "host": [
+   "cpu_pressure",
+   "memory_pressure",
+   "io_pressure",
+   "memory_available_min",
+   "cpu_busy",
+   "net_rx_rate",
+   "net_tx_rate",
+   "net_drop_rate",
+   "tcp_retrans_ratio"
+  ]
+ },
+ "relations": {
+  "calls": {
+   "de": "instance",
+   "vers": "instance",
+   "colonnes": [
+    "call_rate",
+    "latency_p50",
+    "latency_p95",
+    "latency_p99",
+    "error_ratio"
+   ]
+  },
+  "publishes": {
+   "de": "instance",
+   "vers": "queue",
+   "colonnes": [
+    "rate"
+   ]
+  },
+  "consumes": {
+   "de": "queue",
+   "vers": "instance",
+   "colonnes": [
+    "rate"
+   ]
+  },
+  "executes_on": {
+   "de": "instance",
+   "vers": "host",
+   "colonnes": []
+  },
+  "queries": {
+   "de": "instance",
+   "vers": "instance",
+   "colonnes": [
+    "call_rate",
+    "latency_p50",
+    "latency_p95",
+    "latency_p99",
+    "error_ratio"
+   ]
+  }
+ },
+ "log_avant_echelle": {
+  "noeuds": {
+   "instance": [
+    "process_time_p50",
+    "process_time_p95",
+    "process_time_p99",
+    "request_time_p50",
+    "request_time_p95",
+    "request_time_p99",
+    "memory_used",
+    "memory_limit",
+    "cpu_quota",
+    "rx_bytes"
+   ],
+   "queue": [
+    "backlog"
+   ],
+   "host": [
+    "memory_available_min",
+    "net_rx_rate",
+    "net_tx_rate",
+    "net_drop_rate"
+   ]
+  },
+  "relations": {
+   "calls": [
+    "call_rate",
+    "latency_p50",
+    "latency_p95",
+    "latency_p99"
+   ],
+   "publishes": [
+    "rate"
+   ],
+   "consumes": [
+    "rate"
+   ],
+   "queries": [
+    "call_rate",
+    "latency_p50",
+    "latency_p95",
+    "latency_p99"
+   ]
+  }
+ },
+ "reglages": {
+  "window_width_s": 60.0,
+  "window_step_s": 60.0,
+  "namespace": "train-ticket",
+  "slope_horizon": 3,
+  "sampling_rate": 1.0,
+  "quantiles": [
+   0.5,
+   0.95,
+   0.99
+  ],
+  "edge_margin": 0,
+  "max_windows": null
+ },
+ "bases": {
+  "tsdb-mysql-leader": "tsdb-mysql-0"
+ },
+ "tenseurs": {
+  "pytorch_geometric": true,
+  "missing": "mask",
+  "add_reverse_edges": false
+ },
+ "echelle": {
+  "campagne": "saine-09",
+  "run": "à reconstruire",
+  "fichier": "scaler.json, sur vms0, hors dépôt (.gitignore) ; nœuds et relations",
+  "sha256": "à caler"
+ }
+}
