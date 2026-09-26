@@ -1,83 +1,121 @@
 """
 Témoin 3 : la règle qui suit les flèches. Écrite à la main ; elle lit la structure.
 
-    ./.venv/bin/python temoin_fleches.py [options] [campagne ...]
+    python3 temoin_fleches.py [options] [campagne ...]
 
 Phase B.5. Écrit avant toute donnée de la base lente, jugé par juge.py avec
 les règles de fautifs.py. Définie le 24 sept. 2026 : « la file → ses
 répliques → ce qu'elles appellent → le dernier composant anormal ». Écrite
 comme par un ingénieur qui connaît la plateforme, le graphe figé et les quatre
-causes apprises, et rien d'autre : aucun cas particulier pour une base de
-données. Là où les témoins 1 et 2 n'ont pas la structure, celui-ci n'a que
-la structure et quelques limites : si le GNN ne fait pas mieux, les flèches
-suffisent et le modèle appris n'apporte rien.
+causes apprises : sa structure reprend le tableau « quelle panne fait bouger
+quoi » du LEXIQUE. C'est la référence experte sur les pannes connues ; ses
+presque 100 % y sont un plafond par construction, pas une preuve qu'elle
+généralise. Ce qui la départage du GNN : les fausses alertes, la base lente
+(phase C), les jumeaux (phase D), et une panne qui ne remplit pas la file.
 
-« ANORMAL », en écarts z au normal propre (la recette du témoin 2)
-  un nœud     les écarts de temoin_noeud.Normal
-  une flèche  la même recette (temoin_noeud.echelles) sur les nombres de
-              chaque flèche ; son identité est (relation, identité de la source,
-              identité de la cible), la même pour les trois répliques d'un
-              service ; le plancher mis en commun par relation
-  Les consommateurs d'une file : les identités qui la consomment dans les
-  fenêtres normales (une réplique gelée n'a plus de flèche consumes : on sait
-  par le normal qu'elle devrait en avoir une).
+CE QU'ELLE SAIT, en plus des nombres de la fenêtre (le GNN n'a pas tout cela)
+  - le normal de chaque nœud (temoin_noeud.Normal), connu par son nom ;
+  - le normal de chaque flèche, même recette (temoin_noeud.echelles), connu par
+    (relation, identité de la source, identité de la cible) : les trois
+    répliques d'un service partagent le leur ; le plancher mis en commun par
+    relation. Le GNN n'a qu'une mise à l'échelle par relation et aucun nom ;
+  - qui consomme chaque file dans le normal : une réplique gelée n'a plus de
+    flèche consumes, la règle sait qu'elle devrait en avoir une ;
+  - la signature des quatre causes, écrite à la main.
 
 LA MARCHE, fenêtre par fenêtre (s_f, s_m : limites d'alarme de la file et
 des machines ; s : limite de marche)
   1. une file se remplit-elle ? (backlog, backlog_slope ou rate_imbalance
      au-dessus de s_f ; la plus pleine d'abord)
-       non : une machine est-elle saturée ? (cpu_busy, cpu_pressure,
-             memory_pressure ou io_pressure au-dessus de s_m) → hote, la plus
-             saturée ; sinon normale
+       non : une machine est-elle saturée ? (cpu_pressure, memory_pressure ou
+             io_pressure au-dessus de s_m) → hote, la plus saturée ; sinon
+             normale
   2. ses consommateurs :
        une réplique qui ne consomme plus (pas de flèche consumes depuis la
-       file, débit sous −s, ou plus de valeurs absentes que son normal de
-       plus de s) → blocage, ces répliques
+       file, débit sous −s, ou plus aucun temps de traitement alors que son
+       normal en a) → blocage, ces répliques
        des répliques plus lentes (un temps de traitement au-dessus de s) → 3.
        aucune : la file se remplit avec des répliques saines, donc on y
        dépose plus qu'elles ne peuvent prendre → charge, aucun fautif
   3. ce qui explique la lenteur, en suivant les flèches des répliques lentes :
-       leur machine (executes_on) saturée au-dessus de s_m → hote, la machine
+       leur machine (le champ hosts des nœuds, identique aux flèches
+       executes_on) saturée au-dessus de s_m → hote, la machine
        une flèche sortante (calls, queries) plus lente (une latence au-dessus
-       de s) vers une cible t, et la plupart des AUTRES appelants de t (au
-       moins deux) la voient aussi plus lente → la cause est t (principe de
-       la cause commune ; aucune des quatre causes : « inconnue »)
+       de s) vers une cible t :
+         littérale      t est-elle anormale elle-même (son plus grand |z|
+                        au-dessus de s) ? → t, cause « inconnue » (le dernier
+                        composant anormal, la définition du 24 sept.)
+         cause commune  la plupart des AUTRES services qui appellent t (au
+                        moins deux ; un par service, sa flèche la plus lente)
+                        la voient-ils aussi plus lente ? → t, cause « inconnue »
        sinon → lenteur, les répliques lentes
-  Le classement de tous les nœuds : les désignés, puis ceux du chemin
-  parcouru, puis tous les autres par leur écart (le score sans exemples du
-  témoin 2). L'alarme : une cause autre que « normale ».
-  Pourquoi la cause commune : pour la lenteur, le retard est posé sur ce que
-  les répliques envoient à la base ; une règle qui suivrait ces flèches
-  jusqu'au bout accuserait la base. Ce qui innocente la base, c'est que ses
-  autres appelants ne voient rien. Principe général du diagnostic, écrit pour
-  la lenteur ; il peut aussi, par construction, désigner une dépendance lente
-  pour tous, et c'est voulu : le témoin qui suit les flèches doit être le
-  plus fort possible.
+  Le classement de tous les nœuds : les désignés (même score pour tous), puis
+  le chemin parcouru (même score), puis tous les autres par leur écart (le
+  score sans exemples du témoin 2) ; entre égaux, le juge départage contre le
+  témoin. L'alarme : une cause autre que « normale ».
+  La saturation d'une machine, c'est sa pression, pas son occupation (méthode
+  USE) : cpu_busy monte avec le travail de ts-order-service, qui grandit avec la
+  table des commandes au fil d'une campagne.
 
-DEUX RÉGLAGES (fautifs.py)
-  s_f, s_m   les mêmes pour les deux, calés sur le normal seul (fautifs.py) :
-             chaque campagne mise de côté à son tour, les normaux appris sur
-             les autres ; s_f = 95e centile, sur ses fenêtres normales
+DEUX VERSIONS, notées côte à côte. Sur les quatre causes connues, elles
+répondent pareil (l'étape 3 finit toujours par « lenteur ») : seule une
+dépendance lente pour tous les distingue, c'est-à-dire la base lente. La
+cause commune (« la cible est-elle lente pour tout le monde, ou pour moi
+seulement ? ») est un premier réflexe de diagnostic général, sans rien de
+propre à une base ; elle change « composant anormal » en « preuve sur les
+flèches », ce qui est l'hypothèse H1 écrite à la main. Choisie par celui qui
+prépare la base lente, entre deux règles que les données ne distinguent pas :
+d'où les deux, et leur réponse attendue écrite avant la phase C (journal).
+  littérale      l'ingénieur qui ne pense pas à une base lente : devant elle,
+                 attendue « lenteur, les répliques » (le nœud de la base ne
+                 bouge pas)
+  cause commune  la plus forte : attendue « inconnue, tsdb-mysql-0 », si la
+                 base lente remplit la file et fait passer la flèche des
+                 répliques vers la base au-dessus de s
+
+DEUX RÉGLAGES (fautifs.py). Dans les deux, la STRUCTURE a été écrite en
+regardant les pannes d'apprentissage : « sans exemples » veut dire que les
+limites viennent du normal seul.
+  s_f, s_m   les mêmes pour les deux, calés sur le normal seul : chaque
+             campagne mise de côté à son tour, le normal appris sur les
+             autres ; s_f = 95e centile, sur ses fenêtres normales
              d'apprentissage, du plus haut écart des files (remplissage), s_m
-             de même pour les machines (saturation)
+             de même pour les machines (saturation). Ensemble, elles sonnent
+             sur plus de 5 % de ces fenêtres : l'en-tête du résultat dit combien
   sans exemples  s = s_f : ce qui compte comme un écart pour la file compte
              pour ses répliques
   avec exemples  s choisi dans une grille, celui qui nomme le mieux la cause
              et le fautif (top-1) des fenêtres de panne d'apprentissage ; à
              égalité, le plus proche de s_f
-PREMIER ESSAI ÉCARTÉ (vu sur les pannes d'apprentissage) : une seule limite
-d'alarme pour la file et les machines (8,6), fixée par le bruit de saturation
-des machines ; la file des blocages et des charges ne s'écarte que de 4 à 10
-et restait souvent dessous. Et la charge nommée par un dépôt au-dessus de s
-(il ne l'était que de 2 à 3) : remplacée par l'élimination ci-dessus.
-Les noms des quatre causes sont écrits dans la règle (l'ingénieur les connaît) :
-dans la répétition « panne jamais vue », seule sa désignation compte.
+Elle porte les noms des quatre causes : dans la répétition « panne jamais
+vue », sa colonne « inconnue » est sans objet, et sa désignation ne dit rien
+de l'inconnu (chaque branche a été écrite pour sa cause).
 
-HASARD : aucun, une seule note.
+VERSIONS ÉCARTÉES, dites honnêtement (sorties dans
+campagnes/versions-vues-sur-test/, chiffres dans le journal) :
+  1. la première version a été NOTÉE SUR LE TEST, puis changée : une seule
+     limite d'alarme pour la file et les machines (8,6, fixée par le bruit des
+     machines ; la file des blocages et des charges ne s'écarte que de 4 à
+     10, vu sur les pannes d'apprentissage) ; la charge nommée par un dépôt
+     au-dessus de s, et une sortie « file pleine inexpliquée → inconnue »,
+     remplacées par la charge par élimination ; la machine des répliques à s au
+     lieu de s_m ; et le plancher d'échelle fautif de l'ancien témoin 2 (c'est
+     lui qui la rendait aveugle à la lenteur). Détection 107/153, cause 52/153,
+     lenteur top-1 0/38. L'étape de la cause commune y était déjà. Les chiffres
+     de la règle sur les causes connues sont donc « après une révision
+     informée par le test » ; la base lente ne l'est pas si la règle est figée
+     avant la phase C ;
+  2. après deux relectures, vérifié sur la validation seule : cpu_busy retiré de
+     la saturation (21 → 2 fausses alertes sur 102 : c'était la dérive de
+     ts-order-service, pas un reste de la panne) ; une réplique sans temps de
+     traitement (et non « une valeur absente de plus ») ; les autres appelants
+     comptés par service ; mêmes scores pour les désignés ; les deux versions.
+
+HASARD : aucun, une seule note par version et par réglage.
 
 CE QUE LE TÉMOIN VOIT : à l'apprentissage, les fenêtres d'apprentissage (sans
-exemples : les normales seules) ; au test, les seuls nombres et flèches de la
-fenêtre (repondre ne reçoit que fen["donnees"]).
+exemples : les normales seules) ; au test, les nombres, les flèches et les
+noms des nœuds de la fenêtre (repondre ne reçoit que fen["donnees"]).
 
 Options :
   --campaigns <dossier>  le dossier des dossiers de campagne (défaut ../campagnes)
@@ -96,7 +134,6 @@ from __future__ import annotations
 import contextlib
 import io
 import math
-import statistics
 import sys
 from collections import Counter
 from pathlib import Path
@@ -108,17 +145,24 @@ import temoin_noeud as tn
 
 HERE = Path(__file__).resolve().parent
 FILE_PLEINE = ("backlog", "backlog_slope", "rate_imbalance")
-SATURATION = ("cpu_busy", "cpu_pressure", "memory_pressure", "io_pressure")
+# La saturation, pas l'occupation (méthode USE : cpu_busy dit combien la machine
+# travaille, la pression dit combien de tâches attendent).
+SATURATION = ("cpu_pressure", "memory_pressure", "io_pressure")
 TEMPS = ("process_time_p50", "process_time_p95", "process_time_p99")
 LATENCES = ("latency_p50", "latency_p95", "latency_p99")
 APPELS = ("calls", "queries")
 GRILLE = (2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 75, 100)
 REGLAGES = ("sans exemples", "avec exemples")
+VARIANTES = ("littérale", "cause commune")
 
 
 def _haut(z: dict[str, float], colonnes) -> float:
     """Le plus grand écart vers le haut parmi ces nombres ; −inf si aucun."""
     return max((z[c] for c in colonnes if c in z), default=-math.inf)
+
+
+def _ident(cle: str) -> str:
+    return tn.identite(*cle.split(":", 1))
 
 
 class NormalFleches:
@@ -130,7 +174,7 @@ class NormalFleches:
         self.consommateurs: dict[str, set[str]] = {}
         for f in fenetres:
             for rel, src, tgt, ligne in self._fleches(f["donnees"]):
-                cle = (rel, tn.identite(*src.split(":", 1)), tn.identite(*tgt.split(":", 1)))
+                cle = (rel, _ident(src), _ident(tgt))
                 for c, v in ligne.items():
                     valeurs.setdefault(cle, {}).setdefault(c, []).append(v)
                 if rel == "consumes":
@@ -150,7 +194,7 @@ class NormalFleches:
     def ecarts(self, donnees: dict) -> list[tuple[str, str, str, dict[str, float]]]:
         out = []
         for rel, src, tgt, ligne in self._fleches(donnees):
-            st = self.stats.get((rel, tn.identite(*src.split(":", 1)), tn.identite(*tgt.split(":", 1))), {})
+            st = self.stats.get((rel, _ident(src), _ident(tgt)), {})
             out.append((rel, src, tgt, {c: (v - st[c][0]) / st[c][1] for c, v in ligne.items() if c in st}))
         return out
 
@@ -165,8 +209,8 @@ def saturation(zn: dict[str, dict[str, float]]) -> float:
     return max([_haut(z, SATURATION) for k, z in zn.items() if k.startswith("host:")] + [-math.inf])
 
 
-def marche(donnees: dict, zn: dict, ze: list, consommateurs: dict, s_f: float, s_m: float,
-           s: float) -> tuple[str, list[str], list[str], str]:
+def marche(donnees: dict, zn: dict, ze: list, consommateurs: dict, avec_temps: set[str],
+           s_f: float, s_m: float, s: float, variante: str) -> tuple[str, list[str], list[str], str]:
     """(cause, désignés, chemin, branche) : la règle, pas à pas."""
     files = sorted(((_haut(z, FILE_PLEINE), k) for k, z in zn.items() if k.startswith("queue:")), reverse=True)
     hotes = sorted(((_haut(z, SATURATION), k) for k, z in zn.items() if k.startswith("host:")), reverse=True)
@@ -179,59 +223,71 @@ def marche(donnees: dict, zn: dict, ze: list, consommateurs: dict, s_f: float, s
     conso = [juge._cle("instance", n) for n in inst["names"]
              if tn.identite("instance", n) in consommateurs.get(file, set())]
     debit = {tgt: z for rel, src, tgt, z in ze if rel == "consumes" and src == file}
-    geles = [c for c in conso if c not in debit or debit[c].get("rate", 0.0) < -s
-             or zn.get(c, {}).get(tn.ABSENTS, 0.0) > s]
+    muet = lambda c: _ident(c) in avec_temps and not any(t in zn.get(c, {}) for t in TEMPS)
+    geles = [c for c in conso if c not in debit or debit[c].get("rate", 0.0) < -s or muet(c)]
     if geles:
         return "blocage", geles, [file], "2 réplique qui ne consomme plus"
     lents = [c for c in conso if _haut(zn.get(c, {}), TEMPS) > s]
     if not lents:
         return "charge", [], [file] + conso, "2 répliques saines : trop de dépôts"
 
-    # 3. ce qui explique la lenteur : les machines des répliques lentes…
+    # 3. ce qui explique la lenteur : les machines des répliques lentes (le champ
+    # « hosts » des nœuds, identique aux flèches executes_on)…
     machine = dict(zip((juge._cle("instance", n) for n in inst["names"]), inst["hosts"]))
     leurs = sorted({juge._cle("host", machine[c]) for c in lents if machine.get(c)})
     satures = sorted(((_haut(zn.get(h, {}), SATURATION), h) for h in leurs), reverse=True)
     if satures and satures[0][0] > s_m:
         return "hote", [satures[0][1]], [file] + lents, "3 machine des répliques saturée"
-    # … puis ce qu'elles appellent, avec la cause commune.
+    # … puis ce qu'elles appellent.
     cibles = Counter(tgt for rel, src, tgt, z in ze if rel in APPELS and src in lents and _haut(z, LATENCES) > s)
+    lents_id = {_ident(c) for c in lents}
     for t, _ in sorted(cibles.items(), key=lambda kv: (-kv[1], kv[0])):
-        autres = [z for rel, src, tgt, z in ze if rel in APPELS and tgt == t and src not in lents]
-        plus_lents = sum(1 for z in autres if _haut(z, LATENCES) > s)
+        if variante == "littérale":
+            # le dernier composant anormal : la cible, si ses propres nombres le sont
+            if (tn.score(zn.get(t, {})) or 0.0) > s:
+                return "inconnue", [t], [file] + lents, "3 dépendance anormale"
+            continue
+        # cause commune : les AUTRES services qui l'appellent (un par service, sa
+        # flèche la plus lente) la voient-ils aussi plus lente ?
+        autres: dict[str, float] = {}
+        for rel, src, tgt, z in ze:
+            if rel in APPELS and tgt == t and _ident(src) not in lents_id:
+                autres[_ident(src)] = max(autres.get(_ident(src), -math.inf), _haut(z, LATENCES))
+        plus_lents = sum(1 for v in autres.values() if v > s)
         if len(autres) >= 2 and 2 * plus_lents > len(autres):
             return "inconnue", [t], [file] + lents, "3 dépendance lente pour tous"
     return "lenteur", lents, [file], "3 répliques lentes"
 
 
 class Fleches:
-    """La règle réglée : les normaux des nœuds et des flèches, ses deux limites."""
+    """La règle réglée : les normaux des nœuds et des flèches, ses limites."""
 
-    def __init__(self, fen: list[dict], reglage: str, fige: dict):
-        if reglage not in REGLAGES:
-            raise ValueError(f"réglage inconnu : {reglage}")
-        self.reglage = reglage
+    def __init__(self, fen: list[dict], reglage: str, fige: dict, variante: str = "cause commune"):
+        if reglage not in REGLAGES or variante not in VARIANTES:
+            raise ValueError(f"réglage ou variante inconnus : {reglage}, {variante}")
+        self.reglage, self.variante = reglage, variante
         garde = [f for f in fen if f["jeu"] == "apprentissage" and f["etiquette"] not in juge.ECARTEES]
         normales = [f for f in garde if f["etiquette"] == "normale"]
-        if not normales:
-            raise ValueError("aucune fenêtre normale d'apprentissage")
-        self.noeuds = tn.Normal(normales, fige)
+        campagnes = sorted({f["campagne"] for f in normales})
+        if len(campagnes) < 2:
+            raise ValueError("il faut des fenêtres normales d'apprentissage dans au moins deux campagnes")
+        normaux = tn.Normaux(normales, fige)
+        self.noeuds = normaux.sans()
         self.fleches = NormalFleches(normales, fige)
+        self.avec_temps = {i for i, st in self.noeuds.stats.items() if any(t in st for t in TEMPS)}
 
         # s_f et s_m : chaque campagne mise de côté à son tour, sur le normal seul.
         files, machines = [], []
-        campagnes = sorted({f["campagne"] for f in normales})
         for c in campagnes:
-            autres = [f for f in normales if f["campagne"] != c]
-            if autres:
-                n = tn.Normal(autres, fige)
-                for f in (f for f in normales if f["campagne"] == c):
-                    zn = n.ecarts(f["donnees"])
-                    files.append(remplissage(zn))
-                    machines.append(saturation(zn))
+            for f in (f for f in normales if f["campagne"] == c):
+                zn = normaux.sans(c).ecarts(f["donnees"])
+                files.append(remplissage(zn))
+                machines.append(saturation(zn))
         centile = lambda v: tn._q([x for x in v if x > -math.inf], 1 - tn.CENTILE / 100) \
             if any(x > -math.inf for x in v) else 0.0
         self.s_f, self.s_m = centile(files), centile(machines)
-        self.calage = (len(campagnes), len(files))
+        self.calage = (len(campagnes), len(files),
+                       sum(1 for a, b in zip(files, machines) if a > self.s_f or b > self.s_m))
         self.s = self.s_f
         if reglage == "sans exemples":
             return
@@ -244,26 +300,29 @@ class Fleches:
             juste = 0
             for f in pannes:
                 zn, ze = ecarts[f["id"]]
-                cause, designes, _, _ = marche(f["donnees"], zn, ze, self.fleches.consommateurs,
-                                               self.s_f, self.s_m, s)
+                cause, designes, _, _ = marche(f["donnees"], zn, ze, self.fleches.consommateurs, self.avec_temps,
+                                               self.s_f, self.s_m, s, variante)
                 juste += (cause == f["cause"]) + bool(f["fautifs"] and designes and designes[0] in f["fautifs"])
             notes[s] = juste
         meilleur = max(notes.values())
         self.s = min((s for s, n in notes.items() if n == meilleur),
                      key=lambda s: abs(math.log(s / self.s_f)) if self.s_f > 0 else s)
         self.grille = notes
+        self.grille_sur = sum(1 + bool(f["fautifs"]) for f in pannes)
 
     def repondre(self, donnees: dict) -> dict:
         """La réponse du témoin pour une fenêtre, à partir de ses seuls nombres et flèches."""
         zn = self.noeuds.ecarts(donnees)
         ze = self.fleches.ecarts(donnees)
-        cause, designes, chemin, branche = marche(donnees, zn, ze, self.fleches.consommateurs,
-                                                  self.s_f, self.s_m, self.s)
+        cause, designes, chemin, branche = marche(donnees, zn, ze, self.fleches.consommateurs, self.avec_temps,
+                                                  self.s_f, self.s_m, self.s, self.variante)
         scores = {k: (min(v, 1e7) if (v := tn.score(z)) is not None else None) for k, z in zn.items()}
-        for i, k in enumerate(chemin):
-            scores[k] = 1e8 - i
-        for i, k in enumerate(designes):
-            scores[k] = 1e9 - i
+        # Même score pour tous les désignés, et pour tout le chemin : entre eux,
+        # le juge départage contre le témoin (jamais l'ordre des noms).
+        for k in chemin:
+            scores[k] = 1e8
+        for k in designes:
+            scores[k] = 1e9
         return {"alarme": cause != "normale", "cause": cause, "scores": scores, "_branche": branche}
 
 
@@ -280,30 +339,33 @@ def rapport(noms: list[str], campagnes: Path, runs: Path, validation: bool = Fal
     test = [f for f in fen if f["jeu"] == "test" and f["etiquette"] not in juge.ECARTEES]
     print("# Témoin 3, la règle qui suit les flèches — écrit par graphe_en/temoin_fleches.py, "
           "ne pas éditer à la main.")
-    for reglage in REGLAGES:
-        t = Fleches(fen, reglage, fige)
-        reponses = {f["id"]: t.repondre(f["donnees"]) for f in test}
-        propres = {i: {k: v for k, v in r.items() if not k.startswith("_")} for i, r in reponses.items()}
-        lignes, _ = juge.noter(fen, propres, f"règle qui suit les flèches, {reglage}")
-        print()
-        if reglage == "sans exemples":
-            conso = "; ".join(f"{q} ← {', '.join(sorted(v))}" for q, v in sorted(t.fleches.consommateurs.items()))
-            print(f"# consommateurs dans le normal : {conso}")
-        print(f"# limites d'alarme : file s_f = {t.s_f:.2f}, machines s_m = {t.s_m:.2f} (plus haut écart ; "
-              f"{t.calage[0]} campagnes mises de côté, {t.calage[1]} fenêtres, {100 - tn.CENTILE}e centile)")
-        if reglage == "avec exemples":
-            print(f"# limite de marche s = {t.s:g}, choisie sur les pannes d'apprentissage "
-                  f"(cause juste + fautif top-1, sur 2 par fenêtre) : "
-                  + ", ".join(f"{s:g}:{n}" for s, n in t.grille.items()))
-        else:
-            print(f"# limite de marche s = s_f")
-        print("\n".join(lignes))
-        print("branche de la règle, par étiquette (fenêtres de test)")
-        par: dict[str, Counter] = {}
-        for f in test:
-            par.setdefault(f["cause"] or "normale", Counter())[reponses[f["id"]]["_branche"]] += 1
-        for c, cnt in sorted(par.items()):
-            print(f"  {c:<9}" + ", ".join(f"{b} {n}" for b, n in cnt.most_common()))
+    for variante in VARIANTES:
+        for reglage in REGLAGES:
+            t = Fleches(fen, reglage, fige, variante)
+            reponses = {f["id"]: t.repondre(f["donnees"]) for f in test}
+            propres = {i: {k: v for k, v in r.items() if not k.startswith("_")} for i, r in reponses.items()}
+            lignes, _ = juge.noter(fen, propres, f"règle qui suit les flèches, {variante}, {reglage}")
+            print()
+            if variante == VARIANTES[0] and reglage == "sans exemples":
+                conso = "; ".join(f"{q} ← {', '.join(sorted(v))}"
+                                  for q, v in sorted(t.fleches.consommateurs.items()))
+                print(f"# consommateurs dans le normal : {conso}")
+                print(f"# limites d'alarme : file s_f = {t.s_f:.2f}, machines s_m = {t.s_m:.2f} (plus haut "
+                      f"écart ; {t.calage[0]} campagnes mises de côté, {t.calage[1]} fenêtres, "
+                      f"{100 - tn.CENTILE}e centile chacune) ; les deux ensemble sonnent sur "
+                      f"{t.calage[2]}/{t.calage[1]} de ces fenêtres")
+            if reglage == "avec exemples":
+                print(f"# limite de marche s = {t.s:g}, choisie sur les pannes d'apprentissage (cause juste "
+                      f"+ fautif top-1, sur {t.grille_sur}) : " + ", ".join(f"{s:g}:{n}" for s, n in t.grille.items()))
+            else:
+                print(f"# limite de marche s = s_f = {t.s:.2f}")
+            print("\n".join(lignes))
+            print("branche de la règle, par étiquette (fenêtres de test)")
+            par: dict[str, Counter] = {}
+            for f in test:
+                par.setdefault(f["cause"] or "normale", Counter())[reponses[f["id"]]["_branche"]] += 1
+            for c, cnt in sorted(par.items()):
+                print(f"  {c:<9}" + ", ".join(f"{b} {n}" for b, n in cnt.most_common()))
     print("\n# le plancher à battre, qui ne lit aucune donnée (juge.py)")
     lignes, _ = juge.noter(fen, juge.factices(fen)["a priori"], "a priori")
     print("\n".join(l for l in lignes if not l.startswith("  ") or "injection" not in l))

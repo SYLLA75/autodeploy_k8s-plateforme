@@ -25,8 +25,10 @@ dans son rapport à lui.
    « inconnue », le fautif top-1 et top-3 sur les fenêtres de la cause retirée.
    C'est l'épreuve de la base lente (phase C), répétée sur des pannes connues :
    qui désigne un fautif qu'il n'a jamais vu fauter ? La règle qui suit les
-   flèches porte les noms des quatre causes (l'ingénieur les connaît) : pour
-   elle, seule la désignation compte ici. Sans exemples, le score par nœud et
+   flèches porte les noms des quatre causes (l'ingénieur les connaît) : sa
+   colonne « inconnue » est sans objet, et sa désignation ne dit rien de
+   l'inconnu, chaque branche ayant été écrite pour sa cause : ses lignes ne se
+   comparent pas à celles du GNN ; seule la base lente l'éprouve. Sans exemples, le score par nœud et
    la règle ne changent pas quand une cause est retirée : leur ligne mesure la
    même méthode sur les trois injections de la cause au lieu d'une.
 
@@ -69,8 +71,12 @@ def temoins(fige: dict) -> list[tuple[str, object, bool]]:
         ("tableau équitable", lambda fen, g: tt.Tableau(fen, graine=g), True),
         ("score par nœud, sans exemples", lambda fen, g: tn.Noeud(fen, "sans exemples", fige), False),
         ("score par nœud, avec exemples", lambda fen, g: tn.Noeud(fen, "avec exemples", fige, graine=g), True),
-        ("règle des flèches, sans exemples", lambda fen, g: tf.Fleches(fen, "sans exemples", fige), False),
-        ("règle des flèches, avec exemples", lambda fen, g: tf.Fleches(fen, "avec exemples", fige), False),
+        ("règle littérale, sans exemples", lambda fen, g: tf.Fleches(fen, "sans exemples", fige, "littérale"), False),
+        ("règle littérale, avec exemples", lambda fen, g: tf.Fleches(fen, "avec exemples", fige, "littérale"), False),
+        ("règle cause commune, sans exemples",
+         lambda fen, g: tf.Fleches(fen, "sans exemples", fige, "cause commune"), False),
+        ("règle cause commune, avec exemples",
+         lambda fen, g: tf.Fleches(fen, "avec exemples", fige, "cause commune"), False),
     ]
 
 
@@ -127,8 +133,11 @@ def fil_du_temps(fen: list[dict], n: dict) -> list[str]:
     ordre = sorted({f["campagne"] for f in normales}, key=lambda c: min(f["debut"] for f in fen if f["campagne"] == c))
     derniere = {}
     for c in ordre:
+        # la première fenêtre de la DERNIÈRE injection du test (une cause jamais vue
+        # met toutes ses injections au test)
         pannes = [f for f in fen if f["campagne"] == c and f["etiquette"] == "panne" and f["jeu"] == "test"]
-        derniere[c] = min((f["debut"] for f in pannes), default=None)
+        k = max((f["injection"] for f in pannes), default=None)
+        derniere[c] = min((f["debut"] for f in pannes if f["injection"] == k), default=None)
     cles = []
     for c in ordre:
         if derniere[c] is None:
@@ -173,7 +182,9 @@ def repetition(noms_campagnes: list[str], campagnes: Path, runs: Path, fige: dic
                 v = [c[cle][0] for c, _ in liste if cle in c]
                 if v:
                     cases.append(f"{titre} {_case(v, liste[0][0][cle][1])}")
-            out.append(f"  {nom:<34}" + " ; ".join(cases))
+            if nom.startswith("règle"):
+                cases = [x for x in cases if not x.startswith("« inconnue »")] + ["« inconnue » sans objet"]
+            out.append(f"  {nom:<36}" + " ; ".join(cases))
     return out
 
 
@@ -190,8 +201,10 @@ def rapport(noms: list[str], campagnes: Path, runs: Path, graines: int, validati
     print("# Les témoins côte à côte — écrit par graphe_en/temoins.py, ne pas éditer à la main.")
     print(f"# graines 0 à {graines - 1} pour ce qui tire au hasard ; règles : fautifs.py ; juge : juge.py")
     n = notes(fen, fige, graines)
-    print("\n== 1. tableau de bord (test ; fausses alertes sur 120 minutes normales non vues, "
-          "puis sur 39 de saine-09)")
+    normales = [f for f in fen if f["jeu"] == "test" and f["etiquette"] == "normale"]
+    print(f"\n== 1. tableau de bord ({'validation' if validation else 'test'} ; fausses alertes sur "
+          f"{sum(1 for f in normales if not f['vue'])} minutes normales non vues, puis sur "
+          f"{sum(1 for f in normales if f['vue'])} de saine-09)")
     print("\n".join(tableau_de_bord(n)))
     print("\n== 2. fausses alertes au fil du temps (fenêtres normales du test ; médiane sur les graines)")
     print("\n".join(fil_du_temps(fen, n)))

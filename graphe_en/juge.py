@@ -29,8 +29,9 @@ l'identique et contrôlées contre lui)
 LA COUPURE, par le temps : la dernière injection de chaque campagne, avec les
 fenêtres depuis dix minutes avant elle, est le test ; une campagne sans
 injection donne son dernier tiers. validation() répète cette coupure dans
-l'apprentissage (une injection plus tôt, le vrai test mis de côté) : c'est là,
-jamais sur le test, que se font les choix de réglage des témoins et du GNN. Une cause « jamais vue » (base, reseau par
+l'apprentissage (une injection plus tôt, le vrai test mis de côté) : c'est
+là, jamais sur le test, que se font les choix de réglage des témoins et du
+GNN. Une cause « jamais vue » (base, reseau par
 défaut) est jugée sur toutes ses injections : ses fenêtres de panne sont
 toutes au test, et la bonne cause y est « inconnue ». Les fenêtres de saine-09
 sont marquées « vues » : la mise à l'échelle figée a été calée sur elles.
@@ -259,11 +260,11 @@ def validation(fen: list[dict]) -> list[dict]:
         reste = [f for f in miennes if f["temps"] == "apprentissage"]
         for f in miennes:
             f["jeu"] = "hors" if f["temps"] == "test" else "apprentissage"
-        vues = [f for f in reste if f["etiquette"] == "panne" and f["jeu"] == "apprentissage"
-                and not f.get("jamais_vue")]
-        if vues:
-            derniere = max(f["injection"] for f in vues)
-            limite = min(f["debut"] for f in vues if f["injection"] == derniere) - timedelta(minutes=10)
+        # Comme lire() : la dernière injection qui reste, quelle que soit sa cause.
+        pannes = [f for f in reste if f["etiquette"] == "panne"]
+        if pannes:
+            derniere = max(f["injection"] for f in pannes)
+            limite = min(f["debut"] for f in pannes if f["injection"] == derniere) - timedelta(minutes=10)
             for f in reste:
                 if f["debut"] >= limite:
                     f["jeu"] = "test"
@@ -488,7 +489,8 @@ def tranches(fen: list[dict]) -> list[str]:
 
 def controle(fen: list[dict], campagnes: Path, noms: list[str], consommateur: str,
              videe: float) -> list[str]:
-    """Les étiquettes et la coupure de ligne_de_base.py, minute par minute."""
+    """Les étiquettes et la coupure par le temps de ligne_de_base.py, minute par
+    minute (une cause jamais vue passe ensuite au test : ligne_de_base ne le fait pas)."""
     import ligne_de_base
     ecarts = []
     for nom in noms:
@@ -504,8 +506,8 @@ def controle(fen: list[dict], campagnes: Path, noms: list[str], consommateur: st
                 ("normal" if f["etiquette"] == "normale" else f["etiquette"])
             if r is None:
                 ecarts.append(f"{f['id']} : absente de ligne_de_base.py")
-            elif r["truth"] != mien or r["test"] != (f["jeu"] == "test"):
-                ecarts.append(f"{f['id']} : {mien}/{f['jeu']} ici, {r['truth']}/"
+            elif r["truth"] != mien or r["test"] != (f["temps"] == "test"):
+                ecarts.append(f"{f['id']} : {mien}/{f['temps']} ici, {r['truth']}/"
                               f"{'test' if r['test'] else 'apprentissage'} dans ligne_de_base.py")
         if len(ref) != len(miens):
             ecarts.append(f"{nom} : {len(miens)} fenêtres ici, {len(ref)} dans ligne_de_base.py")
