@@ -973,3 +973,39 @@ obtient déjà 100 % en top-1 sur la lenteur et 100 % en top-3 sur le blocage : 
 sont toujours les trois mêmes répliques. Il fait 0 sur l'hôte. Sur les quatre causes
 actuelles, les mesures qui départagent vraiment sont donc le top-1 du blocage et de l'hôte ;
 et la base lente (C), dont le fautif n'a jamais été fautif, où ce plancher fait 0.
+
+## 2026-09-26 — Phase B.3 : témoin 1, le tableau équitable
+
+`graphe_en/temoin_tableau.py` (commits de B.3 jusqu'à 96d2622), résultat dans
+`campagnes/temoin_tableau.txt` (identique sur le poste et sur vms0, 5 graines).
+
+Ce qu'il voit : tous les nombres des nœuds (1128 par fenêtre, la base comprise, chaque pod
+à une case fixe « service#rang »), plus des résumés sans identité : par sorte de nœud (max,
+min, médiane, absents) et par relation (nombre de flèches, max et médiane de chaque
+colonne). Il sait qu'un appel a ralenti quelque part, jamais qui appelle qui ni qui tourne
+où. Deux forêts : la cause (rejet « inconnue » des deux côtés, seuils calés en mettant de
+côté chaque injection ou campagne d'apprentissage) ; le fautif (une forêt pour tous les
+nœuds, comme le GNN partage ses poids). Réglé avec exemples seulement : sans exemple, c'est
+le score par nœud (témoin 2).
+
+**Deux versions écartées, dites honnêtement.** (1) Rejet calé « hors sac » : trop sévère
+(fenêtres voisines de la même injection dans les arbres), cause 33 % → recalé par injection
+mise de côté. (2) Relecture indépendante : le fautif appris case par case ne pouvait désigner
+que les 6 cases déjà fautives, plaçait la base dernière d'avance, et manquait le seul fautif
+nouveau (tvmfl) ; les graines changeaient les chiffres ; il ne recevait aucun nombre des
+flèches ; il ne pouvait pas dire « inconnue » d'une panne prise pour normale. Les quatre
+points corrigés, chaque fois dans le sens qui RENFORCE le témoin (un adversaire faible
+rendrait la victoire du GNN sans valeur).
+
+Résultat (test, 5 graines, min–max) : détection 153/153 ; cause 149–153/153 (8/8
+injections) ; fautif top-1 114–115/115, fautif nouveau 19/19 (6/6 injections) ; fausses
+alertes 8–10/120 minutes normales non vues, 0/39 sur saine-09. Plancher « a priori » :
+fautif top-1 57/115.
+
+**Répétition d'une panne jamais vue** (une cause connue retirée de l'apprentissage, graine 0) :
+- blocage retiré : détection 114/114, « inconnue » 114/114, fautif top-1 0/114 ;
+- lenteur retirée : détection 114/114, « inconnue » 114/114, fautif top-1 0/114 ;
+- hôte retiré : détection 3/117, fautif 0/117 (sans exemple, la panne CPU ressemble au normal).
+Le tableau sait qu'une panne est NOUVELLE, pas OÙ elle est : son fautif n'a appris que les
+motifs des causes vues. C'est le terrain de la première étape du GNN (l'écart au normal,
+nœud par nœud) et du témoin 2.

@@ -35,6 +35,8 @@ pas en appliquant le diff tel quel. Décidé le 26 sept. : en une seule fois,
 
 | B.2 | le juge commun : lecture des graphes figés, étiquette des minutes, coupure, notation, essais du juge | `graphe_en/juge.py` (nouveau), `fautifs.py` | 5 commits jusqu'à 519c686 |
 
+| B.3 | témoin 1, le tableau équitable : cases + résumés sans identité, 2 forêts, rejet des deux côtés, 5 graines ; juge : cause jamais vue à part | `graphe_en/temoin_tableau.py` (nouveau), `juge.py`, `fautifs.py` | jusqu'à 96d2622 |
+
 **Encore à coder, pas encore fait :**
 - avant la prochaine campagne (début de C) : `campagne.sh` écrit le
   placement des pods (pod → machine) dans le compte rendu de chaque campagne.
@@ -147,6 +149,14 @@ reprennent la perspective (19 et 20 de la version allégée, 16 de la plénière
     sur le blocage (toujours les trois mêmes répliques), 0 sur l'hôte. Donner
     ce plancher à côté de chaque méthode ; les mesures qui départagent sont le
     top-1 du blocage et de l'hôte, et la base lente (fautif jamais vu).
+
+27c. **Le tableau équitable** (B.3) : tous les nombres, aucune structure de
+    flèche ; 8/8 causes, 6/6 fautifs, 8–10 fausses alertes sur 120 (5 graines).
+    Dire les deux versions écartées et pourquoi (chaque fois pour le
+    renforcer). Répétition « panne jamais vue » : il détecte la nouveauté
+    (blocage, lenteur : 100 % « inconnue ») mais ne désigne jamais le fautif
+    (0 %), et ne voit pas l'hôte (3 %). Argument central pour l'écart au
+    normal nœud par nœud (témoin 2, première étape du GNN).
 
 ### Limites à écrire honnêtement
 27. **Dérive** : toute méthode qui apprend le « normal » se trompe si le normal
