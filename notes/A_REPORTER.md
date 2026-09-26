@@ -31,7 +31,7 @@ pas en appliquant le diff tel quel. Décidé le 26 sept. : en une seule fois,
 | A.7 | les figures dessinent `queries` et le réseau des hôtes | `graphe_en/render.py`, `README.md` | a87bb6a |
 | A.8 | **flèches mises à l'échelle** comme les nœuds (même référence saine) ; le manifest dit quel code a construit le run, quelle base, quelle mise à l'échelle ; `run.py` affiche la raison d'un refus ; écart 4 du manifest corrigé | `graphe_en/export_pyg.py`, `snapshot.py`, `run.py` | 440e8af |
 | A.8 | le gel : ce qui est figé et sa vérification | `graphe_en/graphe_fige.json`, `gel.py` (nouveaux), `LEXIQUE.md`, `README.md` | 440e8af, 100945c, étiquette `graphe-fige` |
-| B.1 | le fautif de chaque injection, règles écrites avant tout calcul | `graphe_en/fautifs.py` (nouveau) | e338da4 |
+| B.1 | le fautif de chaque injection et les règles de jugement, écrits avant tout calcul | `graphe_en/fautifs.py` (nouveau) | e338da4, 3c5aa84 |
 
 **Encore à coder, pas encore fait :**
 - avant la prochaine campagne (début de C) : `campagne.sh` écrit le
@@ -132,6 +132,12 @@ reprennent la perspective (19 et 20 de la version allégée, 16 de la plénière
     il y a plus de voyageurs) ; base lente = le pod de la base ; jumeaux = la
     machine au réseau dégradé, jamais le leurre. Juste au rang k si un fautif
     est parmi les k premiers.
+    Règles de jugement, écrites aussi avant : chaque méthode rend une alarme,
+    une cause et un classement ; fausses alertes au fil du temps ; top-k sans
+    et avec l'alarme ; égalités départagées contre la méthode ; mesures par
+    minute ET par injection ; une panne jamais vue a pour bonne cause
+    « panne inconnue » (c'est là que sert le rejet du classifieur à
+    prototypes).
 
 ### Limites à écrire honnêtement
 27. **Dérive** : toute méthode qui apprend le « normal » se trompe si le normal

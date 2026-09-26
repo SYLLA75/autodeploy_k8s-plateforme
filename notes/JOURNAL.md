@@ -917,3 +917,30 @@ bougé. Seul avertissement, attendu : la première série n'a pas les compteurs 
 
 Pour la suite : les témoins de la phase B liront les fenêtres de ces runs (vérifiées par
 `gel.py`), pas `lecture.txt` (arrondi, produit par des fichiers hors du gel).
+
+## 2026-09-26 — Phase B.1 : le fautif de chaque injection, et comment on juge
+
+Écrit avant tout calcul des témoins et avant toute donnée de la base lente :
+`graphe_en/fautifs.py` (commits e338da4, 3c5aa84), qui produit `campagnes/fautifs.txt`.
+
+Le fautif, par cause : blocage = la réplique gelée ; hôte = la machine (même quand la
+panne remonte en amont, hote-02 injection 3) ; lenteur = les trois répliques ; **charge =
+aucun fautif** (décidé avec l'utilisateur : rien n'est cassé, il y a plus de voyageurs ;
+jugée sur la cause seulement) ; base lente (C) = le pod de la base ; jumeaux (D) = la
+machine au réseau dégradé, jamais le leurre. Les 24 injections des deux séries ont leur
+réponse, tirée du registre des pannes de chaque campagne ; les 18 qui ont un fautif le
+retrouvent comme nœud du graphe figé dans chaque minute de l'injection.
+
+Une relecture indépendante (2 relecteurs, chaque constat revérifié) a montré que les
+règles de jugement étaient incomplètes ; complétées avant tout calcul :
+- chaque témoin rend une alarme, une cause et un classement de tous les nœuds ; seuil
+  d'alarme réglé sur les minutes normales d'apprentissage ; réglé sans puis avec exemples ;
+- fausses alertes mesurées au fil du temps ; saine-09 à part (vue par la mise à l'échelle) ;
+- top-k principal sans tenir compte de l'alarme, donné aussi « avec alarme » ;
+- égalités départagées contre le témoin, jamais par l'ordre alphabétique des fichiers
+  (il mettrait bmgvs et workers0 en tête, les fautifs fixes de la première série) ;
+- mesures par minute et par injection ; une cause jamais vue est jugée sur toutes ses
+  injections, la bonne cause y étant « panne inconnue ».
+Et la lecture des campagnes à venir échoue bruyamment au lieu de se taire : campagne
+interrompue, nom de cause inconnu, retrait raté, injection jamais retirée, compte
+d'injections différent de l'en-tête, nombre de répliques de la lenteur.
