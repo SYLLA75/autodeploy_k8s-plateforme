@@ -167,8 +167,8 @@
  },
  "echelle": {
   "campagne": "saine-09",
-  "run": "à reconstruire",
+  "run": "runs/20260926-033245",
   "fichier": "scaler.json, sur vms0, hors dépôt (.gitignore) ; nœuds et relations",
-  "sha256": "à caler"
+  "sha256": "53b6728f53160481cf1bb57d5bf97b332f2591e344cad3c392888092cd31c071"
  }
 }
