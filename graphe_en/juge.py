@@ -40,9 +40,14 @@ CE QU'UN TÉMOIN REND, pour chaque fenêtre qu'on lui donne (clé : fen["id"]) :
      "scores": {"instance:<pod>": 3.2, "host:workers0": 0.4,
                 "queue:food_delivery": 1.1, …}}      plus haut = plus suspect
 
-Un nœud absent des scores, ou dont le score est None ou NaN, est classé
-dernier. Les égalités sont départagées contre le témoin : le fautif passe
-après tous ceux qui ont le même score. L'ordre des nœuds n'intervient jamais.
+Les clés des nœuds viennent de noeuds(fenêtre), toujours par le NOM (jamais
+l'uid du champ « keys »). Le fautif est classé parmi TOUS les nœuds de la
+fenêtre : un nœud absent des scores, ou noté None ou NaN (de n'importe quel
+type, float32 compris), passe dernier. Les égalités sont départagées contre le
+témoin : le fautif passe après tous ceux qui ont le même score. L'ordre des
+nœuds n'intervient jamais. Une réponse mal formée est refusée (alarme qui
+n'est pas True ou False, cause qui n'est pas un texte, scores qui ne sont pas
+un dictionnaire, nœud inconnu, score qui n'est pas un nombre).
 
 LA NOTE (noter), sur les fenêtres de test non écartées :
   détection     fenêtres de panne avec alarme ; fausses alertes : fenêtres
@@ -50,19 +55,25 @@ LA NOTE (noter), sur les fenêtres de test non écartées :
   cause         fenêtres de panne avec la bonne cause
   fautif        top-1 et top-3 : un fautif parmi les k premiers ; sans tenir
                 compte de l'alarme (mesure principale), puis « avec alarme »
-                (une panne manquée compte comme fausse) ; la charge n'y entre pas
+                (une panne manquée compte comme fausse) ; la charge n'y entre
+                pas. Par cause, par série, causes jamais vues à part, et selon
+                que le fautif l'était déjà à l'apprentissage pour la même cause
+                ou non : un classement qui ne lit rien devine un fautif déjà
+                vu, jamais un nouveau
   par injection une injection est trouvée si la majorité de ses fenêtres de
-                panne au test le sont
+                panne au test le sont (à égalité : non trouvée)
+La bonne cause de chaque fenêtre est fixée par lire(), d'après tout
+l'apprentissage lu ; noter() ne la recalcule pas sur la liste qu'on lui passe.
 
 CE QUE FAIT LE SCRIPT
 
 Affiche et écrit <campagnes>/etiquettes.txt : les comptes par campagne, puis
 chaque campagne en tranches de minutes consécutives de même étiquette. Contrôle
 que ses étiquettes et sa coupure sont celles de ligne_de_base.py, minute par
-minute. Puis essaie le juge sur deux témoins factices, dont la note est connue
-d'avance : l'oracle (alarme, cause et fautif justes : tout à 100 %) et le
-témoin sans avis (même score pour tous, jamais d'alarme : fautif jamais au
-premier rang, aucune détection).
+minute. Puis éprouve le juge sur des témoins factices dont la note est connue
+d'avance (l'oracle à 100 % ; « sans avis », « vide » et un fautif noté NaN
+float32 à 0), vérifie qu'il refuse des réponses mal formées, et note
+« a priori », qui ne lit aucune donnée : le plancher à battre.
 
 Options :
   --campaigns <dossier>  le dossier des dossiers de campagne (défaut ../campagnes)
@@ -72,7 +83,7 @@ Options :
   --help                 ce texte
 
 Code de sortie 0 si tout est lu, conforme et identique à ligne_de_base.py, et
-si les deux témoins factices ont la note attendue ; 1 sinon ; 2 sur un
+si chaque essai du juge donne le résultat attendu ; 1 sinon ; 2 sur un
 mauvais argument. Bibliothèque standard seulement.
 """
 from __future__ import annotations
@@ -91,6 +102,7 @@ HERE = Path(__file__).resolve().parent
 FILE = "food_delivery"
 JAMAIS_VUES = {"base", "reseau"}
 PREMIERE = set(fautifs_module.SERIES[:5])
+SECONDE = set(fautifs_module.SERIES[5:])
 ECARTEES = {"a_cheval", "non_confirmee", "vidange"}
 
 
@@ -103,6 +115,18 @@ class Refus(Exception):
 # ------------------------------------------------------------------------------
 def _cle(kind: str, name: str) -> str:
     return f"{kind}:{name}"
+
+
+def noeuds(donnees: dict) -> list[str]:
+    """
+    Les clés de tous les nœuds d'une fenêtre, dans la forme que le juge attend :
+    « instance:<nom du pod> », « queue:<nom> », « host:<nom> ».
+
+    Toujours par le NOM. Le champ « keys » des fenêtres (et keys_ de graph.pt)
+    porte l'uid du pod pour les instances : un témoin qui noterait par uid
+    serait refusé.
+    """
+    return [_cle(k, n) for k in ("instance", "queue", "host") for n in donnees["nodes"][k]["names"]]
 
 
 def campagne(nom: str, campagnes: Path, runs: Path, fige: dict, tag: dict,
@@ -130,7 +154,8 @@ def campagne(nom: str, campagnes: Path, runs: Path, fige: dict, tag: dict,
         debut = datetime.fromtimestamp(d["window"]["start_ns"] / 1e9, tz=timezone.utc)
         fin = datetime.fromtimestamp(d["window"]["end_ns"] / 1e9, tz=timezone.utc)
         fen.append({"id": f"{nom}/{i:04d}", "campagne": nom, "numero": i, "debut": debut,
-                    "fin": fin, "serie": 1 if nom in PREMIERE else 2, "vue": nom == "saine-09",
+                    "fin": fin, "vue": nom == "saine-09",
+                    "serie": "1" if nom in PREMIERE else "2" if nom in SECONDE else "hors séries",
                     "etiquette": "normale", "cause": None, "fautifs": [], "injection": None,
                     "jeu": "apprentissage", "donnees": d})
 
@@ -206,6 +231,16 @@ def lire(noms: list[str], campagnes: Path | None = None, runs: Path | None = Non
     fen = []
     for nom in noms:
         fen += campagne(nom, campagnes, runs, fige, tag, consommateur, videe, jamais_vues)
+    # La bonne cause de chaque fenêtre, fixée ici une fois pour toutes, d'après
+    # TOUT l'apprentissage lu : noter() ne la recalcule jamais sur la liste qu'on
+    # lui passe (une liste de test seule rendrait toute cause « inconnue »).
+    apprises = causes_apprises(fen)
+    # Un fautif « déjà vu » l'a été pour la MÊME cause à l'apprentissage.
+    deja = {(f["cause"], c) for f in fen if f["etiquette"] == "panne" and f["jeu"] == "apprentissage"
+            for c in f["fautifs"]}
+    for f in fen:
+        f["attendue"] = cause_attendue(f, apprises)
+        f["fautif_vu"] = any((f["cause"], c) in deja for c in f["fautifs"])
     return fen
 
 
@@ -222,20 +257,54 @@ def cause_attendue(f: dict, apprises: set[str]) -> str:
 # ------------------------------------------------------------------------------
 # Noter
 # ------------------------------------------------------------------------------
-def rang(fautifs: list[str], scores: dict) -> int:
-    """
-    Le rang du mieux placé des fautifs, égalités départagées contre le témoin.
+def _val(v) -> float:
+    """Un score en nombre ; absent, None ou NaN (de quelque type que ce soit)
+    vaut moins que tout."""
+    if v is None:
+        return -math.inf
+    x = float(v)
+    return -math.inf if math.isnan(x) else x
 
-    Un score absent, None ou NaN vaut moins que tout. Le fautif passe après
-    chaque autre nœud dont le score est au moins le sien : c'est le pire rang
-    qu'un départage des égalités pourrait lui donner.
-    """
-    def val(v):
-        return -math.inf if v is None or (isinstance(v, float) and math.isnan(v)) else float(v)
 
-    meilleur = max(val(scores.get(c)) for c in fautifs)
-    autres = [k for k in scores if k not in fautifs]
-    return 1 + sum(1 for k in autres if val(scores[k]) >= meilleur)
+def rang(fautifs: list[str], scores: dict, tous: list[str]) -> int:
+    """
+    Le rang du mieux placé des fautifs parmi TOUS les nœuds de la fenêtre,
+    égalités départagées contre le témoin.
+
+    Un nœud que le témoin n'a pas noté vaut moins que tout, comme un score None
+    ou NaN : un témoin qui ne note rien, ou peu de nœuds, ne gagne rien. Le
+    fautif passe après chaque autre nœud dont le score est au moins le sien :
+    c'est le pire rang qu'un départage des égalités pourrait lui donner.
+    """
+    meilleur = max(_val(scores.get(c)) for c in fautifs)
+    return 1 + sum(1 for k in tous if k not in fautifs and _val(scores.get(k)) >= meilleur)
+
+
+def verifier(f: dict, rep) -> None:
+    """Refuse une réponse mal formée au lieu de la lire à l'avantage du témoin."""
+    if not isinstance(rep, dict):
+        raise ValueError(f"{f['id']} : la réponse n'est pas un dictionnaire")
+    a = rep.get("alarme")
+    if not (a is True or a is False or type(a).__name__ == "bool_"):
+        raise ValueError(f"{f['id']} : alarme {a!r}, il faut True ou False (pas une probabilité, "
+                         f"pas un texte)")
+    if not isinstance(rep.get("cause"), str):
+        raise ValueError(f"{f['id']} : cause {rep.get('cause')!r}, il faut un texte")
+    scores = rep.get("scores")
+    if not isinstance(scores, dict):
+        raise ValueError(f"{f['id']} : scores {type(scores).__name__}, il faut un dictionnaire "
+                         f"(vide s'il le faut)")
+    inconnus = set(scores) - set(noeuds(f["donnees"]))
+    if inconnus:
+        raise ValueError(f"{f['id']} : nœuds inconnus dans les scores, dont {sorted(inconnus)[0]} "
+                         f"(clés : juge.noeuds, par le nom)")
+    for k, v in scores.items():
+        if isinstance(v, (bool, str)) or type(v).__name__ == "bool_":
+            raise ValueError(f"{f['id']} : score de {k} = {v!r}, il faut un nombre ou None")
+        try:
+            float(v) if v is not None else None
+        except (TypeError, ValueError):
+            raise ValueError(f"{f['id']} : score de {k} = {v!r}, il faut un nombre ou None") from None
 
 
 def _part(n: int, total: int) -> str:
@@ -245,20 +314,23 @@ def _part(n: int, total: int) -> str:
 def noter(fen: list[dict], reponses: dict, titre: str = "") -> tuple[list[str], dict]:
     """
     La note d'un témoin sur les fenêtres de test non écartées, en texte et en
-    nombres. `reponses` : {fen["id"]: {"alarme", "cause", "scores"}} ; une
-    fenêtre de test sans réponse est une erreur.
+    nombres. `reponses` : {fen["id"]: {"alarme", "cause", "scores"}}. Une
+    fenêtre de test sans réponse, ou une réponse mal formée, est une erreur.
+    `fen` : des fenêtres rendues par lire() (la bonne cause y est déjà fixée).
     """
-    apprises = causes_apprises(fen)
     test = [f for f in fen if f["jeu"] == "test" and f["etiquette"] not in ECARTEES]
     manque = [f["id"] for f in test if f["id"] not in reponses]
     if manque:
         raise ValueError(f"{len(manque)} fenêtres de test sans réponse, dont {manque[0]}")
+    for f in test:
+        verifier(f, reponses[f["id"]])
     lignes = [f"== {titre}" if titre else "=="]
     chiffres: dict = {}
 
     pannes = [f for f in test if f["etiquette"] == "panne"]
     normales = [f for f in test if f["etiquette"] == "normale"]
-    alarme = lambda f: bool(reponses[f["id"]].get("alarme"))
+    alarme = lambda f: bool(reponses[f["id"]]["alarme"])
+    bonne_cause = lambda f: reponses[f["id"]]["cause"] == f["attendue"]
 
     # Détection et fausses alertes.
     det = sum(1 for f in pannes if alarme(f))
@@ -274,58 +346,63 @@ def noter(fen: list[dict], reponses: dict, titre: str = "") -> tuple[list[str], 
         lignes.append(f"fausses alertes {nom} : {_part(fa, len(groupe))}   {detail}")
 
     # Cause.
-    bonne = [f for f in pannes if reponses[f["id"]].get("cause") == cause_attendue(f, apprises)]
-    chiffres["cause"] = (len(bonne), len(pannes))
-    lignes.append(f"cause          {_part(len(bonne), len(pannes))} fenêtres de panne bien nommées"
-                  + ("" if not (set(f['cause'] for f in pannes) - apprises)
-                     else f"  (jamais vues : {', '.join(sorted(set(f['cause'] for f in pannes) - apprises))},"
-                          f" bonne réponse « inconnue »)"))
+    bonne = sum(1 for f in pannes if bonne_cause(f))
+    chiffres["cause"] = (bonne, len(pannes))
+    jamais = sorted({f["cause"] for f in pannes if f["attendue"] == "inconnue"})
+    lignes.append(f"cause          {_part(bonne, len(pannes))} fenêtres de panne bien nommées"
+                  + (f"  (jamais vues : {', '.join(jamais)}, bonne réponse « inconnue »)" if jamais else ""))
 
-    # Fautif, par cause et par série.
+    # Fautif : causes apprises et jamais vues à part ; par cause, par série, et
+    # selon que le fautif l'était déjà à l'apprentissage (un classement qui ne lit
+    # rien peut deviner un fautif déjà vu, jamais un nouveau).
     avec_fautif = [f for f in pannes if f["fautifs"]]
-    rangs = {f["id"]: rang(f["fautifs"], reponses[f["id"]].get("scores") or {}) for f in avec_fautif}
-    lignes.append(f"fautif         {'':<18}{'top-1':>14}{'top-3':>14}{'top-1 avec alarme':>22}")
-    groupes = [("tout", avec_fautif)]
-    groupes += [(c, [f for f in avec_fautif if f["cause"] == c])
-                for c in sorted({f["cause"] for f in avec_fautif})]
-    groupes += [(f"série {s}", [f for f in avec_fautif if f["serie"] == s]) for s in (1, 2)]
+    rangs = {f["id"]: rang(f["fautifs"], reponses[f["id"]]["scores"], noeuds(f["donnees"]))
+             for f in avec_fautif}
+    lignes.append(f"fautif{'':<25}{'top-1':>17}{'top-3':>17}{'top-1 alarme':>17}{'top-3 alarme':>17}")
+    apprises = [f for f in avec_fautif if f["attendue"] != "inconnue"]
+    groupes = [("causes apprises", apprises)]
+    groupes += [(c, [f for f in apprises if f["cause"] == c]) for c in sorted({f["cause"] for f in apprises})]
+    groupes += [(f"série {s}", [f for f in apprises if f["serie"] == s]) for s in ("1", "2", "hors séries")]
+    groupes += [("fautif déjà vu", [f for f in apprises if f["fautif_vu"]]),
+                ("fautif nouveau", [f for f in apprises if not f["fautif_vu"]])]
+    groupes += [(f"jamais vue : {c}", [f for f in avec_fautif if f["attendue"] == "inconnue" and f["cause"] == c])
+                for c in jamais]
     for nom, groupe in groupes:
         if not groupe:
             continue
-        t1 = sum(1 for f in groupe if rangs[f["id"]] <= 1)
-        t3 = sum(1 for f in groupe if rangs[f["id"]] <= 3)
-        t1a = sum(1 for f in groupe if rangs[f["id"]] <= 1 and alarme(f))
-        chiffres[f"top-1 {nom}"], chiffres[f"top-3 {nom}"] = (t1, len(groupe)), (t3, len(groupe))
-        chiffres[f"top-1 avec alarme {nom}"] = (t1a, len(groupe))
-        lignes.append(f"  {nom:<29}{_part(t1, len(groupe)):>14}{_part(t3, len(groupe)):>14}"
-                      f"{_part(t1a, len(groupe)):>22}")
+        valeurs = []
+        for k, avec_alarme in ((1, False), (3, False), (1, True), (3, True)):
+            n = sum(1 for f in groupe if rangs[f["id"]] <= k and (alarme(f) or not avec_alarme))
+            chiffres[f"top-{k}{' avec alarme' if avec_alarme else ''} {nom}"] = (n, len(groupe))
+            valeurs.append(_part(n, len(groupe)))
+        lignes.append(f"  {nom:<29}" + "".join(f"{v:>17}" for v in valeurs))
 
     # Par injection : la majorité de ses fenêtres de panne au test.
     injections: dict = {}
     for f in pannes:
         injections.setdefault((f["campagne"], f["injection"]), []).append(f)
-    lignes.append("par injection  (trouvée si la majorité de ses fenêtres de test le sont)")
-    trouvees = {"détectée": 0, "cause": 0, "top-1": 0, "top-3": 0}
+    lignes.append("par injection  (trouvée si la majorité de ses fenêtres de test le sont ; "
+                  "a = avec alarme)")
+    cles = ["détectée", "cause", "top-1", "top-3", "top-1 a", "top-3 a"]
+    trouvees = dict.fromkeys(cles, 0)
     avec = 0
     for (c, k), groupe in sorted(injections.items()):
         maj = lambda ok: 2 * sum(1 for f in groupe if ok(f)) > len(groupe)
-        d = maj(alarme)
-        b = maj(lambda f: reponses[f["id"]].get("cause") == cause_attendue(f, apprises))
-        r1 = r3 = None
+        r = {"détectée": maj(alarme), "cause": maj(bonne_cause)}
         if groupe[0]["fautifs"]:
             avec += 1
-            r1, r3 = maj(lambda f: rangs[f["id"]] <= 1), maj(lambda f: rangs[f["id"]] <= 3)
-            trouvees["top-1"] += r1
-            trouvees["top-3"] += r3
-        trouvees["détectée"] += d
-        trouvees["cause"] += b
+            for j in (1, 3):
+                r[f"top-{j}"] = maj(lambda f: rangs[f["id"]] <= j)
+                r[f"top-{j} a"] = maj(lambda f: rangs[f["id"]] <= j and alarme(f))
+        for cle in cles:
+            trouvees[cle] += bool(r.get(cle))
         oui = lambda x: "—" if x is None else ("oui" if x else "non")
-        lignes.append(f"  {c:<12} injection {k}  {groupe[0]['cause']:<8} {len(groupe):>3} fenêtres   "
-                      f"détectée {oui(d):<4}cause {oui(b):<4}top-1 {oui(r1):<4}top-3 {oui(r3)}")
+        lignes.append(f"  {c:<12} injection {k}  {groupe[0]['cause']:<8} {len(groupe):>3} fenêtres  "
+                      + "  ".join(f"{cle} {oui(r.get(cle))}" for cle in cles))
     n = len(injections)
     chiffres["injections"] = {k: (v, avec if k.startswith("top") else n) for k, v in trouvees.items()}
-    lignes.append(f"  total : détectées {trouvees['détectée']}/{n}, bonne cause {trouvees['cause']}/{n}, "
-                  f"fautif top-1 {trouvees['top-1']}/{avec}, top-3 {trouvees['top-3']}/{avec}")
+    lignes.append("  total : " + ", ".join(f"{k} {v}/{avec if k.startswith('top') else n}"
+                                          for k, v in trouvees.items()))
     return lignes, chiffres
 
 
@@ -373,18 +450,44 @@ def controle(fen: list[dict], campagnes: Path, noms: list[str], consommateur: st
     return ecarts
 
 
-def factices(fen: list[dict]) -> tuple[dict, dict]:
-    apprises = causes_apprises(fen)
-    oracle, sans_avis = {}, {}
+class _NaN32:
+    """Un NaN qui n'est pas un float Python, comme numpy.float32 ou un tenseur."""
+    def __float__(self):
+        return math.nan
+
+
+def factices(fen: list[dict]) -> dict[str, dict]:
+    """
+    Des témoins dont la note est connue d'avance, pour éprouver le juge ; et
+    « a priori », qui ne lit aucune donnée : il classe les nœuds par le nombre
+    de fois qu'ils ont été fautifs à l'apprentissage. C'est le plancher à
+    battre : il devine un fautif déjà vu, jamais un nouveau.
+    """
+    deja: dict[str, int] = {}
     for f in fen:
-        noeuds = [_cle(k, n) for k in ("instance", "queue", "host")
-                  for n in f["donnees"]["nodes"][k]["names"]]
-        oracle[f["id"]] = {"alarme": f["etiquette"] == "panne",
-                           "cause": cause_attendue(f, apprises),
-                           "scores": {n: (1.0 if n in f["fautifs"] else 0.0) for n in noeuds}}
-        sans_avis[f["id"]] = {"alarme": False, "cause": "normale",
-                              "scores": {n: 0.0 for n in noeuds}}
-    return oracle, sans_avis
+        if f["etiquette"] == "panne" and f["jeu"] == "apprentissage":
+            for c in f["fautifs"]:
+                deja[c] = deja.get(c, 0) + 1
+    t = {"oracle": {}, "sans avis": {}, "vide": {}, "NaN non float": {}, "a priori": {}}
+    for f in fen:
+        tous = noeuds(f["donnees"])
+        t["oracle"][f["id"]] = {"alarme": f["etiquette"] == "panne", "cause": f["attendue"],
+                                "scores": {n: (1.0 if n in f["fautifs"] else 0.0) for n in tous}}
+        t["sans avis"][f["id"]] = {"alarme": False, "cause": "normale", "scores": {n: 0.0 for n in tous}}
+        t["vide"][f["id"]] = {"alarme": False, "cause": "normale", "scores": {}}
+        t["NaN non float"][f["id"]] = {"alarme": False, "cause": "normale",
+                                       "scores": {n: (_NaN32() if n in f["fautifs"] else 1.0) for n in tous}}
+        t["a priori"][f["id"]] = {"alarme": False, "cause": "normale",
+                                  "scores": {n: float(deja.get(n, 0)) for n in tous}}
+    return t
+
+
+def _refuse(fen: list[dict], reponses: dict) -> bool:
+    try:
+        noter(fen, reponses)
+    except ValueError:
+        return True
+    return False
 
 
 def rapport(noms: list[str], campagnes: Path, runs: Path, consommateur: str, videe: float) -> int:
@@ -422,20 +525,41 @@ def rapport(noms: list[str], campagnes: Path, runs: Path, consommateur: str, vid
     print(f"  {'identiques' if not ecarts else f'{len(ecarts)} écart(s)'} sur {len(fen)} fenêtres")
     problemes += bool(ecarts)
 
-    print("\n# essai du juge sur deux témoins factices, dont la note est connue d'avance")
-    oracle, sans_avis = factices(fen)
-    lignes, n_or = noter(fen, oracle, "oracle : alarme, cause et fautif justes")
-    print("\n".join(lignes))
-    lignes, n_sa = noter(fen, sans_avis, "sans avis : même score pour tous, jamais d'alarme")
-    print("\n".join(lignes))
-    attendu_or = all(v[0] == v[1] for k, v in n_or.items() if k != "injections"
-                     and not k.startswith("fausses")) and all(v[0] == 0 for k, v in n_or.items()
-                                                              if k.startswith("fausses"))
-    attendu_sa = n_sa["detection"][0] == 0 and all(v[0] == 0 for k, v in n_sa.items()
-                                                   if k.startswith("top-1"))
-    print(f"\n  oracle : {'note attendue' if attendu_or else 'ÉCART'} ; "
-          f"sans avis : {'note attendue' if attendu_sa else 'ÉCART'}")
-    problemes += (not attendu_or) + (not attendu_sa)
+    print("\n# essai du juge sur des témoins factices, dont la note est connue d'avance")
+    t = factices(fen)
+    notes = {}
+    for nom, titre in (("oracle", "alarme, cause et fautif justes : tout à 100 %"),
+                       ("sans avis", "même score pour tous, jamais d'alarme : tout à 0"),
+                       ("vide", "aucun score : le fautif est dernier, tout à 0"),
+                       ("NaN non float", "fautif noté NaN d'un type non float : dernier, tout à 0"),
+                       ("a priori", "ne lit aucune donnée : le plancher à battre")):
+        lignes, notes[nom] = noter(fen, t[nom], f"{nom} : {titre}")
+        print("\n".join(lignes))
+    fautif = lambda n: [v for k, v in notes[n].items() if k.startswith("top-")]
+    verdicts = {
+        "oracle": all(v[0] == v[1] for k, v in notes["oracle"].items()
+                      if k not in ("injections",) and not k.startswith("fausses"))
+                  and all(v[0] == 0 for k, v in notes["oracle"].items() if k.startswith("fausses")),
+        "sans avis": notes["sans avis"]["detection"][0] == 0 and all(v[0] == 0 for v in fautif("sans avis")),
+        "vide": all(v[0] == 0 for v in fautif("vide")),
+        "NaN non float": all(v[0] == 0 for v in fautif("NaN non float")),
+    }
+    # Des réponses mal formées doivent être refusées, jamais lues à l'avantage du témoin.
+    def abime(champ, valeur):
+        return {i: {**r, champ: valeur} for i, r in t["oracle"].items()}
+    un = next(f for f in fen if f["jeu"] == "test" and f["fautifs"])
+    par_uid = {i: dict(r) for i, r in t["oracle"].items()}
+    uid = un["donnees"]["nodes"]["instance"]["keys"][0]
+    par_uid[un["id"]] = {**par_uid[un["id"]], "scores": {f"instance:{uid}": 1.0}}
+    verdicts["refus : alarme texte"] = _refuse(fen, abime("alarme", "False"))
+    verdicts["refus : alarme probabilité"] = _refuse(fen, abime("alarme", 0.03))
+    verdicts["refus : scores absents"] = _refuse(fen, {i: {k: v for k, v in r.items() if k != "scores"}
+                                                     for i, r in t["oracle"].items()})
+    verdicts["refus : nœud par uid"] = _refuse(fen, par_uid)
+    print()
+    for nom, ok in verdicts.items():
+        print(f"  {nom:<28} {'comme attendu' if ok else 'ÉCART'}")
+    problemes += sum(1 for ok in verdicts.values() if not ok)
 
     print("\n# chaque campagne en tranches (début–fin UTC, fenêtres, jeu, étiquette)")
     for nom in noms:

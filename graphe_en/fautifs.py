@@ -35,9 +35,9 @@ COMMENT ON JUGE (même règle pour tous les témoins, GNN compris)
   Chaque fenêtre de 60 s reçoit une étiquette d'après le déroulé, avec les
   règles de ligne_de_base.py :
     panne     entièrement dans une injection confirmée : sa cause, ses fautifs
-    écartée   à cheval sur une injection ou un retrait ; après un retrait, tant
-              que le tas de la file dépasse 10 messages, plus une fenêtre de
-              garde (vidange) ; dans une injection non confirmée
+    écartée   à cheval sur une injection ou un retrait ; la première fenêtre
+              après un retrait, puis chacune tant que le tas de la file dépasse
+              10 messages (vidange) ; dans une injection non confirmée
     normale   tout le reste
   Coupure par le temps, jamais au hasard : la dernière injection de chaque
   campagne, avec les fenêtres depuis dix minutes avant elle, est le jeu de
