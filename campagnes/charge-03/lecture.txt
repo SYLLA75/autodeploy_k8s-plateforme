@@ -1,8 +1,8 @@
-# Lecture du graphe construit par run.py — runs/20260913-075006
+# Lecture du graphe construit par run.py — runs/20260926-041723
 # plage 2026-09-13 03:37 -> 05:47, fenêtres de 60 s
 # fenêtres gardées : 130
 
-queue: food_delivery    run: runs/20260913-075006
+queue: food_delivery    run: runs/20260926-041723
 window  start_utc                   backlog  backlog_slope   publish_rate   consume_rate rate_imbalance      consumers
 29821177  03:37:00                      3.000              -          3.283          3.283          0.000          3.000
 29821178  03:38:00                      1.000         -2.000          3.483          3.450          0.033          3.000
@@ -135,7 +135,7 @@ window  start_utc                   backlog  backlog_slope   publish_rate   cons
 29821305  05:45:00                      2.000          1.000          1.750          1.750          0.000          3.000
 29821306  05:46:00                      3.000          1.500          2.783          2.783          0.000          3.000
 
-instances containing 'delivery'    run: runs/20260913-075006
+instances containing 'delivery'    run: runs/20260926-041723
 window  start_utc            instance                                  process_time_p50  process_time_p95       error_ratio          cpu_rate       memory_used
 29821177  03:37:00             ts-delivery-service-79c46f4f45-bmgvs               705.722           845.475                 -             0.003         436592640
 29821177  03:37:00             ts-delivery-service-79c46f4f45-r5pwb               705.544           845.911                 -             0.002         419491840
@@ -658,7 +658,7 @@ window  start_utc            instance                                  process_t
 29821306  05:46:00             ts-delivery-service-79c46f4f45-tvmfl               706.147           847.360                 -             0.003         425082880
 29821306  05:46:00             ts-food-delivery-service-7cdc54dd4d-4jwk                 -                 -                 -             0.001         414736384
 
-hosts    run: runs/20260913-075006
+hosts    run: runs/20260926-041723
 window  start_utc            host                 cpu_busy     cpu_pressure  memory_pressure      io_pressure
 29821177  03:37:00             master                  0.038            0.010            0.000            0.001
 29821177  03:37:00             workers0                0.038            0.008            0.000            0.000

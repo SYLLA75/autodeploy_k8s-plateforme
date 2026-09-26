@@ -869,3 +869,51 @@ se dessinent comme avant (pas de clé `queries`). README du graphe : cinq relati
 les trois répliques et ts-food-service reliées à tsdb-mysql-0 dans la vue de la file, les
 quinze arêtes convergent vers la base dans la vue complète. Images :
 `~/verifications-phases/A7/` sur le poste.
+
+## 2026-09-26 — Phase A.8 : le graphe est figé (étiquette `graphe-fige`)
+
+À partir d'ici, plus aucune colonne, relation, réglage de fenêtre ni mise à l'échelle ne
+change. Raison : les témoins (phase B) puis le GNN (phase E) doivent tous lire le même
+graphe, et il est figé avant toute donnée de la base lente (phase C) ; un graphe retouché
+après l'avoir vue serait taillé pour la réponse.
+
+- `graphe_en/graphe_fige.json` : ce qui est figé (colonnes de chaque sorte de nœud, cinq
+  relations et leurs colonnes, colonnes passées au log, réglages, adresse de la base et son
+  pod, écriture des tenseurs, empreinte de la mise à l'échelle, fichiers qui calculent le
+  graphe).
+- `graphe_en/gel.py` : la vérification. Référence lue dans l'étiquette, pas sur le disque ;
+  étiquette absente = écart. `gel.py runs/<a> …` contrôle en plus le code qui a construit
+  chaque run (empreintes du manifest contre l'étiquette), ses réglages, sa mise à l'échelle,
+  ses colonnes et ses arêtes `queries`.
+
+Deux relectures indépendantes avant l'étiquette (chaque constat revérifié à part) ont
+ajouté au gel :
+- **Les flèches sont mises à l'échelle comme les nœuds**, sur saine-09 (log des débits et
+  durées). Sans cela, la décision serait revenue au GNN, en phase E, donc après la base
+  lente, qui ne se voit que par les flèches `queries`. Les statistiques des nœuds sont
+  identiques à l'ancienne mise à l'échelle ; nouvelle empreinte 53b6728f…, l'ancienne
+  gardée sur vms0 (`scaler-v2-saine-09-noeuds.json`).
+- **Chaque run dit quel code l'a construit** (commit, sha256 de chaque module), avec quelle
+  mise à l'échelle et quelle base visée ; chaque fenêtre compte ses appels à une base
+  inconnue. Un graphe sans aucune arête `queries` est refusé.
+- Corrigés au passage : l'écart 4 du manifest, périmé depuis 2a0ccc4 (le débit de
+  traitement n'est plus en double) ; un refus de `run.py` affiche enfin sa raison ; le
+  lexique (valeurs réseau saines de saine-09, pertes constantes par machine, 0,033 ou 0,05 ;
+  la panne hôte fait monter `tcp_retrans_ratio` sur l'hôte visé et sur le master).
+
+Les 10 graphes des deux séries ont été reconstruits sur vms0 avec le code figé (saine-09 en
+`write`, les 9 autres en `apply`) : `gel.py` les dit tous CONFORMES ; le graphe de saine-08
+d'avant le gel (runs/20260913-053054) est refusé (pas de `queries`, hôte à 5 nombres, code
+inconnu). Les 10 `lecture.txt` ne changent que par le numéro du run : aucun nombre n'a
+bougé. Seul avertissement, attendu : la première série n'a pas les compteurs réseau.
+
+| campagne | run figé | | campagne | run figé |
+|---|---|---|---|---|
+| saine-09 | 20260926-033245 | | saine-08 | 20260926-041410 |
+| blocage-03 | 20260926-034025 | | charge-03 | 20260926-041723 |
+| hote-02 | 20260926-034850 | | blocage-02 | 20260926-042549 |
+| charge-04 | 20260926-035654 | | lenteur-01 | 20260926-043347 |
+| lenteur-02 | 20260926-040544 | | hote-01 | 20260926-044150 |
+
+Pour la suite : les témoins de la phase B liront les fenêtres de ces runs (vérifiées par
+`gel.py`), pas `lecture.txt` (arrondi, produit par des fichiers hors du gel).
