@@ -71,11 +71,14 @@ cause commune (« la cible est-elle lente pour tout le monde, ou pour moi
 seulement ? ») est un premier réflexe de diagnostic général, sans rien de
 propre à une base ; elle change « composant anormal » en « preuve sur les
 flèches », ce qui est l'hypothèse H1 écrite à la main. Choisie par celui qui
-prépare la base lente, entre deux règles que les données ne distinguent pas :
-d'où les deux, et leur réponse attendue écrite avant la phase C (journal).
+prépare la base lente, entre deux règles que les pannes connues ne départagent
+pas sur la validation (au test, seule la littérale se trompe, par le bruit de la
+base, dans des fenêtres de lenteur) : d'où les deux, et leur réponse attendue
+écrite avant la phase C (journal).
   littérale      l'ingénieur qui ne pense pas à une base lente : devant elle,
-                 attendue « lenteur, les répliques » (le nœud de la base ne
-                 bouge pas)
+                 réponse qui dépend du bruit (« lenteur, les répliques » si le
+                 nœud de la base ne bouge pas, la base accusée si le bruit de ses
+                 douze nombres dépasse s)
   cause commune  la plus forte : attendue « inconnue, tsdb-mysql-0 », si la
                  base lente remplit la file et fait passer la flèche des
                  répliques vers la base au-dessus de s

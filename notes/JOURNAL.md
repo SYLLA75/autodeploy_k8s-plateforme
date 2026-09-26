@@ -1009,3 +1009,265 @@ fautif top-1 57/115.
 Le tableau sait qu'une panne est NOUVELLE, pas OÙ elle est : son fautif n'a appris que les
 motifs des causes vues. C'est le terrain de la première étape du GNN (l'écart au normal,
 nœud par nœud) et du témoin 2.
+
+## 2026-09-26 — Phase B.4 : témoin 2, le score par nœud
+
+`graphe_en/temoin_noeud.py` (commit 4ca7001, puis 98ec3f9 et ea31952 après relectures ;
+sortie de 4ca7001 gardée en 483e814), résultat dans `campagnes/temoin_noeud.txt` et `-validation.txt`.
+
+Chaque nœud comparé à SON normal (appris sur les fenêtres normales d'apprentissage) :
+écart robuste z par nombre, plus le nombre de valeurs absentes ; aucune flèche lue.
+Deux réglages : **sans exemples** (score = plus grand |z| ; alarme au 95e centile du
+normal mis de côté campagne par campagne ; cause « inconnue » dès qu'il sonne) et **avec
+exemples** (détecteur forêt sur le profil d'écart, fautif par régression logistique
+partagée, cause par prototypes avec rejet ; devant une panne « inconnue », le classement
+retombe sur l'écart seul, comme le GNN désignera toujours par son étape 1).
+
+**Quatre versions vues sur le test, dites** (`campagnes/versions-vues-sur-test/`) :
+1. échelle par l'écart interquartile seul : seuil d'alarme 138 (pics rares de
+   cpu_throttle_ratio, memory_slope) ; défaut vu sur le calage, mais la version avait
+   aussi été notée sur le test (détection 48/153) ; corrigé ;
+2. détecteur en régression logistique : seuil 0,043, 33/120 fausses alertes au test ;
+   remplacé par une forêt APRÈS ce test ;
+3. commit 4ca7001 (noté sur le test) : lenteur top-1 0/38 sans exemples ;
+4. version finale, après deux relectures indépendantes. Leurs constats, vérifiés sur la
+   **validation** (nouvelle, voir B.5), jamais sur le test :
+   - le plancher d'échelle mesurait les différences de niveau entre nœuds : 0,28 en
+     log pour le temps de traitement, 7 fois l'échelle propre des répliques, la lenteur
+     n'y faisait que z = 1,5 ; maintenant, les écarts de chaque nœud à SA médiane ;
+   - le détecteur apprenait sur des écarts au normal qui contient la fenêtre même : il
+     apprend maintenant sur des écarts « croisés » (normal appris sans la campagne) ;
+   - le fautif appris ne connaît que les pannes apprises : repli sur l'écart seul ;
+   - distances aux prototypes mises à l'échelle.
+
+**Résultat (test)** : sans exemples, détection 42/153, fausses alertes 5/120, fautif
+top-1 100/115 (hôte 39/39, blocage 36/38, lenteur 25/38), 6/6 injections sans l'alarme.
+Avec exemples (5 graines, médiane [min–max]) : détection 153/153, fausses alertes
+28/120 [19–30], cause 130/153, fautif top-1 113/115.
+
+**Ce qu'il apprend à la thèse.** Sans exemples, il désigne souvent la victime : la file,
+dont le tas s'écarte bien plus que la réplique gelée ou lente. Ce résultat varie avec la
+coupure : sur la validation, blocage top-1 1/38 et lenteur 0/38 (la file désignée),
+contre 36/38 et 25/38 au test ; seul l'hôte est solide (39/39 partout). Avec exemples,
+ses fausses alertes viennent de la dérive de fin de campagne : le CPU de
+ts-order-service monte avec la table des commandes (relecture B.7 ; ce n'est pas un
+reste de la panne d'hôte, selon la relecture ; à montrer sur ces fenêtres). Elles se
+groupent juste après une injection de hote-01 : au test 13 sur 16 après la dernière, sur
+la validation 11 sur 14 après la deuxième, en milieu de campagne. Il connaît chaque nœud
+par son nom, ce que le GNN ne fait pas.
+
+## 2026-09-26 — Phase B.5 : témoin 3, la règle qui suit les flèches
+
+`graphe_en/temoin_fleches.py` (commits 98ec3f9, 483e814, ea31952), résultat dans
+`campagnes/temoin_fleches.txt` et `-validation.txt`. Bibliothèque standard seulement.
+
+La définition du 24 sept. : la file → ses répliques → leur machine, puis ce qu'elles
+appellent → le dernier composant anormal. Écrite comme par un ingénieur qui connaît la
+plateforme, le graphe figé et les quatre causes (sa structure reprend le tableau « quelle
+panne fait bouger quoi » du LEXIQUE) ; limites d'alarme calées sur le normal seul.
+**Deux versions, notées côte à côte** :
+- **littérale** : la cible appelée est accusée si ses propres nombres sont anormaux ;
+- **cause commune** : la cible est accusée si la plupart des AUTRES services qui
+  l'appellent la voient aussi plus lente. Principe général (« lent pour tout le monde,
+  ou pour moi seulement ? »), rien de propre à une base ; mais choisi par celui qui
+  prépare la base lente, entre deux règles que la validation ne distingue pas (la cause
+  commune ne se déclenche sur aucune panne connue ; au test, la littérale sans exemples
+  accuse la base dans 25 fenêtres de lenteur) : d'où les deux versions.
+
+**Versions vues sur le test, dites.** La première version a été notée sur le test
+(détection 107/153, cause 52/153, lenteur top-1 0/38), puis changée : deux limites
+d'alarme au lieu d'une ; charge par élimination ; et surtout le plancher fautif du
+témoin 2, qui la rendait aveugle à la lenteur. Les chiffres de la règle sur les causes
+connues sont donc « après une révision informée par le test ». La base lente ne l'est
+pas, si la règle est figée avant C. Après deux relectures, vérifié sur la validation
+seule : la saturation d'une machine = sa pression, pas son occupation (cpu_busy suit la
+dérive de ts-order-service : fausses alertes 21 → 2 sur 102) ; réplique gelée = plus de
+temps de traitement ; autres appelants comptés par service ; désignés à égalité.
+
+**Outil nouveau : `juge.validation()`**, la coupure répétée une injection plus tôt, le
+vrai test mis de côté (option `--validation` des scripts). **Depuis, tout choix de réglage
+(témoins, puis GNN) se fait sur la validation, jamais sur le test.** Les pannes de la
+base lente y sont toujours mises de côté (relecture B.7).
+
+**Résultat (test)** : cause commune, sans exemples : détection 153/153, fausses alertes
+10/120, cause 150/153, fautif top-1 115/115 ; avec exemples : cause 153/153, top-1
+115/115. Littérale, sans exemples : cause 125/153, top-1 90/115, lenteur 13/38 (elle
+accuse la base dans des fenêtres de lenteur : son épreuve compare au seuil de la file le
+plus grand |z| des douze nombres de la base, que le bruit dépasse souvent) ; avec
+exemples : 153/153, 115/115. Sur la validation, les deux versions font pareil : fausses
+alertes 2/102 et top-1 114/115 pour les quatre, cause 150/153 sans exemples, 152/153 avec.
+
+**Ce qu'elle sait de plus que le GNN** (à dire au rapport) : le normal de chaque nœud par
+son nom, celui de chaque flèche par (relation, service source, service cible), les
+consommateurs attendus de chaque file, les signatures des quatre causes écrites à la
+main. C'est la référence experte sur les pannes connues ; ses presque 100 % y sont un
+plafond par construction.
+
+## 2026-09-26 — Phase B.6 : les témoins côte à côte
+
+`graphe_en/temoins.py`, résultat dans `campagnes/temoins.txt` (test) et
+`temoins-validation.txt`. Rien n'y est réglé : chaque témoin est appris par son fichier.
+
+**Tableau de bord (test ; médiane sur 5 graines pour ce qui tire au hasard)**
+
+| témoin | détection | fausses alertes /120 | cause | fautif top-1 /115 | nouveau /19 |
+|---|---|---|---|---|---|
+| tableau équitable | 153 | 9 [8–10] | 150 | 115 | 19 |
+| score par nœud, sans exemples | 42 | 5 | 0 (par construction) | 100 | 17 |
+| score par nœud, avec exemples | 153 | 28 [19–30] | 130 | 113 | 18 |
+| règle littérale, sans / avec | 153 | 10 | 125 / 153 | 90 / 115 | 19 |
+| règle cause commune, sans / avec | 153 | 10 | 150 / 153 | 115 | 19 |
+| a priori (ne lit rien) | 0 | 0 | 0 | 57 | 0 |
+
+**Fausses alertes au fil du temps.** Au test, aucune sur saine-08 ni saine-09 (fin de
+campagne), aucune sur hote-02 (sur la validation : toujours aucune sur saine-08, mais le
+score par nœud en fait 2 sur 26 sur saine-09 et 1 à 3 sur hote-02). Elles tombent après la dernière injection de charge-03 (4 à 6 sur 8
+pour tous) et de hote-01 (le score par nœud avec exemples : 13 sur 16 ; les autres : 0 à
+3). La relecture B.7 les attribue à la dérive de ts-order-service ; elles suivent de près
+une injection : à montrer fenêtre par fenêtre avant de l'écrire au rapport.
+
+**Répétition « panne jamais vue »** (une cause connue retirée de l'apprentissage ; toutes
+ses injections au test) — le fautif top-1 :
+
+| cause retirée | tableau | score par nœud (sans / avec) | règle (4 variantes) |
+|---|---|---|---|
+| blocage | 0/114 | 101/114 | 114/114 |
+| hote | 0/117 | 117/117 | 117/117 |
+| lenteur | 0/114 | 89/114 | 84 à 114/114 |
+
+- Le tableau sait qu'une panne est nouvelle (« inconnue » 114/114 pour blocage et
+  lenteur), jamais **où** elle est. Il ne voit presque pas un hôte jamais vu (3/117).
+- Le score par nœud désigne un fautif qu'il n'a jamais vu fauter : c'est l'écart au normal
+  nœud par nœud, l'idée de l'étape 1 du GNN. Mais sur la validation, il n'y arrive que
+  pour l'hôte (78/78 ; blocage 1/76, lenteur 0/76 : il désigne la file, victime).
+- La règle porte les noms des quatre causes et chaque branche a été écrite pour sa cause :
+  sa colonne « inconnue » est sans objet, ses lignes ne se comparent pas au GNN. Seule la
+  base lente l'éprouvera.
+- La relecture B.7 nuance aussi B.3 : sur la validation, le tableau dit « inconnue » pour
+  un blocage jamais vu dans 15/76 fenêtres seulement (il le prend pour une charge).
+
+## 2026-09-26 — Phase B.7 : relecture finale des trois témoins, et gel
+
+Deux relectures finales indépendantes (les trois témoins ensemble ; l'équité au niveau
+de la thèse). Aucune fuite, aucun défaut de calcul dans le tableau. Corrigé (commit
+ea31952) : les pannes de la base lente ne peuvent pas entrer dans la validation ; les
+totaux par injection et le tableau de bord montrent une cause jamais vue à part ; les
+résultats des deux séries ne sont jamais écrasés par une lecture qui ajoute C (fichiers
+`<témoin>-<campagne>.txt`) ; chaque sortie dit les campagnes lues ; le tableau affiche son
+budget de fausses alertes ; les versions vues sur le test sont dites dans chaque en-tête et
+dans `campagnes/versions-vues-sur-test/LISEZMOI.md` (regards sur le test, version finale
+comprise : tableau 3, score par nœud 4, règle 2). Chaque changement visait à renforcer le
+témoin ; au test, c'est vrai pour le tableau (cause 144 → 150/153, top-1 94 → 115/115), la
+règle (cause 52 → 150/153) et le score par nœud sans exemples (lenteur 0 → 25/38), mais le
+score par nœud avec exemples y perd un peu (cause 136 → 130/153, top-1 114 → 113/115), et le
+tableau fait 9/120 fausses alertes au lieu de 0 depuis son rejet des deux côtés.
+
+**Budgets de fausses alertes** (fenêtres normales mises de côté, campagne par campagne) :
+tableau et score par nœud sans exemples 13/249 = 5,2 % chacun (le même centile sur les
+mêmes fenêtres ; les plus serrés) ; score par nœud avec exemples 25/249 = 10 % (deux
+alarmes) ; règle 21/249 = 8,4 % (file et machines). Les fausses
+alertes se comparent donc à budget égal, et par campagne (quelques fenêtres = du bruit).
+
+**Ce que les témoins savent de plus que le GNN** : les noms (normal par nœud, cases du
+tableau), le normal de chaque flèche par paire de services et les consommateurs attendus
+(règle), les signatures des causes (règle), la cause commune écrite en sachant que C est
+une base lente. Une victoire du GNN est donc prudente ; une défaite peut venir en partie
+de là.
+
+### Écrit AVANT la phase C : ce qui décidera (PROPOSÉ le 26 sept., à valider par l'utilisateur)
+
+La logique du 24 sept. (un témoin sans flèches trouve la base lente → arrêter le
+GNN ; seule la règle qui suit les flèches → H1 gagnée, le GNN seulement s'il bat la
+règle ; personne → GNN justifié) n'était plus assez précise : la règle a deux
+versions et deux réglages, le score par nœud deux réglages. La relecture finale
+prévoit même que les deux réglages de la règle répondront à l'opposé. Table
+proposée, à figer avant C :
+
+**Mise en place.** Code à l'étiquette `temoins-figes`, inchangé. C lue par le juge
+avec les causes jamais vues par défaut (base, reseau). Il faut au moins 2 injections
+« base » confirmées, sinon C est refaite à l'identique.
+
+**Mesure principale, par injection** (règle du 26 sept.) : F = tsdb-mysql-0 est
+premier dans plus de la moitié des fenêtres de panne de l'injection, sans tenir
+compte de l'alarme. A = la même avec l'alarme, donnée à côté. Méthodes au hasard :
+médiane des graines 0 à 4, avec le minimum et le maximum.
+
+**TROUVE** (pour une méthode) : F sur une majorité stricte des injections confirmées,
+ET garde de spécificité G : sur aucune des 8 injections de test des causes connues,
+tsdb-mysql-0 n'est premier dans plus de la moitié des fenêtres (une méthode qui
+accuse la base partout ne « trouve » rien).
+
+**Décisions, dans cet ordre**
+1. Le tableau ou le score par nœud (l'un ou l'autre réglage) TROUVE → les nombres
+   des nœuds suffisent : on arrête le GNN sur C.
+2. Sinon, une version de la règle TROUVE → H1 soutenue. Le GNN n'est justifié que
+   s'il TROUVE (au moins autant d'injections que la meilleure règle) ET gagne
+   nettement sur au moins un axe sans perdre sur aucun :
+   - (a) fausses alertes sur toutes les fenêtres normales du test, à budget égal
+     (marge : au moins 3 fenêtres et 25 %, sur toutes les graines) ;
+   - (b) alarme plus tôt dans au moins 2 injections sur 3 ;
+   - (c) détection et désignation sur les fenêtres de C où la file ne se remplit
+     pas (tas ≤ 10), là où la règle, partie de la file, ne va pas ;
+   - (d) les jumeaux (phase D), table écrite avant D.
+   « Inconnue » n'est pas un axe contre la règle (elle le dit par construction).
+3. Personne ne trouve → le GNN est justifié s'il TROUVE. Si la plupart des fenêtres
+   de C ont un tas ≤ 10 : dire « une règle partie de la file ne peut pas
+   l'atteindre », pas « les flèches demandent un GNN ».
+
+**Prédictions écrites avant C** (base ralentie d'environ 75 ms par échange, comme
+la lenteur) :
+- règle, cause commune, sans exemples : trouve (inconnue, tsdb-mysql-0), si la file
+  se remplit et que la flèche des répliques vers la base dépasse s ;
+- règle, cause commune, avec exemples : répond « lenteur, les répliques » (sa limite
+  s = 5 laisse la flèche des répliques sous le seuil ; au-delà d'environ +140 ms
+  elle trouverait aussi) ;
+- règle littérale : réponse qui dépend du bruit. Sans exemples, la garde G l'écarte
+  probablement déjà (au test, elle accuse une dépendance dans la plupart des fenêtres de
+  lenteur-01 : vérifier que c'est tsdb-mysql-0) ; avec exemples (s = 5), elle n'accuse la
+  base dans aucune panne connue et G ne l'écartera pas ;
+- tableau : ne sait pas désigner le fautif d'une cause jamais vue (0 % dans la
+  répétition), alors qu'il trouve un fautif nouveau d'une cause connue (19/19) ;
+  nommera probablement la cause « lenteur » (ses nombres les plus utiles sont la
+  latence des flèches queries, le tas et le temps de traitement) ;
+- score par nœud : la base ne bouge presque pas elle-même (pas d'exportateur MySQL :
+  c'est l'instrumentation qui la rend muette, à dire) ; il désignera une victime.
+
+### Le calage de l'étape 1 du GNN, écrit avant (PROPOSÉ)
+1. Fenêtres d'apprentissage du juge ; l'étape 1 n'apprend que sur les normales.
+2. Chaque campagne mise de côté à son tour : l'étape 1 réapprise sans elle (mêmes
+   réglages, même graine), score de ses fenêtres normales ; tous mis ensemble.
+3. Score d'une fenêtre = le plus haut score de nœud, le même qui sert au classement ;
+   l'erreur d'un nœud divisée par l'échelle robuste de sa sorte dans le pli. Comment
+   l'erreur d'une flèche est rendue aux nœuds (la cible, la source, les deux) : fixé
+   avant C.
+4. Seuil = 95e centile ; plusieurs signaux d'alarme → leur union calée à 5 %, et
+   aussi donnée au budget de la règle.
+5. Modèle final sur toutes les normales d'apprentissage ; graines 0 à 4, chacune
+   avec son calage.
+6. Rejet de l'étape 2 : chaque injection mise de côté, 95e centile des distances des
+   fenêtres bien classées (comme le tableau et le score par nœud).
+7. Jamais les fenêtres de test, jamais les pannes de C, jamais `--validation` avec C
+   (le juge la met « hors » de toute façon).
+8. Tout choix du GNN (architecture, réglages) se fait sur la validation, ou sur la
+   répétition « panne jamais vue » des causes connues ; jamais sur C.
+
+### Les conditions de C, à fixer et noter avant (PROPOSÉ ; jamais réglées sur un témoin)
+- Mécanisme : un retard réseau sur le pod leader tsdb-mysql-0 seul, vers tous ses
+  clients, sans perte ni gigue ; vérifier qu'il ne double pas le retard permanent du
+  chemin répliques → base. Écrire la prédiction sur les nombres de la base.
+- Intensité : +75 ms (le même retard par échange que la lenteur). Écrire maintenant
+  la règle de repli et le critère d'effondrement (par ex. erreurs Locust > 5 %).
+  L'essai de calage n'est jamais noté ni pris dans le normal.
+- Déroulé et charge identiques à la seconde série (3 × 20 min, mêmes écarts, 135 min,
+  mêmes paliers Locust, même réglage du consommateur).
+- Purge : `donnees.sh purger --redemarrer` juste avant, aucune entre les injections ;
+  noter l'heure, le cpu de ts-order-service et la taille de la table des commandes à
+  chaque injection (la dérive).
+- Placement : pod → machine au début et à la fin (campagne.sh, à coder) ; accepté tel
+  quel, jamais retiré au sort ; dire avant de noter si une réplique partage sa machine
+  avec ts-order-service ou tsdb-mysql-0.
+- Leader : vérifier que tsdb-mysql-0 est le leader avant et après.
+- Noter sans viser : le tas, les débits de dépôt et de retrait. Que la file se
+  remplisse n'est pas un but.
+- Instrumentation inchangée : pas d'exportateur MySQL, gel.py CONFORME, cause nommée
+  « base » dans panne.sh et campagne.yaml.

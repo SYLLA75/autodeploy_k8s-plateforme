@@ -16,8 +16,11 @@ Non gardées en fichier, chiffres dans le journal : le tableau avec le rejet cal
 seul (seuil d'alarme 138) et avec le détecteur en régression logistique (seuil
 0,043, 33/120 fausses alertes au test).
 
-Nombre de regards sur le test avant la version finale : tableau 3 (hors sac,
-974ba15, 96d2622 final de B.3) ; score par nœud 4 (échelle interquartile,
-logistique, 4ca7001, final) ; règle 2 (v1, final). Chaque changement a été fait
-dans le sens qui renforce le témoin, ce qui rend une victoire du GNN plus
-difficile, pas plus facile.
+Nombre de regards sur le test, version finale comprise : tableau 3 (hors sac,
+974ba15, 96d2622 final de B.3) ; score par nœud 4 (échelle interquartile, dont le
+défaut a été vu sur le calage mais qui a aussi été notée sur le test ; logistique ;
+4ca7001 ; final) ; règle 2 (v1, final). Chaque changement visait à renforcer le
+témoin. Au test, c'est vrai pour le tableau (cause 144 → 150/153, fautif top-1
+94 → 115/115), pour la règle (cause 52 → 150/153) et pour le score par nœud sans
+exemples (lenteur top-1 0/38 → 25/38) ; le score par nœud avec exemples y perd un
+peu (cause 136 → 130/153, top-1 114 → 113/115).

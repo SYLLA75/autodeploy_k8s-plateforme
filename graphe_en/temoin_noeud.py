@@ -101,8 +101,9 @@ ne reçoit que fen["donnees"], et n'en lit pas les flèches).
 VERSIONS ÉCARTÉES, dites honnêtement (le journal donne leurs chiffres) :
   1. échelle par l'écart interquartile seul : un nombre presque toujours nul
      avec de rares pics (cpu_throttle_ratio, memory_slope) donnait des |z| de
-     plusieurs centaines dans des fenêtres normales, seuil d'alarme 138. Vu
-     sur le calage seul ; corrigé par l'écart entre 1er et 99e centiles ;
+     plusieurs centaines dans des fenêtres normales, seuil d'alarme 138. Défaut
+     vu sur le calage, mais la version avait aussi été NOTÉE SUR LE TEST
+     (détection 48/153) ; corrigé par l'écart entre 1er et 99e centiles ;
   2. détecteur en régression logistique : seuil calé 0,043, 28 % de fausses
      alertes AU TEST ; remplacé par la forêt APRÈS avoir vu ce test (choix
      informé par le test, dans le sens qui aide le témoin) ;

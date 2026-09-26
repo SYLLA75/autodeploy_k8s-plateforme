@@ -1,3 +1,4 @@
+# campagnes lues : saine-08, charge-03, blocage-02, lenteur-01, hote-01, saine-09, blocage-03, hote-02, charge-04, lenteur-02
 # Étiquettes des minutes — écrit par graphe_en/juge.py, ne pas éditer à la main.
 # Règles : fautifs.py, « COMMENT ON JUGE » (26 sept. 2026) ; graphes figés, contrôlés par gel.py.
 # causes apprises : blocage, charge, hote, lenteur ; jamais vues par défaut : base, reseau
@@ -26,15 +27,15 @@ détection      153/153 (100 %) fenêtres de panne avec alarme
 fausses alertes non vues : 0/120 (0 %)   saine-08 0/19, charge-03 0/16, blocage-02 0/10, lenteur-01 0/4, hote-01 0/25, blocage-03 0/6, hote-02 0/24, charge-04 0/10, lenteur-02 0/6
 fausses alertes vues (saine-09) : 0/39 (0 %)   saine-09 0/39
 cause          153/153 (100 %) fenêtres de panne bien nommées
-fautif                                     top-1            top-3     top-1 alarme     top-3 alarme
-  causes apprises                115/115 (100 %)  115/115 (100 %)  115/115 (100 %)  115/115 (100 %)
-  blocage                          38/38 (100 %)    38/38 (100 %)    38/38 (100 %)    38/38 (100 %)
-  hote                             39/39 (100 %)    39/39 (100 %)    39/39 (100 %)    39/39 (100 %)
-  lenteur                          38/38 (100 %)    38/38 (100 %)    38/38 (100 %)    38/38 (100 %)
-  série 1                          57/57 (100 %)    57/57 (100 %)    57/57 (100 %)    57/57 (100 %)
-  série 2                          58/58 (100 %)    58/58 (100 %)    58/58 (100 %)    58/58 (100 %)
-  fautif déjà vu                   96/96 (100 %)    96/96 (100 %)    96/96 (100 %)    96/96 (100 %)
-  fautif nouveau                   19/19 (100 %)    19/19 (100 %)    19/19 (100 %)    19/19 (100 %)
+fautif                                                top-1            top-3     top-1 alarme     top-3 alarme
+  causes apprises                           115/115 (100 %)  115/115 (100 %)  115/115 (100 %)  115/115 (100 %)
+  blocage                                     38/38 (100 %)    38/38 (100 %)    38/38 (100 %)    38/38 (100 %)
+  hote                                        39/39 (100 %)    39/39 (100 %)    39/39 (100 %)    39/39 (100 %)
+  lenteur                                     38/38 (100 %)    38/38 (100 %)    38/38 (100 %)    38/38 (100 %)
+  série 1                                     57/57 (100 %)    57/57 (100 %)    57/57 (100 %)    57/57 (100 %)
+  série 2                                     58/58 (100 %)    58/58 (100 %)    58/58 (100 %)    58/58 (100 %)
+  fautif déjà vu                              96/96 (100 %)    96/96 (100 %)    96/96 (100 %)    96/96 (100 %)
+  fautif nouveau                              19/19 (100 %)    19/19 (100 %)    19/19 (100 %)    19/19 (100 %)
 par injection  (trouvée si la majorité de ses fenêtres de test le sont ; a = avec alarme)
   blocage-02   injection 3  blocage   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
   blocage-03   injection 3  blocage   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
@@ -50,15 +51,15 @@ détection      0/153 (0 %) fenêtres de panne avec alarme
 fausses alertes non vues : 0/120 (0 %)   saine-08 0/19, charge-03 0/16, blocage-02 0/10, lenteur-01 0/4, hote-01 0/25, blocage-03 0/6, hote-02 0/24, charge-04 0/10, lenteur-02 0/6
 fausses alertes vues (saine-09) : 0/39 (0 %)   saine-09 0/39
 cause          0/153 (0 %) fenêtres de panne bien nommées
-fautif                                     top-1            top-3     top-1 alarme     top-3 alarme
-  causes apprises                    0/115 (0 %)      0/115 (0 %)      0/115 (0 %)      0/115 (0 %)
-  blocage                             0/38 (0 %)       0/38 (0 %)       0/38 (0 %)       0/38 (0 %)
-  hote                                0/39 (0 %)       0/39 (0 %)       0/39 (0 %)       0/39 (0 %)
-  lenteur                             0/38 (0 %)       0/38 (0 %)       0/38 (0 %)       0/38 (0 %)
-  série 1                             0/57 (0 %)       0/57 (0 %)       0/57 (0 %)       0/57 (0 %)
-  série 2                             0/58 (0 %)       0/58 (0 %)       0/58 (0 %)       0/58 (0 %)
-  fautif déjà vu                      0/96 (0 %)       0/96 (0 %)       0/96 (0 %)       0/96 (0 %)
-  fautif nouveau                      0/19 (0 %)       0/19 (0 %)       0/19 (0 %)       0/19 (0 %)
+fautif                                                top-1            top-3     top-1 alarme     top-3 alarme
+  causes apprises                               0/115 (0 %)      0/115 (0 %)      0/115 (0 %)      0/115 (0 %)
+  blocage                                        0/38 (0 %)       0/38 (0 %)       0/38 (0 %)       0/38 (0 %)
+  hote                                           0/39 (0 %)       0/39 (0 %)       0/39 (0 %)       0/39 (0 %)
+  lenteur                                        0/38 (0 %)       0/38 (0 %)       0/38 (0 %)       0/38 (0 %)
+  série 1                                        0/57 (0 %)       0/57 (0 %)       0/57 (0 %)       0/57 (0 %)
+  série 2                                        0/58 (0 %)       0/58 (0 %)       0/58 (0 %)       0/58 (0 %)
+  fautif déjà vu                                 0/96 (0 %)       0/96 (0 %)       0/96 (0 %)       0/96 (0 %)
+  fautif nouveau                                 0/19 (0 %)       0/19 (0 %)       0/19 (0 %)       0/19 (0 %)
 par injection  (trouvée si la majorité de ses fenêtres de test le sont ; a = avec alarme)
   blocage-02   injection 3  blocage   19 fenêtres  détectée non  cause non  top-1 non  top-3 non  top-1 a non  top-3 a non
   blocage-03   injection 3  blocage   19 fenêtres  détectée non  cause non  top-1 non  top-3 non  top-1 a non  top-3 a non
@@ -74,15 +75,15 @@ détection      0/153 (0 %) fenêtres de panne avec alarme
 fausses alertes non vues : 0/120 (0 %)   saine-08 0/19, charge-03 0/16, blocage-02 0/10, lenteur-01 0/4, hote-01 0/25, blocage-03 0/6, hote-02 0/24, charge-04 0/10, lenteur-02 0/6
 fausses alertes vues (saine-09) : 0/39 (0 %)   saine-09 0/39
 cause          0/153 (0 %) fenêtres de panne bien nommées
-fautif                                     top-1            top-3     top-1 alarme     top-3 alarme
-  causes apprises                    0/115 (0 %)      0/115 (0 %)      0/115 (0 %)      0/115 (0 %)
-  blocage                             0/38 (0 %)       0/38 (0 %)       0/38 (0 %)       0/38 (0 %)
-  hote                                0/39 (0 %)       0/39 (0 %)       0/39 (0 %)       0/39 (0 %)
-  lenteur                             0/38 (0 %)       0/38 (0 %)       0/38 (0 %)       0/38 (0 %)
-  série 1                             0/57 (0 %)       0/57 (0 %)       0/57 (0 %)       0/57 (0 %)
-  série 2                             0/58 (0 %)       0/58 (0 %)       0/58 (0 %)       0/58 (0 %)
-  fautif déjà vu                      0/96 (0 %)       0/96 (0 %)       0/96 (0 %)       0/96 (0 %)
-  fautif nouveau                      0/19 (0 %)       0/19 (0 %)       0/19 (0 %)       0/19 (0 %)
+fautif                                                top-1            top-3     top-1 alarme     top-3 alarme
+  causes apprises                               0/115 (0 %)      0/115 (0 %)      0/115 (0 %)      0/115 (0 %)
+  blocage                                        0/38 (0 %)       0/38 (0 %)       0/38 (0 %)       0/38 (0 %)
+  hote                                           0/39 (0 %)       0/39 (0 %)       0/39 (0 %)       0/39 (0 %)
+  lenteur                                        0/38 (0 %)       0/38 (0 %)       0/38 (0 %)       0/38 (0 %)
+  série 1                                        0/57 (0 %)       0/57 (0 %)       0/57 (0 %)       0/57 (0 %)
+  série 2                                        0/58 (0 %)       0/58 (0 %)       0/58 (0 %)       0/58 (0 %)
+  fautif déjà vu                                 0/96 (0 %)       0/96 (0 %)       0/96 (0 %)       0/96 (0 %)
+  fautif nouveau                                 0/19 (0 %)       0/19 (0 %)       0/19 (0 %)       0/19 (0 %)
 par injection  (trouvée si la majorité de ses fenêtres de test le sont ; a = avec alarme)
   blocage-02   injection 3  blocage   19 fenêtres  détectée non  cause non  top-1 non  top-3 non  top-1 a non  top-3 a non
   blocage-03   injection 3  blocage   19 fenêtres  détectée non  cause non  top-1 non  top-3 non  top-1 a non  top-3 a non
@@ -98,15 +99,15 @@ détection      0/153 (0 %) fenêtres de panne avec alarme
 fausses alertes non vues : 0/120 (0 %)   saine-08 0/19, charge-03 0/16, blocage-02 0/10, lenteur-01 0/4, hote-01 0/25, blocage-03 0/6, hote-02 0/24, charge-04 0/10, lenteur-02 0/6
 fausses alertes vues (saine-09) : 0/39 (0 %)   saine-09 0/39
 cause          0/153 (0 %) fenêtres de panne bien nommées
-fautif                                     top-1            top-3     top-1 alarme     top-3 alarme
-  causes apprises                    0/115 (0 %)      0/115 (0 %)      0/115 (0 %)      0/115 (0 %)
-  blocage                             0/38 (0 %)       0/38 (0 %)       0/38 (0 %)       0/38 (0 %)
-  hote                                0/39 (0 %)       0/39 (0 %)       0/39 (0 %)       0/39 (0 %)
-  lenteur                             0/38 (0 %)       0/38 (0 %)       0/38 (0 %)       0/38 (0 %)
-  série 1                             0/57 (0 %)       0/57 (0 %)       0/57 (0 %)       0/57 (0 %)
-  série 2                             0/58 (0 %)       0/58 (0 %)       0/58 (0 %)       0/58 (0 %)
-  fautif déjà vu                      0/96 (0 %)       0/96 (0 %)       0/96 (0 %)       0/96 (0 %)
-  fautif nouveau                      0/19 (0 %)       0/19 (0 %)       0/19 (0 %)       0/19 (0 %)
+fautif                                                top-1            top-3     top-1 alarme     top-3 alarme
+  causes apprises                               0/115 (0 %)      0/115 (0 %)      0/115 (0 %)      0/115 (0 %)
+  blocage                                        0/38 (0 %)       0/38 (0 %)       0/38 (0 %)       0/38 (0 %)
+  hote                                           0/39 (0 %)       0/39 (0 %)       0/39 (0 %)       0/39 (0 %)
+  lenteur                                        0/38 (0 %)       0/38 (0 %)       0/38 (0 %)       0/38 (0 %)
+  série 1                                        0/57 (0 %)       0/57 (0 %)       0/57 (0 %)       0/57 (0 %)
+  série 2                                        0/58 (0 %)       0/58 (0 %)       0/58 (0 %)       0/58 (0 %)
+  fautif déjà vu                                 0/96 (0 %)       0/96 (0 %)       0/96 (0 %)       0/96 (0 %)
+  fautif nouveau                                 0/19 (0 %)       0/19 (0 %)       0/19 (0 %)       0/19 (0 %)
 par injection  (trouvée si la majorité de ses fenêtres de test le sont ; a = avec alarme)
   blocage-02   injection 3  blocage   19 fenêtres  détectée non  cause non  top-1 non  top-3 non  top-1 a non  top-3 a non
   blocage-03   injection 3  blocage   19 fenêtres  détectée non  cause non  top-1 non  top-3 non  top-1 a non  top-3 a non
@@ -122,15 +123,15 @@ détection      0/153 (0 %) fenêtres de panne avec alarme
 fausses alertes non vues : 0/120 (0 %)   saine-08 0/19, charge-03 0/16, blocage-02 0/10, lenteur-01 0/4, hote-01 0/25, blocage-03 0/6, hote-02 0/24, charge-04 0/10, lenteur-02 0/6
 fausses alertes vues (saine-09) : 0/39 (0 %)   saine-09 0/39
 cause          0/153 (0 %) fenêtres de panne bien nommées
-fautif                                     top-1            top-3     top-1 alarme     top-3 alarme
-  causes apprises                  57/115 (50 %)    76/115 (66 %)      0/115 (0 %)      0/115 (0 %)
-  blocage                           19/38 (50 %)    38/38 (100 %)       0/38 (0 %)       0/38 (0 %)
-  hote                                0/39 (0 %)       0/39 (0 %)       0/39 (0 %)       0/39 (0 %)
-  lenteur                          38/38 (100 %)    38/38 (100 %)       0/38 (0 %)       0/38 (0 %)
-  série 1                           38/57 (67 %)     38/57 (67 %)       0/57 (0 %)       0/57 (0 %)
-  série 2                           19/58 (33 %)     38/58 (66 %)       0/58 (0 %)       0/58 (0 %)
-  fautif déjà vu                    57/96 (59 %)     57/96 (59 %)       0/96 (0 %)       0/96 (0 %)
-  fautif nouveau                      0/19 (0 %)    19/19 (100 %)       0/19 (0 %)       0/19 (0 %)
+fautif                                                top-1            top-3     top-1 alarme     top-3 alarme
+  causes apprises                             57/115 (50 %)    76/115 (66 %)      0/115 (0 %)      0/115 (0 %)
+  blocage                                      19/38 (50 %)    38/38 (100 %)       0/38 (0 %)       0/38 (0 %)
+  hote                                           0/39 (0 %)       0/39 (0 %)       0/39 (0 %)       0/39 (0 %)
+  lenteur                                     38/38 (100 %)    38/38 (100 %)       0/38 (0 %)       0/38 (0 %)
+  série 1                                      38/57 (67 %)     38/57 (67 %)       0/57 (0 %)       0/57 (0 %)
+  série 2                                      19/58 (33 %)     38/58 (66 %)       0/58 (0 %)       0/58 (0 %)
+  fautif déjà vu                               57/96 (59 %)     57/96 (59 %)       0/96 (0 %)       0/96 (0 %)
+  fautif nouveau                                 0/19 (0 %)    19/19 (100 %)       0/19 (0 %)       0/19 (0 %)
 par injection  (trouvée si la majorité de ses fenêtres de test le sont ; a = avec alarme)
   blocage-02   injection 3  blocage   19 fenêtres  détectée non  cause non  top-1 oui  top-3 oui  top-1 a non  top-3 a non
   blocage-03   injection 3  blocage   19 fenêtres  détectée non  cause non  top-1 non  top-3 oui  top-1 a non  top-3 a non

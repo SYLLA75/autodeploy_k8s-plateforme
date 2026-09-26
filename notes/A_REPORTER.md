@@ -36,10 +36,15 @@ pas en appliquant le diff tel quel. Décidé le 26 sept. : en une seule fois,
 | B.2 | le juge commun : lecture des graphes figés, étiquette des minutes, coupure, notation, essais du juge | `graphe_en/juge.py` (nouveau), `fautifs.py` | 5 commits jusqu'à 519c686 |
 
 | B.3 | témoin 1, le tableau équitable : cases + résumés sans identité, 2 forêts, rejet des deux côtés, 5 graines ; juge : cause jamais vue à part | `graphe_en/temoin_tableau.py` (nouveau), `juge.py`, `fautifs.py` | jusqu'à 96d2622 |
+| B.4 | témoin 2, le score par nœud : normal propre de chaque nœud (plancher = écarts de chaque nœud à sa médiane), sans / avec exemples (détecteur sur écarts croisés, prototypes, repli sur l'écart devant l'inconnu) | `graphe_en/temoin_noeud.py` (nouveau) | 4ca7001 → ea31952 |
+| B.5 | témoin 3, la règle qui suit les flèches, deux versions (littérale, cause commune) ; `juge.validation` (coupure répétée, `--validation`) | `graphe_en/temoin_fleches.py` (nouveau), `juge.py`, les trois témoins | 98ec3f9 → ea31952 |
+| B.6 | les témoins côte à côte : tableau de bord, fausses alertes au fil du temps, répétition « panne jamais vue » | `graphe_en/temoins.py` (nouveau) | 98ec3f9 → ea31952 |
+| B.7 | relecture finale : base lente jamais dans la validation, cause jamais vue à part, sorties des deux séries jamais écrasées (`juge.sortie`), budgets affichés | `juge.py`, les trois témoins, `temoins.py` | ea31952, étiquette `temoins-figes` |
 
 **Encore à coder, pas encore fait :**
 - avant la prochaine campagne (début de C) : `campagne.sh` écrit le
-  placement des pods (pod → machine) dans le compte rendu de chaque campagne.
+  placement des pods (pod → machine) dans le compte rendu de chaque campagne,
+  au début et à la fin ; et vérifie que tsdb-mysql-0 est le leader.
 
 **À ne jamais porter :** `graphe_en/config.yaml` (identifiants),
 `scaler.json` (propre à une référence saine), `runs/` (données).
@@ -158,6 +163,47 @@ reprennent la perspective (19 et 20 de la version allégée, 16 de la plénière
     (0 %), et ne voit pas l'hôte (3 %). Argument central pour l'écart au
     normal nœud par nœud (témoin 2, première étape du GNN).
 
+27d. **Le score par nœud** (B.4, témoin 2) : chaque nœud comparé à son propre normal,
+    sans flèches. Sans exemples, il désigne l'hôte (39/39) et souvent la réplique
+    gelée, mais aussi la victime (la file) : blocage 36/38 et lenteur 25/38 au test,
+    1/38 et 0/38 sur la validation. Avec exemples : 113/115, mais 28/120 fausses
+    alertes (dérive de fin de campagne). Il connaît chaque nœud par son nom.
+
+27e. **La règle qui suit les flèches** (B.5, témoin 3), deux versions : littérale (la
+    définition du 24 sept.) et cause commune (la plus forte, choisie en sachant que C
+    serait une base lente). Référence experte : ~100 % sur les causes connues pour la
+    cause commune et pour la littérale avec exemples ; la littérale sans exemples fait
+    cause 125/153 et top-1 90/115 au test (elle accuse la base par le bruit), 150/153 et
+    114/115 sur la validation. Par construction, et après une révision informée par le
+    test (v1 : cause 52/153). Elle
+    sait plus que le GNN (normal par nœud et par paire de services, consommateurs
+    attendus, signatures des causes).
+
+27f. **Les témoins côte à côte et la répétition « panne jamais vue »** (B.6) : les
+    tableau, appris sur exemples, ne désigne jamais le fautif d'une cause jamais vue
+    (0 %) ; l'écart au normal nœud par nœud, oui, avec ou sans exemples (devant
+    l'inconnu, le fautif appris retombe sur l'écart) : hôte 117/117 au test et 78/78 sur
+    la validation ; blocage 101/114 et lenteur 89/114 au test, mais 1/76 et 0/76 sur la
+    validation (il désigne la file). C'est l'argument de l'étape 1 du
+    GNN ; la règle ne se compare pas ici (elle connaît les causes). Corriger 27c : le
+    « 100 % inconnue » du tableau ne tient pas sur la validation (blocage 15/76).
+
+27g. **Méthode** : toute version notée sur le test puis changée est dite (sortie
+    gardée dans `campagnes/versions-vues-sur-test/` pour 974ba15, 4ca7001 et la règle
+    v1 ; chiffres seuls dans le journal pour les autres). Regards sur le test, version
+    finale comprise : tableau 3, score par nœud 4, règle 2. Chaque changement visait à
+    renforcer le témoin ; le score par nœud avec exemples y a pourtant un peu perdu
+    (cause 136 → 130/153). Depuis B.5, tout réglage se fait sur la
+    validation (la coupure répétée une injection plus tôt), jamais sur le test ; la
+    base lente n'y entre jamais. Budgets de fausses alertes différents (tableau et
+    score par nœud sans exemples 5,2 %, score par nœud avec exemples 10 %, règle
+    8,4 %) : comparer à budget égal.
+
+27h. **Écrit avant C, à valider** (journal, fin de B.7) : la table de décision (mesure
+    principale, garde de spécificité, décisions dans l'ordre, axes où le GNN doit
+    battre la règle), les prédictions de chaque témoin, le calage de l'étape 1 du GNN,
+    les conditions de la campagne C.
+
 ### Limites à écrire honnêtement
 27. **Dérive** : toute méthode qui apprend le « normal » se trompe si le normal
     bouge (nouvelles versions, trafic, données). Réponse : recaler la
@@ -167,3 +213,11 @@ reprennent la perspective (19 et 20 de la version allégée, 16 de la plénière
 28. **Peu d'injections** : 3 par cause et par campagne, une seule application,
     une seule file. Les résultats en minutes (162/162) sont à donner aussi par
     injection.
+29. **Dérive de fin de campagne** (B.4–B.7) : le CPU de ts-order-service monte avec la
+    table des commandes ; c'est la source des fausses alertes de fin de campagne (pas
+    un reste des pannes). Les résultats changent aussi avec la coupure (test contre
+    validation) : les donner tous les deux.
+30. **La base est muette par l'instrumentation** : pas d'exportateur MySQL. Le dire :
+    si le score par nœud échoue sur C, ce sera d'abord parce que la base ne bouge
+    presque pas dans ce qu'on mesure, pas forcément par nature ; le tableau, lui, ne
+    désigne jamais le fautif d'une cause jamais vue, quelle que soit l'instrumentation.

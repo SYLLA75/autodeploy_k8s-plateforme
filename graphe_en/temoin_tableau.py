@@ -66,7 +66,8 @@ fautif peut apprendre qu'ils ne le sont jamais.
 
 BUDGET DE FAUSSES ALERTES : le seuil du normal est au-dessus de 0,5, donc les
 deux rejets ensemble sonnent sur les seules fenêtres sous ce seuil : 5 % des
-fenêtres normales mises de côté, le budget le plus serré des trois témoins
+fenêtres normales mises de côté (13/249), le même budget que le score par nœud
+sans exemples, plus serré que le score par nœud avec exemples et la règle
 (l'en-tête du résultat donne le compte).
 
 VERSIONS ÉCARTÉES, dites honnêtement : les deux changements de B.3 ont été faits

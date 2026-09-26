@@ -1,0 +1,134 @@
+# campagnes lues : saine-08, charge-03, blocage-02, lenteur-01, hote-01, saine-09, blocage-03, hote-02, charge-04, lenteur-02
+# VALIDATION : coupure répétée dans l'apprentissage (juge.validation), vrai test jamais lu
+# Témoin 2, le score par nœud — écrit par graphe_en/temoin_noeud.py, ne pas éditer à la main.
+
+# normal de 66 identités, sur les fenêtres normales d'apprentissage ; plancher : écarts de chaque nœud à sa médiane ; aucune flèche lue
+# alarme sans exemples au-dessus de 20.66 (plus grand |z| de la fenêtre ; 10 campagnes mises de côté, 121 fenêtres, 95e centile)
+== score par nœud, sans exemples
+détection      151/153 (99 %) fenêtres de panne avec alarme
+fausses alertes non vues : 7/102 (7 %)   saine-08 0/12, charge-03 2/10, blocage-02 0/7, lenteur-01 0/6, hote-01 2/23, blocage-03 1/7, hote-02 1/22, charge-04 0/8, lenteur-02 1/7
+fausses alertes vues (saine-09) : 2/26 (8 %)   saine-09 2/26
+cause          0/153 (0 %) fenêtres de panne bien nommées
+fautif                                                top-1            top-3     top-1 alarme     top-3 alarme
+  causes apprises                             40/115 (35 %)   107/115 (93 %)    39/115 (34 %)   105/115 (91 %)
+  blocage                                        1/38 (3 %)    38/38 (100 %)       0/38 (0 %)     36/38 (95 %)
+  hote                                        39/39 (100 %)    39/39 (100 %)    39/39 (100 %)    39/39 (100 %)
+  lenteur                                        0/38 (0 %)     30/38 (79 %)       0/38 (0 %)     30/38 (79 %)
+  série 1                                      20/57 (35 %)     49/57 (86 %)     19/57 (33 %)     48/57 (84 %)
+  série 2                                      20/58 (34 %)    58/58 (100 %)     20/58 (34 %)     57/58 (98 %)
+  fautif déjà vu                               20/76 (26 %)     68/76 (89 %)     19/76 (25 %)     67/76 (88 %)
+  fautif nouveau                               20/39 (51 %)    39/39 (100 %)     20/39 (51 %)     38/39 (97 %)
+par injection  (trouvée si la majorité de ses fenêtres de test le sont ; a = avec alarme)
+  blocage-02   injection 2  blocage   19 fenêtres  détectée oui  cause non  top-1 non  top-3 oui  top-1 a non  top-3 a oui
+  blocage-03   injection 2  blocage   19 fenêtres  détectée oui  cause non  top-1 non  top-3 oui  top-1 a non  top-3 a oui
+  charge-03    injection 2  charge    19 fenêtres  détectée oui  cause non  top-1 —  top-3 —  top-1 a —  top-3 a —
+  charge-04    injection 2  charge    19 fenêtres  détectée oui  cause non  top-1 —  top-3 —  top-1 a —  top-3 a —
+  hote-01      injection 2  hote      19 fenêtres  détectée oui  cause non  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  hote-02      injection 2  hote      20 fenêtres  détectée oui  cause non  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  lenteur-01   injection 2  lenteur   19 fenêtres  détectée oui  cause non  top-1 non  top-3 oui  top-1 a non  top-3 a oui
+  lenteur-02   injection 2  lenteur   19 fenêtres  détectée oui  cause non  top-1 non  top-3 oui  top-1 a non  top-3 a oui
+  total : détectée 8/8, cause 0/8, top-1 2/6, top-3 6/6, top-1 a 2/6, top-3 a 6/6
+désigné en premier, par cause (fenêtres de panne du test)
+  blocage  queue:food_delivery 31, host:workers0 4, instance:rabbitmq 2, le fautif 1
+  charge   queue:food_delivery 37, host:workers0 1
+  hote     le fautif 39
+  lenteur  queue:food_delivery 38
+
+# alarme sans exemples au-dessus de 20.66 (plus grand |z| de la fenêtre ; 10 campagnes mises de côté, 121 fenêtres, 95e centile)
+# détecteur : alarme au-dessus de 0.225 (probabilité de panne, 200 arbres, écarts croisés ; mêmes campagnes mises de côté, 95e centile)
+# les deux alarmes ensemble sonnent sur 12/121 fenêtres normales mises de côté
+# fautif : une régression logistique pour tous les nœuds, 191 lignes fautives à l'apprentissage
+# cause : 4 prototypes (blocage, charge, hote, lenteur) ; rejet au-dessus de 11.26 (8 injections mises de côté, 130 fenêtres bien classées, 95e centile)
+# cause sans le rejet (pour voir ce qu'il coûte) : 153/153 fenêtres de panne
+== score par nœud, avec exemples, graine 0
+détection      153/153 (100 %) fenêtres de panne avec alarme
+fausses alertes non vues : 28/102 (27 %)   saine-08 0/12, charge-03 2/10, blocage-02 0/7, lenteur-01 1/6, hote-01 12/23, blocage-03 1/7, hote-02 10/22, charge-04 1/8, lenteur-02 1/7
+fausses alertes vues (saine-09) : 2/26 (8 %)   saine-09 2/26
+cause          152/153 (99 %) fenêtres de panne bien nommées
+fautif                                                top-1            top-3     top-1 alarme     top-3 alarme
+  causes apprises                            114/115 (99 %)  115/115 (100 %)   114/115 (99 %)  115/115 (100 %)
+  blocage                                      37/38 (97 %)    38/38 (100 %)     37/38 (97 %)    38/38 (100 %)
+  hote                                        39/39 (100 %)    39/39 (100 %)    39/39 (100 %)    39/39 (100 %)
+  lenteur                                     38/38 (100 %)    38/38 (100 %)    38/38 (100 %)    38/38 (100 %)
+  série 1                                     57/57 (100 %)    57/57 (100 %)    57/57 (100 %)    57/57 (100 %)
+  série 2                                      57/58 (98 %)    58/58 (100 %)     57/58 (98 %)    58/58 (100 %)
+  fautif déjà vu                              76/76 (100 %)    76/76 (100 %)    76/76 (100 %)    76/76 (100 %)
+  fautif nouveau                               38/39 (97 %)    39/39 (100 %)     38/39 (97 %)    39/39 (100 %)
+par injection  (trouvée si la majorité de ses fenêtres de test le sont ; a = avec alarme)
+  blocage-02   injection 2  blocage   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  blocage-03   injection 2  blocage   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  charge-03    injection 2  charge    19 fenêtres  détectée oui  cause oui  top-1 —  top-3 —  top-1 a —  top-3 a —
+  charge-04    injection 2  charge    19 fenêtres  détectée oui  cause oui  top-1 —  top-3 —  top-1 a —  top-3 a —
+  hote-01      injection 2  hote      19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  hote-02      injection 2  hote      20 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  lenteur-01   injection 2  lenteur   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  lenteur-02   injection 2  lenteur   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  total : détectée 8/8, cause 8/8, top-1 6/6, top-3 6/6, top-1 a 6/6, top-3 a 6/6
+désigné en premier, par cause (fenêtres de panne du test)
+  blocage  le fautif 37, instance:rabbitmq 1
+  charge   host:workers0 38
+  hote     le fautif 39
+  lenteur  le fautif 38
+
+# avec exemples, sur 5 graines (0 à 4) : chaque nombre de la note
+mesure                                                   min  médiane     max   sur
+detection                                                153      153     153   153
+fausses alertes non vues                                  13       18      28   102
+fausses alertes vues (saine-09)                            2        2       2    26
+cause                                                    152      152     152   153
+top-1 causes apprises                                    114      114     114   115
+top-3 causes apprises                                    115      115     115   115
+top-1 avec alarme causes apprises                        114      114     114   115
+top-3 avec alarme causes apprises                        115      115     115   115
+top-1 blocage                                             37       37      37    38
+top-3 blocage                                             38       38      38    38
+top-1 avec alarme blocage                                 37       37      37    38
+top-3 avec alarme blocage                                 38       38      38    38
+top-1 hote                                                39       39      39    39
+top-3 hote                                                39       39      39    39
+top-1 avec alarme hote                                    39       39      39    39
+top-3 avec alarme hote                                    39       39      39    39
+top-1 lenteur                                             38       38      38    38
+top-3 lenteur                                             38       38      38    38
+top-1 avec alarme lenteur                                 38       38      38    38
+top-3 avec alarme lenteur                                 38       38      38    38
+top-1 série 1                                             57       57      57    57
+top-3 série 1                                             57       57      57    57
+top-1 avec alarme série 1                                 57       57      57    57
+top-3 avec alarme série 1                                 57       57      57    57
+top-1 série 2                                             57       57      57    58
+top-3 série 2                                             58       58      58    58
+top-1 avec alarme série 2                                 57       57      57    58
+top-3 avec alarme série 2                                 58       58      58    58
+top-1 fautif déjà vu                                      76       76      76    76
+top-3 fautif déjà vu                                      76       76      76    76
+top-1 avec alarme fautif déjà vu                          76       76      76    76
+top-3 avec alarme fautif déjà vu                          76       76      76    76
+top-1 fautif nouveau                                      38       38      38    39
+top-3 fautif nouveau                                      39       39      39    39
+top-1 avec alarme fautif nouveau                          38       38      38    39
+top-3 avec alarme fautif nouveau                          39       39      39    39
+injections, détectée                                       8        8       8     8
+injections, cause                                          8        8       8     8
+injections, top-1                                          6        6       6     6
+injections, top-3                                          6        6       6     6
+injections, top-1 a                                        6        6       6     6
+injections, top-3 a                                        6        6       6     6
+
+# le plancher à battre, qui ne lit aucune donnée (juge.py)
+== a priori
+détection      0/153 (0 %) fenêtres de panne avec alarme
+fausses alertes non vues : 0/102 (0 %)   saine-08 0/12, charge-03 0/10, blocage-02 0/7, lenteur-01 0/6, hote-01 0/23, blocage-03 0/7, hote-02 0/22, charge-04 0/8, lenteur-02 0/7
+fausses alertes vues (saine-09) : 0/26 (0 %)   saine-09 0/26
+cause          0/153 (0 %) fenêtres de panne bien nommées
+fautif                                                top-1            top-3     top-1 alarme     top-3 alarme
+  causes apprises                             57/115 (50 %)    76/115 (66 %)      0/115 (0 %)      0/115 (0 %)
+  blocage                                      19/38 (50 %)    38/38 (100 %)       0/38 (0 %)       0/38 (0 %)
+  hote                                           0/39 (0 %)       0/39 (0 %)       0/39 (0 %)       0/39 (0 %)
+  lenteur                                     38/38 (100 %)    38/38 (100 %)       0/38 (0 %)       0/38 (0 %)
+  série 1                                      38/57 (67 %)     38/57 (67 %)       0/57 (0 %)       0/57 (0 %)
+  série 2                                      19/58 (33 %)     38/58 (66 %)       0/58 (0 %)       0/58 (0 %)
+  fautif déjà vu                               57/76 (75 %)     57/76 (75 %)       0/76 (0 %)       0/76 (0 %)
+  fautif nouveau                                 0/39 (0 %)     19/39 (49 %)       0/39 (0 %)       0/39 (0 %)
+par injection  (trouvée si la majorité de ses fenêtres de test le sont ; a = avec alarme)
+  total : détectée 0/8, cause 0/8, top-1 3/6, top-3 4/6, top-1 a 0/6, top-3 a 0/6

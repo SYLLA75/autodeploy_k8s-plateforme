@@ -1,0 +1,150 @@
+# campagnes lues : saine-08, charge-03, blocage-02, lenteur-01, hote-01, saine-09, blocage-03, hote-02, charge-04, lenteur-02
+# Témoin 3, la règle qui suit les flèches — écrit par graphe_en/temoin_fleches.py, ne pas éditer à la main.
+
+# consommateurs dans le normal : queue:email ← instance:ts-notification-service; queue:food_delivery ← instance:ts-delivery-service
+# limites d'alarme : file s_f = 2.39, machines s_m = 6.92 (plus haut écart ; 10 campagnes mises de côté, 249 fenêtres, 95e centile chacune) ; les deux ensemble sonnent sur 21/249 de ces fenêtres
+# limite de marche s = s_f = 2.39
+== règle qui suit les flèches, littérale, sans exemples
+détection      153/153 (100 %) fenêtres de panne avec alarme
+fausses alertes non vues : 10/120 (8 %)   saine-08 0/19, charge-03 5/16, blocage-02 1/10, lenteur-01 0/4, hote-01 3/25, blocage-03 0/6, hote-02 0/24, charge-04 1/10, lenteur-02 0/6
+fausses alertes vues (saine-09) : 0/39 (0 %)   saine-09 0/39
+cause          125/153 (82 %) fenêtres de panne bien nommées
+fautif                                                top-1            top-3     top-1 alarme     top-3 alarme
+  causes apprises                             90/115 (78 %)  115/115 (100 %)    90/115 (78 %)  115/115 (100 %)
+  blocage                                     38/38 (100 %)    38/38 (100 %)    38/38 (100 %)    38/38 (100 %)
+  hote                                        39/39 (100 %)    39/39 (100 %)    39/39 (100 %)    39/39 (100 %)
+  lenteur                                      13/38 (34 %)    38/38 (100 %)     13/38 (34 %)    38/38 (100 %)
+  série 1                                      39/57 (68 %)    57/57 (100 %)     39/57 (68 %)    57/57 (100 %)
+  série 2                                      51/58 (88 %)    58/58 (100 %)     51/58 (88 %)    58/58 (100 %)
+  fautif déjà vu                               71/96 (74 %)    96/96 (100 %)     71/96 (74 %)    96/96 (100 %)
+  fautif nouveau                              19/19 (100 %)    19/19 (100 %)    19/19 (100 %)    19/19 (100 %)
+par injection  (trouvée si la majorité de ses fenêtres de test le sont ; a = avec alarme)
+  blocage-02   injection 3  blocage   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  blocage-03   injection 3  blocage   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  charge-03    injection 3  charge    19 fenêtres  détectée oui  cause oui  top-1 —  top-3 —  top-1 a —  top-3 a —
+  charge-04    injection 3  charge    19 fenêtres  détectée oui  cause oui  top-1 —  top-3 —  top-1 a —  top-3 a —
+  hote-01      injection 3  hote      19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  hote-02      injection 3  hote      20 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  lenteur-01   injection 3  lenteur   19 fenêtres  détectée oui  cause non  top-1 non  top-3 oui  top-1 a non  top-3 a oui
+  lenteur-02   injection 3  lenteur   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  total : détectée 8/8, cause 7/8, top-1 5/6, top-3 6/6, top-1 a 5/6, top-3 a 6/6
+branche de la règle, par étiquette (fenêtres de test)
+  blocage  2 réplique qui ne consomme plus 38
+  charge   2 répliques saines : trop de dépôts 35, 3 répliques lentes 3
+  hote     1 machine saturée 39
+  lenteur  3 dépendance anormale 25, 3 répliques lentes 13
+  normale  1 rien 149, 1 machine saturée 10
+
+# limite de marche s = 5, choisie sur les pannes d'apprentissage (cause juste + fautif top-1, sur 535) : 2:513, 3:526, 4:530, 5:535, 6:535, 8:535, 10:535, 12:383, 15:383, 20:383, 25:383, 30:383, 40:383, 50:383, 75:383, 100:383
+== règle qui suit les flèches, littérale, avec exemples
+détection      153/153 (100 %) fenêtres de panne avec alarme
+fausses alertes non vues : 10/120 (8 %)   saine-08 0/19, charge-03 5/16, blocage-02 1/10, lenteur-01 0/4, hote-01 3/25, blocage-03 0/6, hote-02 0/24, charge-04 1/10, lenteur-02 0/6
+fausses alertes vues (saine-09) : 0/39 (0 %)   saine-09 0/39
+cause          153/153 (100 %) fenêtres de panne bien nommées
+fautif                                                top-1            top-3     top-1 alarme     top-3 alarme
+  causes apprises                           115/115 (100 %)  115/115 (100 %)  115/115 (100 %)  115/115 (100 %)
+  blocage                                     38/38 (100 %)    38/38 (100 %)    38/38 (100 %)    38/38 (100 %)
+  hote                                        39/39 (100 %)    39/39 (100 %)    39/39 (100 %)    39/39 (100 %)
+  lenteur                                     38/38 (100 %)    38/38 (100 %)    38/38 (100 %)    38/38 (100 %)
+  série 1                                     57/57 (100 %)    57/57 (100 %)    57/57 (100 %)    57/57 (100 %)
+  série 2                                     58/58 (100 %)    58/58 (100 %)    58/58 (100 %)    58/58 (100 %)
+  fautif déjà vu                              96/96 (100 %)    96/96 (100 %)    96/96 (100 %)    96/96 (100 %)
+  fautif nouveau                              19/19 (100 %)    19/19 (100 %)    19/19 (100 %)    19/19 (100 %)
+par injection  (trouvée si la majorité de ses fenêtres de test le sont ; a = avec alarme)
+  blocage-02   injection 3  blocage   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  blocage-03   injection 3  blocage   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  charge-03    injection 3  charge    19 fenêtres  détectée oui  cause oui  top-1 —  top-3 —  top-1 a —  top-3 a —
+  charge-04    injection 3  charge    19 fenêtres  détectée oui  cause oui  top-1 —  top-3 —  top-1 a —  top-3 a —
+  hote-01      injection 3  hote      19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  hote-02      injection 3  hote      20 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  lenteur-01   injection 3  lenteur   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  lenteur-02   injection 3  lenteur   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  total : détectée 8/8, cause 8/8, top-1 6/6, top-3 6/6, top-1 a 6/6, top-3 a 6/6
+branche de la règle, par étiquette (fenêtres de test)
+  blocage  2 réplique qui ne consomme plus 38
+  charge   2 répliques saines : trop de dépôts 38
+  hote     1 machine saturée 39
+  lenteur  3 répliques lentes 38
+  normale  1 rien 149, 1 machine saturée 10
+
+# limite de marche s = s_f = 2.39
+== règle qui suit les flèches, cause commune, sans exemples
+détection      153/153 (100 %) fenêtres de panne avec alarme
+fausses alertes non vues : 10/120 (8 %)   saine-08 0/19, charge-03 5/16, blocage-02 1/10, lenteur-01 0/4, hote-01 3/25, blocage-03 0/6, hote-02 0/24, charge-04 1/10, lenteur-02 0/6
+fausses alertes vues (saine-09) : 0/39 (0 %)   saine-09 0/39
+cause          150/153 (98 %) fenêtres de panne bien nommées
+fautif                                                top-1            top-3     top-1 alarme     top-3 alarme
+  causes apprises                           115/115 (100 %)  115/115 (100 %)  115/115 (100 %)  115/115 (100 %)
+  blocage                                     38/38 (100 %)    38/38 (100 %)    38/38 (100 %)    38/38 (100 %)
+  hote                                        39/39 (100 %)    39/39 (100 %)    39/39 (100 %)    39/39 (100 %)
+  lenteur                                     38/38 (100 %)    38/38 (100 %)    38/38 (100 %)    38/38 (100 %)
+  série 1                                     57/57 (100 %)    57/57 (100 %)    57/57 (100 %)    57/57 (100 %)
+  série 2                                     58/58 (100 %)    58/58 (100 %)    58/58 (100 %)    58/58 (100 %)
+  fautif déjà vu                              96/96 (100 %)    96/96 (100 %)    96/96 (100 %)    96/96 (100 %)
+  fautif nouveau                              19/19 (100 %)    19/19 (100 %)    19/19 (100 %)    19/19 (100 %)
+par injection  (trouvée si la majorité de ses fenêtres de test le sont ; a = avec alarme)
+  blocage-02   injection 3  blocage   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  blocage-03   injection 3  blocage   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  charge-03    injection 3  charge    19 fenêtres  détectée oui  cause oui  top-1 —  top-3 —  top-1 a —  top-3 a —
+  charge-04    injection 3  charge    19 fenêtres  détectée oui  cause oui  top-1 —  top-3 —  top-1 a —  top-3 a —
+  hote-01      injection 3  hote      19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  hote-02      injection 3  hote      20 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  lenteur-01   injection 3  lenteur   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  lenteur-02   injection 3  lenteur   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  total : détectée 8/8, cause 8/8, top-1 6/6, top-3 6/6, top-1 a 6/6, top-3 a 6/6
+branche de la règle, par étiquette (fenêtres de test)
+  blocage  2 réplique qui ne consomme plus 38
+  charge   2 répliques saines : trop de dépôts 35, 3 répliques lentes 3
+  hote     1 machine saturée 39
+  lenteur  3 répliques lentes 38
+  normale  1 rien 149, 1 machine saturée 10
+
+# limite de marche s = 5, choisie sur les pannes d'apprentissage (cause juste + fautif top-1, sur 535) : 2:529, 3:530, 4:530, 5:535, 6:535, 8:535, 10:535, 12:383, 15:383, 20:383, 25:383, 30:383, 40:383, 50:383, 75:383, 100:383
+== règle qui suit les flèches, cause commune, avec exemples
+détection      153/153 (100 %) fenêtres de panne avec alarme
+fausses alertes non vues : 10/120 (8 %)   saine-08 0/19, charge-03 5/16, blocage-02 1/10, lenteur-01 0/4, hote-01 3/25, blocage-03 0/6, hote-02 0/24, charge-04 1/10, lenteur-02 0/6
+fausses alertes vues (saine-09) : 0/39 (0 %)   saine-09 0/39
+cause          153/153 (100 %) fenêtres de panne bien nommées
+fautif                                                top-1            top-3     top-1 alarme     top-3 alarme
+  causes apprises                           115/115 (100 %)  115/115 (100 %)  115/115 (100 %)  115/115 (100 %)
+  blocage                                     38/38 (100 %)    38/38 (100 %)    38/38 (100 %)    38/38 (100 %)
+  hote                                        39/39 (100 %)    39/39 (100 %)    39/39 (100 %)    39/39 (100 %)
+  lenteur                                     38/38 (100 %)    38/38 (100 %)    38/38 (100 %)    38/38 (100 %)
+  série 1                                     57/57 (100 %)    57/57 (100 %)    57/57 (100 %)    57/57 (100 %)
+  série 2                                     58/58 (100 %)    58/58 (100 %)    58/58 (100 %)    58/58 (100 %)
+  fautif déjà vu                              96/96 (100 %)    96/96 (100 %)    96/96 (100 %)    96/96 (100 %)
+  fautif nouveau                              19/19 (100 %)    19/19 (100 %)    19/19 (100 %)    19/19 (100 %)
+par injection  (trouvée si la majorité de ses fenêtres de test le sont ; a = avec alarme)
+  blocage-02   injection 3  blocage   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  blocage-03   injection 3  blocage   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  charge-03    injection 3  charge    19 fenêtres  détectée oui  cause oui  top-1 —  top-3 —  top-1 a —  top-3 a —
+  charge-04    injection 3  charge    19 fenêtres  détectée oui  cause oui  top-1 —  top-3 —  top-1 a —  top-3 a —
+  hote-01      injection 3  hote      19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  hote-02      injection 3  hote      20 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  lenteur-01   injection 3  lenteur   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  lenteur-02   injection 3  lenteur   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  total : détectée 8/8, cause 8/8, top-1 6/6, top-3 6/6, top-1 a 6/6, top-3 a 6/6
+branche de la règle, par étiquette (fenêtres de test)
+  blocage  2 réplique qui ne consomme plus 38
+  charge   2 répliques saines : trop de dépôts 38
+  hote     1 machine saturée 39
+  lenteur  3 répliques lentes 38
+  normale  1 rien 149, 1 machine saturée 10
+
+# le plancher à battre, qui ne lit aucune donnée (juge.py)
+== a priori
+détection      0/153 (0 %) fenêtres de panne avec alarme
+fausses alertes non vues : 0/120 (0 %)   saine-08 0/19, charge-03 0/16, blocage-02 0/10, lenteur-01 0/4, hote-01 0/25, blocage-03 0/6, hote-02 0/24, charge-04 0/10, lenteur-02 0/6
+fausses alertes vues (saine-09) : 0/39 (0 %)   saine-09 0/39
+cause          0/153 (0 %) fenêtres de panne bien nommées
+fautif                                                top-1            top-3     top-1 alarme     top-3 alarme
+  causes apprises                             57/115 (50 %)    76/115 (66 %)      0/115 (0 %)      0/115 (0 %)
+  blocage                                      19/38 (50 %)    38/38 (100 %)       0/38 (0 %)       0/38 (0 %)
+  hote                                           0/39 (0 %)       0/39 (0 %)       0/39 (0 %)       0/39 (0 %)
+  lenteur                                     38/38 (100 %)    38/38 (100 %)       0/38 (0 %)       0/38 (0 %)
+  série 1                                      38/57 (67 %)     38/57 (67 %)       0/57 (0 %)       0/57 (0 %)
+  série 2                                      19/58 (33 %)     38/58 (66 %)       0/58 (0 %)       0/58 (0 %)
+  fautif déjà vu                               57/96 (59 %)     57/96 (59 %)       0/96 (0 %)       0/96 (0 %)
+  fautif nouveau                                 0/19 (0 %)    19/19 (100 %)       0/19 (0 %)       0/19 (0 %)
+par injection  (trouvée si la majorité de ses fenêtres de test le sont ; a = avec alarme)
+  total : détectée 0/8, cause 0/8, top-1 3/6, top-3 4/6, top-1 a 0/6, top-3 a 0/6

@@ -1,0 +1,105 @@
+# campagnes lues : saine-08, charge-03, blocage-02, lenteur-01, hote-01, saine-09, blocage-03, hote-02, charge-04, lenteur-02
+# Les témoins côte à côte — écrit par graphe_en/temoins.py, ne pas éditer à la main.
+# graines 0 à 4 pour ce qui tire au hasard ; règles : fautifs.py ; juge : juge.py
+
+== 1. tableau de bord (test ; fausses alertes sur 120 minutes normales non vues, puis sur 39 de saine-09)
+tableau équitable  (5 graines)
+    détection 153/153 ; fausses alertes 9/120 [8–10] ; f.a. saine-09 0/39 ; cause 150/153 [149–153]
+    top-1 115/115 [114–115] ; top-3 115/115 ; top-1 blocage 38/38 ; top-1 hôte 39/39 [38–39]
+    top-1 lenteur 38/38 ; top-1 nouveau 19/19 ; injections cause 8/8 ; injections top-1 6/6
+score par nœud, sans exemples  (1 graine)
+    détection 42/153 ; fausses alertes 5/120 ; f.a. saine-09 0/39 ; cause 0/153
+    top-1 100/115 ; top-3 115/115 ; top-1 blocage 36/38 ; top-1 hôte 39/39
+    top-1 lenteur 25/38 ; top-1 nouveau 17/19 ; injections cause 0/8 ; injections top-1 6/6
+score par nœud, avec exemples  (5 graines)
+    détection 153/153 ; fausses alertes 28/120 [19–30] ; f.a. saine-09 0/39 [0–1] ; cause 130/153
+    top-1 113/115 ; top-3 115/115 ; top-1 blocage 37/38 ; top-1 hôte 39/39
+    top-1 lenteur 37/38 ; top-1 nouveau 18/19 ; injections cause 7/8 ; injections top-1 6/6
+règle littérale, sans exemples  (1 graine)
+    détection 153/153 ; fausses alertes 10/120 ; f.a. saine-09 0/39 ; cause 125/153
+    top-1 90/115 ; top-3 115/115 ; top-1 blocage 38/38 ; top-1 hôte 39/39
+    top-1 lenteur 13/38 ; top-1 nouveau 19/19 ; injections cause 7/8 ; injections top-1 5/6
+règle littérale, avec exemples  (1 graine)
+    détection 153/153 ; fausses alertes 10/120 ; f.a. saine-09 0/39 ; cause 153/153
+    top-1 115/115 ; top-3 115/115 ; top-1 blocage 38/38 ; top-1 hôte 39/39
+    top-1 lenteur 38/38 ; top-1 nouveau 19/19 ; injections cause 8/8 ; injections top-1 6/6
+règle cause commune, sans exemples  (1 graine)
+    détection 153/153 ; fausses alertes 10/120 ; f.a. saine-09 0/39 ; cause 150/153
+    top-1 115/115 ; top-3 115/115 ; top-1 blocage 38/38 ; top-1 hôte 39/39
+    top-1 lenteur 38/38 ; top-1 nouveau 19/19 ; injections cause 8/8 ; injections top-1 6/6
+règle cause commune, avec exemples  (1 graine)
+    détection 153/153 ; fausses alertes 10/120 ; f.a. saine-09 0/39 ; cause 153/153
+    top-1 115/115 ; top-3 115/115 ; top-1 blocage 38/38 ; top-1 hôte 39/39
+    top-1 lenteur 38/38 ; top-1 nouveau 19/19 ; injections cause 8/8 ; injections top-1 6/6
+a priori (ne lit rien)  (1 graine)
+    détection 0/153 ; fausses alertes 0/120 ; f.a. saine-09 0/39 ; cause 0/153
+    top-1 57/115 ; top-3 76/115 ; top-1 blocage 19/38 ; top-1 hôte 0/39
+    top-1 lenteur 38/38 ; top-1 nouveau 0/19 ; injections cause 0/8 ; injections top-1 3/6
+
+== 2. fausses alertes au fil du temps (fenêtres normales du test ; médiane sur les graines)
+  1 = tableau équitable                 
+  2 = score par nœud, sans exemples     
+  3 = score par nœud, avec exemples     
+  4 = règle littérale, sans exemples    
+  5 = règle littérale, avec exemples    
+  6 = règle cause commune, sans exemples
+  7 = règle cause commune, avec exemples
+  8 = a priori (ne lit rien)            
+campagne            fen.        1        2        3        4        5        6        7        8
+saine-08    fin       19        0        0        0        0        0        0        0        0   (13/09 03:09 UTC)
+charge-03   avant      8        0        0        0        0        0        0        0        0   (13/09 05:02 UTC)
+charge-03   après      8        4        4        6        5        5        5        5        0   (13/09 05:39 UTC)
+blocage-02  avant      9        0        0        3        0        0        0        0        0   (13/09 07:38 UTC)
+blocage-02  après      1        0        0        1        1        1        1        1        0   (13/09 08:24 UTC)
+lenteur-01  avant      4        0        0        1        0        0        0        0        0   (13/09 09:59 UTC)
+hote-01     avant      9        0        0        1        0        0        0        0        0   (13/09 12:11 UTC)
+hote-01     après     16        2        0       13        3        3        3        3        0   (13/09 12:42 UTC)
+saine-09    fin       39        0        0        0        0        0        0        0        0   (24/09 18:53 UTC)
+blocage-03  avant      6        1        1        1        0        0        0        0        0   (25/09 12:40 UTC)
+hote-02     avant      9        0        0        0        0        0        0        0        0   (25/09 14:52 UTC)
+hote-02     après     15        0        0        0        0        0        0        0        0   (25/09 15:24 UTC)
+charge-04   avant      9        0        0        0        1        1        1        1        0   (25/09 17:09 UTC)
+charge-04   après      1        1        0        1        0        0        0        0        0   (25/09 17:55 UTC)
+lenteur-02  avant      6        1        0        1        0        0        0        0        0   (25/09 19:27 UTC)
+
+== 3. répétition « panne jamais vue » (une cause connue retirée de l'apprentissage)
+
+blocage retirée de l'apprentissage : 114 fenêtres de test, 6 injections
+  tableau équitable                   détection 114/114 ; « inconnue » 114/114 ; top-1 0/114 ; top-3 0/114
+  score par nœud, sans exemples       détection 12/114 ; « inconnue » 12/114 ; top-1 101/114 ; top-3 114/114
+  score par nœud, avec exemples       détection 114/114 ; « inconnue » 114/114 ; top-1 101/114 ; top-3 114/114
+  règle littérale, sans exemples      détection 114/114 ; top-1 114/114 ; top-3 114/114 ; « inconnue » sans objet
+  règle littérale, avec exemples      détection 114/114 ; top-1 114/114 ; top-3 114/114 ; « inconnue » sans objet
+  règle cause commune, sans exemples  détection 114/114 ; top-1 114/114 ; top-3 114/114 ; « inconnue » sans objet
+  règle cause commune, avec exemples  détection 114/114 ; top-1 114/114 ; top-3 114/114 ; « inconnue » sans objet
+  a priori (ne lit rien)              détection 0/114 ; « inconnue » 0/114 ; top-1 0/114 ; top-3 114/114
+
+charge retirée de l'apprentissage : 113 fenêtres de test, 6 injections
+  tableau équitable                   détection 113/113 ; « inconnue » 113/113 [26–113]
+  score par nœud, sans exemples       détection 1/113 ; « inconnue » 1/113
+  score par nœud, avec exemples       détection 113/113 ; « inconnue » 113/113
+  règle littérale, sans exemples      détection 113/113 ; « inconnue » sans objet
+  règle littérale, avec exemples      détection 113/113 ; « inconnue » sans objet
+  règle cause commune, sans exemples  détection 113/113 ; « inconnue » sans objet
+  règle cause commune, avec exemples  détection 113/113 ; « inconnue » sans objet
+  a priori (ne lit rien)              détection 0/113 ; « inconnue » 0/113
+
+hote retirée de l'apprentissage : 117 fenêtres de test, 6 injections
+  tableau équitable                   détection 3/117 [0–20] ; « inconnue » 3/117 [0–20] ; top-1 0/117 ; top-3 0/117
+  score par nœud, sans exemples       détection 117/117 ; « inconnue » 117/117 ; top-1 117/117 ; top-3 117/117
+  score par nœud, avec exemples       détection 117/117 ; « inconnue » 117/117 ; top-1 117/117 ; top-3 117/117
+  règle littérale, sans exemples      détection 117/117 ; top-1 117/117 ; top-3 117/117 ; « inconnue » sans objet
+  règle littérale, avec exemples      détection 117/117 ; top-1 117/117 ; top-3 117/117 ; « inconnue » sans objet
+  règle cause commune, sans exemples  détection 117/117 ; top-1 117/117 ; top-3 117/117 ; « inconnue » sans objet
+  règle cause commune, avec exemples  détection 117/117 ; top-1 117/117 ; top-3 117/117 ; « inconnue » sans objet
+  a priori (ne lit rien)              détection 0/117 ; « inconnue » 0/117 ; top-1 0/117 ; top-3 0/117
+
+lenteur retirée de l'apprentissage : 114 fenêtres de test, 6 injections
+  tableau équitable                   détection 114/114 ; « inconnue » 114/114 ; top-1 0/114 ; top-3 0/114
+  score par nœud, sans exemples       détection 2/114 ; « inconnue » 2/114 ; top-1 89/114 ; top-3 114/114
+  score par nœud, avec exemples       détection 114/114 ; « inconnue » 114/114 ; top-1 89/114 ; top-3 114/114
+  règle littérale, sans exemples      détection 114/114 ; top-1 84/114 ; top-3 114/114 ; « inconnue » sans objet
+  règle littérale, avec exemples      détection 114/114 ; top-1 114/114 ; top-3 114/114 ; « inconnue » sans objet
+  règle cause commune, sans exemples  détection 114/114 ; top-1 114/114 ; top-3 114/114 ; « inconnue » sans objet
+  règle cause commune, avec exemples  détection 114/114 ; top-1 114/114 ; top-3 114/114 ; « inconnue » sans objet
+  a priori (ne lit rien)              détection 0/114 ; « inconnue » 0/114 ; top-1 114/114 ; top-3 114/114
