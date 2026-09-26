@@ -1,0 +1,104 @@
+# Lignes de base sur la SECONDE série (test à l'aveugle, code du 18 sept. inchangé) — écrit par graphe_en/ligne_de_base.py
+# campagnes : saine-09 blocage-03 hote-02 charge-04 lenteur-02
+# répliques du consommateur : ts-delivery-service-*   seuil : 20   vidée sous : 10   profondeur de l'arbre : 4   arbres : 200
+# fenêtres lues : 636   gardées : 460   écartées, à cheval ou vidange : 176
+
+campagne      apprentissage                     test
+saine-09      normal=76                         normal=39
+blocage-03    normal=10  blocage=38             normal=6  blocage=19
+hote-02       normal=38  hote=40                normal=24  hote=20
+charge-04     normal=11  charge=38              normal=10  charge=19
+lenteur-02    normal=9  lenteur=38              normal=6  lenteur=19
+total         298                               162
+
+== 1  seuil : alarme quand backlog_slope > 20 (trouve la panne, jamais la cause)
+vérité     fenêtres alarmes
+normal           85       0
+blocage          19      19
+charge           19      19
+hote             20       0
+lenteur          19      19
+
+== 2a file seule : 6 nombres par fenêtre
+-- arbre de décision, 4 questions à la suite : 142 / 162 fenêtres de test bien nommées
+vérité     fenêtres  justes   confondues avec
+normal           85      85
+blocage          19      19
+charge           19      19
+hote             20       0   20 normal
+lenteur          19      19
+   les questions choisies par l'arbre :
+   |--- backlog_slope <= 10.00
+   |   |--- publish_rate <= 3.23
+   |   |   |--- class: normal
+   |   |--- publish_rate >  3.23
+   |   |   |--- backlog_slope <= -4.00
+   |   |   |   |--- class: normal
+   |   |   |--- backlog_slope >  -4.00
+   |   |   |   |--- rate_imbalance <= 0.01
+   |   |   |   |   |--- class: normal
+   |   |   |   |--- rate_imbalance >  0.01
+   |   |   |   |   |--- class: normal
+   |--- backlog_slope >  10.00
+   |   |--- publish_rate <= 4.18
+   |   |   |--- consumers <= 2.50
+   |   |   |   |--- class: blocage
+   |   |   |--- consumers >  2.50
+   |   |   |   |--- consume_rate <= 2.82
+   |   |   |   |   |--- class: lenteur
+   |   |   |   |--- consume_rate >  2.82
+   |   |   |   |   |--- class: blocage
+   |   |--- publish_rate >  4.18
+   |   |   |--- class: charge
+
+-- forêt aléatoire, 200 arbres : 132 / 162 fenêtres de test bien nommées
+vérité     fenêtres  justes   confondues avec
+normal           85      75   10 hote
+blocage          19      19
+charge           19      19
+hote             20       0   20 normal
+lenteur          19      19
+
+== 2b tableau plat : 16 nombres par fenêtre, aucune flèche
+-- arbre de décision, 4 questions à la suite : 162 / 162 fenêtres de test bien nommées
+vérité     fenêtres  justes   confondues avec
+normal           85      85
+blocage          19      19
+charge           19      19
+hote             20      20
+lenteur          19      19
+   les questions choisies par l'arbre :
+   |--- rate_imbalance <= 0.20
+   |   |--- hote_cpu_busy_max <= 0.32
+   |   |   |--- class: normal
+   |   |--- hote_cpu_busy_max >  0.32
+   |   |   |--- class: hote
+   |--- rate_imbalance >  0.20
+   |   |--- process_time_p50_max <= 893.77
+   |   |   |--- publish_rate <= 4.14
+   |   |   |   |--- class: blocage
+   |   |   |--- publish_rate >  4.14
+   |   |   |   |--- class: charge
+   |   |--- process_time_p50_max >  893.77
+   |   |   |--- class: lenteur
+
+-- forêt aléatoire, 200 arbres : 162 / 162 fenêtres de test bien nommées
+vérité     fenêtres  justes   confondues avec
+normal           85      85
+blocage          19      19
+charge           19      19
+hote             20      20
+lenteur          19      19
+
+== 3  règles à la main, limites prises sur la référence saine
+limites : rate_imbalance > 0.2 veut dire que la file se remplit ; hote_cpu_busy_max > 0.5 nomme l'hôte ;
+          process_time_p50_max > 883 ms (1.25 x les 706 de la référence) nomme la lenteur ;
+          publish_rate > 4.05 msg/s (1.2 x les 3.38 de la référence) nomme la charge ;
+          moins de 3 consommateurs, ou une réplique sans temps de traitement, nomme le blocage.
+-- règles à la main : 162 / 162 fenêtres de test bien nommées
+vérité     fenêtres  justes   confondues avec
+normal           85      85
+blocage          19      19
+charge           19      19
+hote             20      20
+lenteur          19      19

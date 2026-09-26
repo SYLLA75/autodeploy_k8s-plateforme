@@ -830,3 +830,29 @@ déposés. L'étiquette reste juste (l'hôte workers0 est fautif), mais cette in
 est l'injection de test, se propage par le producteur alors que les deux premières
 restent sur l'hôte. Le placement des pods n'est pas figé par la plateforme ; il fait
 partie des conditions à noter dans chaque compte rendu.
+
+## 2026-09-26 — Phase A.6 : lignes de base, septembre refait et seconde série à l'aveugle
+
+**Septembre refait.** Les cinq campagnes du 13 septembre reconstruites sur vms0 avec le code
+du graphe actuel (relation `queries`, hôte à 9 nombres ; sans mise à l'échelle, que les lignes
+de base n'utilisent pas) : runs 20260926-020314 (saine-08), -020626 (charge-03), -021439
+(blocage-02), -022230 (lenteur-01), -023015 (hote-01), 0 erreur, deux avertissements attendus
+(compteurs réseau jamais relevés en septembre ; pas de mise à l'échelle). Les `lecture.txt`
+régénérés ne diffèrent des originaux que par le numéro de run, et `ligne_de_base.py` redonne
+exactement `campagnes/lignes_de_base.txt` : 150/150 inchangé. Les originaux sont gardés,
+ce sont eux que cite le rapport.
+
+**Seconde série, premier test à l'aveugle.** `ligne_de_base.py` tel que commité le 18 sept.,
+aucune colonne ni aucun facteur changé, sur saine-09, blocage-03, hote-02, charge-04,
+lenteur-02 : 636 fenêtres lues, 460 gardées, 162 de test (19 à 20 par cause, 85 normales).
+Seuil : 57/57 pannes de file trouvées, 0 fausse alerte, hôte jamais. File seule : 142/162
+(arbre), hôte jamais. Tableau plat : 162/162 (arbre et forêt). Règles à la main : 162/162.
+L'arbre retrouve les mêmes quatre questions qu'en septembre (rate_imbalance > 0,20 ;
+hote_cpu_busy_max > 0,32 ; process_time_p50_max > 894 ms ; publish_rate > 4,14). L'injection
+de test d'hôte qui s'est propagée (workers0) est bien nommée : la file reste calme et l'hôte
+chargé. À noter : la règle de lenteur coupe à 883 ms (1,25 × 706) et le normal à faible
+trafic est à 846 ms ; la marge n'est que de 37 ms. Résultat : `campagnes/lignes_de_base_serie2.txt`.
+
+Conclusion : sur les quatre causes, un tableau sans flèches nomme la cause à l'aveugle comme
+en septembre. Le résultat du rapport tient ; l'intérêt des flèches et du modèle se jouera sur
+la base lente (fautif muet) et les jumeaux.
