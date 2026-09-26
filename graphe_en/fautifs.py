@@ -30,14 +30,47 @@ LES RÈGLES, UNE PAR CAUSE (noms de cause de apps/panne.sh)
             (nœud host), nommée par le registre. Jamais la machine leurre dont
             on charge le CPU
 
-COMMENT ON JUGE UNE DÉSIGNATION (même règle pour tous, GNN compris)
+COMMENT ON JUGE (même règle pour tous les témoins, GNN compris)
 
-  Un témoin classe les nœuds, toutes sortes confondues, du plus suspect au
-  moins suspect. Il a juste au rang k (top-1, top-3) si au moins un fautif
-  est parmi ses k premiers. Seules les fenêtres entièrement dans une
-  injection confirmée portent un fautif ; les fenêtres normales n'en ont pas
-  (y désigner quelqu'un est une fausse alerte) ; la charge compte pour la
-  cause, jamais pour le fautif.
+  Chaque fenêtre de 60 s reçoit une étiquette d'après le déroulé, avec les
+  règles de ligne_de_base.py :
+    panne     entièrement dans une injection confirmée : sa cause, ses fautifs
+    écartée   à cheval sur une injection ou un retrait ; après un retrait, tant
+              que le tas de la file dépasse 10 messages, plus une fenêtre de
+              garde (vidange) ; dans une injection non confirmée
+    normale   tout le reste
+  Coupure par le temps, jamais au hasard : la dernière injection de chaque
+  campagne, avec les fenêtres depuis dix minutes avant elle, est le jeu de
+  test ; une campagne sans injection donne son dernier tiers. Le reste sert à
+  apprendre et à régler. Une cause qu'aucune campagne d'apprentissage ne
+  contient (la base lente, les jumeaux) est jugée sur toutes ses injections ;
+  pour la cause, la seule bonne réponse y est « panne inconnue ».
+
+  Chaque témoin rend, pour chaque fenêtre : une alarme (oui ou non), une
+  cause, et un classement de tous les nœuds, toutes sortes confondues, du plus
+  suspect au moins suspect. Son seuil d'alarme se règle sur les fenêtres
+  normales du jeu d'apprentissage seulement. Il est réglé de deux façons :
+  sans exemple de panne (fenêtres normales seules), puis avec les pannes du
+  jeu d'apprentissage.
+
+  Mesures, sur le jeu de test :
+    détection  part des fenêtres de panne avec alarme ; fausses alertes : part
+               des fenêtres normales avec alarme, au fil du temps (la dérive).
+               saine-09 sert aussi à la mise à l'échelle figée : ses fausses
+               alertes sont données à part, marquées « fenêtres vues »
+    cause      part des fenêtres de panne avec la bonne cause
+    fautif     juste au rang k (top-1, top-3) si au moins un fautif est parmi
+               les k premiers du classement. Mesure principale : sans tenir
+               compte de l'alarme (on juge la désignation) ; donnée aussi
+               « avec alarme », où une panne manquée compte comme fausse. La
+               charge compte pour la détection et la cause, jamais ici
+  Égalités : des nœuds de même score sont départagés CONTRE le témoin, le
+  fautif est placé après tous ceux qui ont le même score que lui. Un nœud
+  dont le score ne se calcule pas (absent, NaN) est classé dernier. Jamais
+  l'ordre des fichiers, alphabétique, qui mettrait bmgvs et workers0 en tête :
+  ce sont les fautifs fixes de la première série.
+  Chaque mesure est donnée par fenêtre et par injection : une injection est
+  trouvée si la majorité de ses fenêtres de panne le sont.
 
 CE QUE FAIT LE SCRIPT
 
@@ -84,19 +117,46 @@ def _instant(texte: str) -> datetime:
     return datetime.strptime(texte, TS).replace(tzinfo=timezone.utc)
 
 
-def injections(campagne: Path) -> list[dict]:
-    """Les injections du déroulé, chacune avec sa ligne du registre des pannes."""
+def injections(campagne: Path) -> tuple[list[dict], list[str]]:
+    """
+    Les injections du déroulé, chacune avec sa ligne du registre des pannes,
+    et ce qui cloche dans le déroulé lui-même.
+
+    Tout nom de cause est lu, même inconnu (« base-lente ») : il échoue alors
+    bruyamment plus loin au lieu de disparaître. Un retrait sans cause ni
+    résultat est celui qu'écrit campagne.sh quand le pilote est interrompu.
+    """
     texte = campagne.read_text()
-    deroule = re.compile(r"instant: (\S+), action: (injection|retrait), cause: (\w+), "
-                         r"resultat: (\w+)")
-    paires, ouverte = [], None
+    champ = r"([^,}\s]+)"
+    deroule = re.compile(rf"instant: (\S+), action: (injection|retrait)(?:, cause: {champ})?"
+                         rf"(?:, resultat: {champ})?(?:, motif: {champ})?")
+    paires, ouverte, problemes = [], None, []
     for m in deroule.finditer(texte):
         if m.group(2) == "injection":
-            ouverte = {"debut": _instant(m.group(1)), "cause": m.group(3),
+            if ouverte:
+                problemes.append(f"injection de {ouverte['debut']:%H:%M:%S} jamais retirée "
+                                 f"avant la suivante")
+            ouverte = {"debut": _instant(m.group(1)), "cause": m.group(3) or "?",
                        "confirmee": m.group(4) == "confirme"}
         elif ouverte:
-            paires.append({**ouverte, "fin": _instant(m.group(1))})
+            retrait = m.group(4) or m.group(5) or "?"
+            paires.append({**ouverte, "fin": _instant(m.group(1)), "retrait": retrait})
+            if retrait not in ("ok", "interruption"):
+                problemes.append(f"retrait de {m.group(1)[11:19]} : {retrait} — la panne a pu "
+                                 f"rester après")
             ouverte = None
+    if ouverte:
+        problemes.append(f"injection de {ouverte['debut']:%H:%M:%S} jamais retirée")
+    # Le compte du déroulé contre celui que campagne.sh a écrit dans l'en-tête.
+    compte = [re.search(rf"^  injections_{k}: (\d+)", texte, re.M)
+              for k in ("confirmees", "non_confirmees")]
+    if all(compte):
+        attendu = sum(int(c.group(1)) for c in compte)
+        if attendu != len(paires) + (1 if ouverte else 0):
+            problemes.append(f"{attendu} injections dans l'en-tête, {len(paires)} lues dans "
+                             f"le déroulé")
+    elif re.search(r"^type: panne", texte, re.M):
+        problemes.append("campagne de panne sans compte d'injections dans l'en-tête")
     registre = texte.split("pannes_mesurees: |", 1)[1] if "pannes_mesurees: |" in texte else ""
     lignes = [l.strip().split("\t") for l in registre.splitlines()
               if re.match(r"\s+\d{4}-\d\d-\d\dT", l)]
@@ -107,7 +167,7 @@ def injections(campagne: Path) -> list[dict]:
                    and abs((_instant(l[0]) - p["debut"]).total_seconds()) < 120]
         p["registre"] = proches[0] if len(proches) == 1 else None
         p["registre_ambigu"] = len(proches) > 1
-    return paires
+    return paires, problemes
 
 
 def fautifs(p: dict, fige: dict, consommateur: str, noms_instances: set[str]) -> tuple[list[str], str]:
@@ -119,13 +179,18 @@ def fautifs(p: dict, fige: dict, consommateur: str, noms_instances: set[str]) ->
         return [], "aucun fautif par règle (jugée sur la cause)"
     if cause == "base":
         return sorted(set(fige["bases"].values())), "graphe_fige.json, bases"
-    if cause == "lenteur":
-        return sorted(n for n in noms_instances if n.startswith(consommateur)), \
-            f"toutes les instances {consommateur}*"
     reg = p["registre"]
     if reg is None:
         raise ValueError("registre des pannes : " + ("plusieurs lignes" if p["registre_ambigu"]
                                                        else "aucune ligne") + " pour cette injection")
+    if cause == "lenteur":
+        # Le registre dit combien de répliques ont été ralenties : « … x3 -> … ».
+        m = re.search(r" x(\d+) ", reg[5])
+        noms = sorted(n for n in noms_instances if n.startswith(consommateur))
+        if not m or int(m.group(1)) != len(noms):
+            raise ValueError(f"registre « {reg[5]} », mais {len(noms)} instances "
+                             f"{consommateur}* dans le graphe pendant l'injection")
+        return noms, f"toutes les instances {consommateur}* ; registre : {reg[5]}"
     cible = reg[5].split("@")[0]
     return [cible], f"registre : {reg[5]}"
 
@@ -165,25 +230,29 @@ def rapport(campagnes: Path, noms: list[str], runs: Path, consommateur: str) -> 
             problemes += 1
             continue
         fen = fenetres(run)
-        liste = injections(dossier / "campagne.yaml")
-        if not liste:
+        liste, soucis = injections(dossier / "campagne.yaml")
+        for souci in soucis:
+            print(f"  ÉCART  déroulé : {souci}")
+            problemes += 1
+        if not liste and not soucis:
             print("  aucune injection : référence normale, aucun fautif")
         for k, p in enumerate(liste, 1):
             dedans = [f for f in fen if f["window"]["start_ns"] / 1e9 >= p["debut"].timestamp()
                       and f["window"]["end_ns"] / 1e9 <= p["fin"].timestamp()]
             instances = {n for f in dedans for n in f["nodes"]["instance"]["names"]}
             tete = (f"  {k}  {p['debut']:%H:%M:%S} → {p['fin']:%H:%M:%S}  {p['cause']:<8} "
-                    f"{'' if p['confirmee'] else '(NON CONFIRMÉE) '}")
+                    f"{'' if p['confirmee'] else '(NON CONFIRMÉE) '}"
+                    f"{'(interrompue) ' if p['retrait'] == 'interruption' else ''}")
+            if not p["confirmee"]:
+                print(f"{tete}écartée, pas de fautif")
+                continue
             try:
                 noms_f, source = fautifs(p, fige, consommateur, instances)
             except ValueError as e:
                 print(f"{tete}ÉCART  {e}")
                 problemes += 1
                 continue
-            if not p["confirmee"]:
-                print(f"{tete}écartée, pas de fautif")
-                continue
-            if not noms_f:
+            if SORTE[p["cause"]] is None:
                 print(f"{tete}—  {source}")
                 continue
             sorte = SORTE[p["cause"]]
