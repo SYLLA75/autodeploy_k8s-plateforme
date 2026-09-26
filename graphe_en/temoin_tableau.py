@@ -1,46 +1,61 @@
 """
-Témoin 1 : le tableau équitable. Tous les nombres de tous les nœuds, aucune flèche.
+Témoin 1 : le tableau équitable. Tous les nombres, aucune structure de flèche.
 
     ./.venv/bin/python temoin_tableau.py [options] [campagne ...]
 
 Phase B.3. Écrit avant toute donnée de la base lente, jugé par juge.py avec
 les règles de fautifs.py. « Équitable » : l'ancien tableau plat des lignes de
-base (16 nombres) avait été construit en suivant les flèches à la main (la file,
-les répliques du consommateur, les hôtes). Celui-ci reçoit TOUT ce que le graphe
-mesure, la base de données comprise, et rien de ce que disent les flèches : ni
-qui appelle qui, ni qui tourne où.
+base (16 nombres) avait été construit en suivant les flèches à la main. Celui-ci
+reçoit tous les nombres des nœuds, la base de données comprise, et les nombres
+des flèches résumés sans leur structure : il sait qu'un appel vers une base a
+ralenti quelque part, jamais qui appelle qui ni qui tourne où. Ce qui lui manque
+est exactement ce que le GNN a en plus : la structure.
 
-LA LIGNE D'UNE FENÊTRE
+CE QUE VOIT LE TABLEAU, par fenêtre
 
-Les nombres de chaque nœud, instances (18), files (6) et hôtes (9), mis bout à
-bout. Un nœud occupe la même case d'une fenêtre à l'autre : sa case est son
-service et son rang parmi les pods de ce service triés par nom
-(ts-delivery-service#0 à #2, tsdb-mysql#0 à #2, ts-order-service#0…), parce
-qu'un pod recréé change de nom (order, seat et travel entre les deux séries).
+  les cases   les nombres de chaque nœud (instances 18, files 6, hôtes 9) à
+              une place fixe : sa case est son service et son rang parmi les
+              pods de ce service triés par nom (ts-delivery-service#0 à #2…),
+              parce qu'un pod recréé change de nom. 1128 nombres
+  les résumés pour chaque sorte de nœud et chaque colonne : le maximum, le
+              minimum, la médiane sur les nœuds, et le nombre d'absents ; pour
+              chaque relation : le nombre de flèches, et pour chaque colonne le
+              maximum et la médiane sur les flèches, sans leurs extrémités
 Une valeur absente vaut -1e9 : un arbre la sépare de toute vraie valeur. Les
 nombres sont bruts (fenêtres JSON) : un arbre ne dépend pas de l'échelle.
 
-DEUX FORÊTS ALÉATOIRES (200 arbres, graine 0, comme ligne_de_base.py)
+DEUX FORÊTS ALÉATOIRES (200 arbres)
 
-  la cause   normale ou une des causes apprises. Alarme : la cause prédite
-             n'est pas « normale ». Rejet, pour être aussi équipé que le
-             classifieur à prototypes du GNN : une panne prédite avec une
-             probabilité sous le seuil devient « inconnue ». Le seuil se cale
-             comme face à une panne nouvelle : chaque injection d'apprentissage
-             est mise de côté à son tour, la forêt apprend sur le reste et
-             prédit ses fenêtres ; seuil = 5e centile des probabilités des
-             fenêtres ainsi bien classées. Jamais sur le test. (Premier essai,
-             hors sac : trop sévère, les fenêtres voisines de la même injection
-             étaient dans les arbres ; même règle pour le rejet du GNN.)
-  le fautif  une sortie « est fautif » par case, apprise sur toutes les
-             fenêtres d'apprentissage non écartées (normales et charge : aucun
-             fautif). Le score d'un nœud est la probabilité prédite pour sa
-             case. Une case jamais fautive à l'apprentissage vaut 0 : un tableau
-             ne peut pas désigner ce qu'il n'a jamais vu fautif.
+  la cause   sur les cases et les résumés : normale ou une cause apprise.
+             Rejet des deux côtés, pour être aussi équipé que le GNN (sa
+             première étape repère l'écart au normal, son classifieur à
+             prototypes rejette l'inconnu) :
+               - une panne prédite avec une probabilité sous le seuil des
+                 pannes devient « inconnue » ;
+               - une fenêtre prédite normale avec une probabilité d'être
+                 normale sous le seuil du normal devient alarme et « inconnue ».
+             Les seuils se calent comme face à du nouveau, jamais sur le test :
+             chaque injection d'apprentissage (pour les pannes), chaque
+             campagne (pour le normal) est mise de côté à son tour, la forêt
+             apprend sur le reste et prédit ce qu'on a mis de côté ; seuil =
+             5e centile des probabilités obtenues (pannes bien classées ;
+             fenêtres normales). Même règle de calage pour le GNN.
+  le fautif  UNE forêt pour tous les nœuds, comme le GNN partage ses poids :
+             une ligne par nœud et par fenêtre, avec la sorte du nœud, ses
+             propres nombres et les résumés de sa fenêtre ; réponse « ce nœud
+             est-il fautif ». Le score d'un nœud est cette probabilité. Aucun
+             nom de nœud n'y entre : un nœud jamais fautif peut être désigné
+             si ses nombres le trahissent. (Premier essai, une sortie par case :
+             il ne pouvait désigner que les six cases déjà fautives, et plaçait
+             la base dernière d'avance ; remplacé.)
 
 RÉGLAGE : seulement avec exemples de pannes. Sans exemple, un tableau ne peut
 qu'apprendre le normal et désigner ce qui s'en écarte : c'est le témoin 2, le
 score par nœud.
+
+HASARD : chaque forêt tire au hasard. Le témoin est appris et noté avec les
+graines 0 à 4 (fautifs.py) : la note détaillée est celle de la graine 0, puis
+chaque nombre avec son minimum, sa médiane et son maximum sur les cinq graines.
 
 CE QUE LE TÉMOIN VOIT : à l'apprentissage, les fenêtres d'apprentissage avec
 leur étiquette, leur cause et leurs fautifs ; au test, les seuls nombres de la
@@ -49,6 +64,7 @@ fenêtre (repondre ne reçoit que fen["donnees"]).
 Options :
   --campaigns <dossier>  le dossier des dossiers de campagne (défaut ../campagnes)
   --runs <dossier>       où sont les runs (défaut runs)
+  --graines <n>          nombre de graines, à partir de 0 (défaut 5)
   --no-install           n'installe jamais scikit-learn
   --help                 ce texte
 
@@ -61,6 +77,7 @@ from __future__ import annotations
 import contextlib
 import io
 import re
+import statistics
 import sys
 from pathlib import Path
 
@@ -70,10 +87,10 @@ import juge
 
 HERE = Path(__file__).resolve().parent
 ARBRES = 200
-GRAINE = 0
-CENTILE_REJET = 5
+CENTILE = 5
 ABSENT = -1e9
 SORTES = ("instance", "queue", "host")
+LARGEUR = 18                    # la plus longue ligne de nœud (instance)
 
 
 def service(nom: str) -> str:
@@ -98,54 +115,85 @@ def cases(donnees: dict) -> dict[str, str]:
     return out
 
 
-class Tableau:
-    """Le tableau appris : ses colonnes, ses deux forêts, son seuil de rejet."""
+def _nombre(v) -> float:
+    return ABSENT if v is None else float(v)
 
-    def __init__(self, apprentissage: list[dict]):
+
+def resumes(donnees: dict) -> list[float]:
+    """Les résumés d'une fenêtre : par sorte de nœud et par relation, sans identité."""
+    out = []
+    for kind in SORTES:
+        bloc = donnees["nodes"][kind]
+        for j in range(len(bloc["columns"])):
+            vals = [r[j] for r in bloc["X"] if r[j] is not None]
+            out += ([max(vals), min(vals), statistics.median(vals)] if vals else [ABSENT] * 3)
+            out.append(float(len(bloc["X"]) - len(vals)))
+    for rel in sorted(donnees["edges"]):
+        bloc = donnees["edges"][rel]
+        out.append(float(len(bloc["X"])))
+        for j in range(len(bloc["columns"])):
+            vals = [r[j] for r in bloc["X"] if r[j] is not None]
+            out += ([max(vals), statistics.median(vals)] if vals else [ABSENT] * 2)
+    return out
+
+
+class Tableau:
+    """Le tableau appris : ses cases, ses deux forêts, ses deux seuils de rejet."""
+
+    def __init__(self, fen: list[dict], graine: int = 0):
         import numpy as np
         from sklearn.ensemble import RandomForestClassifier
 
-        garde = [f for f in apprentissage if f["jeu"] == "apprentissage"
-                 and f["etiquette"] not in juge.ECARTEES]
+        self.graine = graine
+        garde = [f for f in fen if f["jeu"] == "apprentissage" and f["etiquette"] not in juge.ECARTEES]
         if not garde:
             raise ValueError("aucune fenêtre d'apprentissage")
-        # Les colonnes : chaque case vue à l'apprentissage, avec les colonnes de sa sorte.
         colonnes: dict[str, list[str]] = {}
         for f in garde:
             for cle, case in cases(f["donnees"]).items():
-                kind = cle.split(":", 1)[0]
-                colonnes.setdefault(case, f["donnees"]["nodes"][kind]["columns"])
+                colonnes.setdefault(case, f["donnees"]["nodes"][cle.split(":", 1)[0]]["columns"])
         self.cases = sorted(colonnes)
         self.colonnes = colonnes
+        foret = lambda: RandomForestClassifier(n_estimators=ARBRES, random_state=graine, n_jobs=-1)
+
+        # La cause, et ses deux seuils de rejet.
         x = np.array([self.ligne(f["donnees"]) for f in garde])
-
-        # La cause.
         y = [f["cause"] if f["etiquette"] == "panne" else "normale" for f in garde]
-        foret = lambda: RandomForestClassifier(n_estimators=ARBRES, random_state=GRAINE, n_jobs=-1)
         self.cause = foret().fit(x, y)
-        # Le seuil de rejet, injection par injection mise de côté.
-        groupes = [(f["campagne"], f["injection"]) if f["etiquette"] == "panne" else None for f in garde]
-        bien = []
-        for g in sorted(set(filter(None, groupes))):
-            dehors = np.array([k == g for k in groupes])
-            modele = foret().fit(x[~dehors], [c for c, d in zip(y, dehors) if not d])
-            proba = modele.predict_proba(x[dehors])
-            classes = list(modele.classes_)
-            vraies = [c for c, d in zip(y, dehors) if d]
-            bien += [float(p.max()) for p, c in zip(proba, vraies) if classes[int(p.argmax())] == c]
-        self.seuil = float(np.percentile(bien, CENTILE_REJET)) if bien else 0.0
-        self.injections_calage = len(set(filter(None, groupes)))
+        injection = [(f["campagne"], f["injection"]) if f["etiquette"] == "panne" else None for f in garde]
+        pannes_bien = []
+        for g in sorted(set(filter(None, injection))):
+            dehors = np.array([k == g for k in injection])
+            m = foret().fit(x[~dehors], [c for c, d in zip(y, dehors) if not d])
+            cl = list(m.classes_)
+            for p, c in zip(m.predict_proba(x[dehors]), [c for c, d in zip(y, dehors) if d]):
+                if cl[int(p.argmax())] == c:
+                    pannes_bien.append(float(p.max()))
+        normales = []
+        campagne = [f["campagne"] for f in garde]
+        for c in sorted({k for k, e in zip(campagne, y) if e == "normale"}):
+            dehors = np.array([k == c for k in campagne])
+            m = foret().fit(x[~dehors], [e for e, d in zip(y, dehors) if not d])
+            cl = list(m.classes_)
+            ici = [i for i, d in enumerate(dehors) if d and y[i] == "normale"]
+            if "normale" in cl and ici:
+                normales += [float(p[cl.index("normale")]) for p in m.predict_proba(x[ici])]
+        self.seuil_panne = float(np.percentile(pannes_bien, CENTILE)) if pannes_bien else 0.0
+        self.seuil_normal = float(np.percentile(normales, CENTILE)) if normales else 0.0
+        self.calage = (len(set(filter(None, injection))), len({k for k, e in zip(campagne, y) if e == "normale"}))
 
-        # Le fautif : une sortie par case.
-        fautives = [{cases(f["donnees"])[c] for c in f["fautifs"]} for f in garde]
-        self.sorties = self.cases
-        yf = np.array([[1 if case in fv else 0 for case in self.sorties] for fv in fautives])
-        self.jamais = {case for j, case in enumerate(self.sorties) if not yf[:, j].any()}
-        self.fautif = RandomForestClassifier(n_estimators=ARBRES, random_state=GRAINE,
-                                             n_jobs=-1).fit(x, yf)
+        # Le fautif : une forêt pour tous les nœuds.
+        xs, ys = [], []
+        for f in garde:
+            r = resumes(f["donnees"])
+            for cle, ligne in self.noeuds(f["donnees"], r):
+                xs.append(ligne)
+                ys.append(1 if cle in f["fautifs"] else 0)
+        self.fautif = foret().fit(np.array(xs), ys)
+        self.fautifs_appris = sum(ys)
 
     def ligne(self, donnees: dict) -> list[float]:
-        """Les nombres de la fenêtre, case par case, colonne par colonne."""
+        """Les cases puis les résumés d'une fenêtre."""
         valeurs: dict[str, list] = {}
         for cle, case in cases(donnees).items():
             kind, nom = cle.split(":", 1)
@@ -154,54 +202,100 @@ class Tableau:
         out = []
         for case in self.cases:
             ligne = valeurs.get(case)
-            for j in range(len(self.colonnes[case])):
-                v = None if ligne is None else ligne[j]
-                out.append(ABSENT if v is None else float(v))
+            out += [ABSENT if ligne is None else _nombre(ligne[j]) for j in range(len(self.colonnes[case]))]
+        return out + resumes(donnees)
+
+    @staticmethod
+    def noeuds(donnees: dict, r: list[float]) -> list[tuple[str, list[float]]]:
+        """Une ligne par nœud : sa sorte, ses nombres (à LARGEUR), les résumés de la fenêtre."""
+        out = []
+        for i, kind in enumerate(SORTES):
+            bloc = donnees["nodes"][kind]
+            sorte = [1.0 if j == i else 0.0 for j in range(len(SORTES))]
+            for nom, row in zip(bloc["names"], bloc["X"]):
+                propre = [_nombre(v) for v in row] + [ABSENT] * (LARGEUR - len(row))
+                out.append((juge._cle(kind, nom), sorte + propre + r))
         return out
+
+    def cases_inconnues(self, donnees: dict) -> int:
+        return sum(1 for c in cases(donnees).values() if c not in self.colonnes)
 
     def repondre(self, donnees: dict) -> dict:
         """La réponse du témoin pour une fenêtre, à partir de ses seuls nombres."""
         import numpy as np
-        x = np.array([self.ligne(donnees)])
-        proba = self.cause.predict_proba(x)[0]
-        classes = list(self.cause.classes_)
-        cause = classes[int(proba.argmax())]
-        if cause != "normale" and proba.max() < self.seuil:
+        p = self.cause.predict_proba(np.array([self.ligne(donnees)]))[0]
+        cl = list(self.cause.classes_)
+        cause = cl[int(p.argmax())]
+        if cause == "normale":
+            if p[cl.index("normale")] < self.seuil_normal:
+                cause = "inconnue"
+        elif p.max() < self.seuil_panne:
             cause = "inconnue"
-        par_sortie = self.fautif.predict_proba(x)
-        score_case = {}
-        for j, case in enumerate(self.sorties):
-            p, cl = par_sortie[j][0], list(self.fautif.classes_[j])
-            score_case[case] = float(p[cl.index(1)]) if 1 in cl else 0.0
-        scores = {cle: score_case.get(case, 0.0) for cle, case in cases(donnees).items()}
-        return {"alarme": cause != "normale", "cause": cause, "scores": scores}
+        lignes = self.noeuds(donnees, resumes(donnees))
+        proba = self.fautif.predict_proba(np.array([l for _, l in lignes]))
+        un = list(self.fautif.classes_).index(1) if 1 in self.fautif.classes_ else None
+        scores = {cle: (float(pr[un]) if un is not None else 0.0) for (cle, _), pr in zip(lignes, proba)}
+        return {"alarme": cause != "normale", "cause": cause, "scores": scores,
+                "_sans_rejet": cl[int(p.argmax())]}
 
 
-def rapport(noms: list[str], campagnes: Path, runs: Path) -> int:
+def _resume_graines(notes: list[dict]) -> list[str]:
+    """Chaque nombre de la note, sur les graines : minimum, médiane, maximum."""
+    out = [f"{'mesure':<52}{'min':>8}{'médiane':>9}{'max':>8}{'sur':>6}"]
+    cles = [k for k in notes[0] if k != "injections"]
+    for k in cles:
+        v = [n[k][0] for n in notes if k in n]
+        out.append(f"{k:<52}{min(v):>8}{statistics.median(v):>9g}{max(v):>8}{notes[0][k][1]:>6}")
+    for k in notes[0]["injections"]:
+        v = [n["injections"][k][0] for n in notes]
+        out.append(f"{'injections, ' + k:<52}{min(v):>8}{statistics.median(v):>9g}{max(v):>8}"
+                   f"{notes[0]['injections'][k][1]:>6}")
+    return out
+
+
+def rapport(noms: list[str], campagnes: Path, runs: Path, graines: int) -> int:
     try:
         fen = juge.lire(noms, campagnes, runs)
     except juge.Refus as e:
         print(f"REFUS  {e}")
         return 1
-    tableau = Tableau(fen)
     test = [f for f in fen if f["jeu"] == "test" and f["etiquette"] not in juge.ECARTEES]
-    reponses = {f["id"]: tableau.repondre(f["donnees"]) for f in test}
-    n_col = sum(len(c) for c in tableau.colonnes.values())
     print("# Témoin 1, le tableau équitable — écrit par graphe_en/temoin_tableau.py, ne pas éditer à la main.")
-    print(f"# {len(tableau.cases)} cases (nœuds), {n_col} nombres par fenêtre, aucune flèche ; "
-          f"{ARBRES} arbres, graine {GRAINE}")
-    print(f"# seuil de rejet (« inconnue ») : probabilité < {tableau.seuil:.3f} "
-          f"({CENTILE_REJET}e centile, {tableau.injections_calage} injections d'apprentissage "
-          f"mises de côté à tour de rôle)")
-    print(f"# cases jamais fautives à l'apprentissage (score 0) : {len(tableau.jamais)} sur {len(tableau.sorties)}")
-    print()
-    lignes, _ = juge.noter(fen, reponses, "tableau équitable, réglé avec exemples")
-    print("\n".join(lignes))
+    notes = []
+    for g in range(graines):
+        tableau = Tableau(fen, graine=g)
+        reponses = {f["id"]: tableau.repondre(f["donnees"]) for f in test}
+        lignes, chiffres = juge.noter(fen, {i: {k: v for k, v in r.items() if not k.startswith("_")}
+                                            for i, r in reponses.items()},
+                                      f"tableau équitable, graine {g}")
+        notes.append(chiffres)
+        if g == 0:
+            pannes = [f for f in test if f["etiquette"] == "panne"]
+            sans_rejet = sum(1 for f in pannes if reponses[f["id"]]["_sans_rejet"] == f["attendue"])
+            n_col = len(tableau.ligne(test[0]["donnees"]))
+            print(f"# {len(tableau.cases)} cases et leurs résumés : {n_col} nombres par fenêtre ; "
+                  f"structure des flèches : aucune ; {ARBRES} arbres par forêt")
+            print(f"# rejet : panne sous {tableau.seuil_panne:.3f} ({tableau.calage[0]} injections mises de "
+                  f"côté), normal sous {tableau.seuil_normal:.3f} ({tableau.calage[1]} campagnes mises de côté), "
+                  f"{CENTILE}e centile")
+            print(f"# fautif : une forêt pour tous les nœuds, {tableau.fautifs_appris} lignes fautives à "
+                  f"l'apprentissage")
+            inconnues = sum(1 for f in test if tableau.cases_inconnues(f["donnees"]))
+            print(f"# fenêtres de test avec une case jamais vue à l'apprentissage : {inconnues}")
+            print(f"# cause sans le rejet (pour voir ce qu'il coûte) : {sans_rejet}/{len(pannes)} "
+                  f"fenêtres de panne")
+            print()
+            print("\n".join(lignes))
+    print(f"\n# sur {graines} graines (0 à {graines - 1}) : chaque nombre de la note")
+    print("\n".join(_resume_graines(notes)))
+    print("\n# le plancher à battre, qui ne lit aucune donnée (juge.py)")
+    lignes, _ = juge.noter(fen, juge.factices(fen)["a priori"], "a priori")
+    print("\n".join(l for l in lignes if not l.startswith("  ") or "injection" not in l))
     return 0
 
 
 def main(argv: list[str]) -> int:
-    campagnes, runs, installer = HERE.parent / "campagnes", HERE / "runs", True
+    campagnes, runs, installer, graines = HERE.parent / "campagnes", HERE / "runs", True, 5
     noms: list[str] = []
     args = argv[1:]
     try:
@@ -214,6 +308,10 @@ def main(argv: list[str]) -> int:
                 campagnes = Path(args.pop(0))
             elif a == "--runs":
                 runs = Path(args.pop(0))
+            elif a == "--graines":
+                graines = int(args.pop(0))
+                if graines < 1:
+                    raise ValueError
             elif a == "--no-install":
                 installer = False
             elif a.startswith("-"):
@@ -221,8 +319,8 @@ def main(argv: list[str]) -> int:
                 return 2
             else:
                 noms.append(a)
-    except IndexError:
-        print("option sans valeur", file=sys.stderr)
+    except (IndexError, ValueError):
+        print("option sans valeur ou valeur illisible", file=sys.stderr)
         return 2
     req = bootstrap.REQUIREMENTS["baseline"]
     if not bootstrap.is_available(req.module):
@@ -238,7 +336,7 @@ def main(argv: list[str]) -> int:
     noms = noms or fautifs_module.SERIES
     sortie = io.StringIO()
     with contextlib.redirect_stdout(sortie):
-        code = rapport(noms, campagnes, runs)
+        code = rapport(noms, campagnes, runs, graines)
     texte = sortie.getvalue()
     print(texte, end="")
     if code == 0:

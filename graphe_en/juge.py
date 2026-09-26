@@ -241,6 +241,9 @@ def lire(noms: list[str], campagnes: Path | None = None, runs: Path | None = Non
     for f in fen:
         f["attendue"] = cause_attendue(f, apprises)
         f["fautif_vu"] = any((f["cause"], c) in deja for c in f["fautifs"])
+        # Pour une cause jamais vue : son fautif l'a-t-il été pour une AUTRE cause ?
+        # (un classement qui se souvient des anciens fautifs le devinerait)
+        f["fautif_vu_ailleurs"] = any(c in {d for _, d in deja} for c in f["fautifs"])
     return fen
 
 
@@ -351,6 +354,15 @@ def noter(fen: list[dict], reponses: dict, titre: str = "") -> tuple[list[str], 
     jamais = sorted({f["cause"] for f in pannes if f["attendue"] == "inconnue"})
     lignes.append(f"cause          {_part(bonne, len(pannes))} fenêtres de panne bien nommées"
                   + (f"  (jamais vues : {', '.join(jamais)}, bonne réponse « inconnue »)" if jamais else ""))
+    # L'épreuve décisive, à part : une cause jamais vue, détectée ? dite « inconnue » ?
+    for c in jamais:
+        groupe = [f for f in pannes if f["cause"] == c and f["attendue"] == "inconnue"]
+        d = sum(1 for f in groupe if alarme(f))
+        b = sum(1 for f in groupe if bonne_cause(f))
+        chiffres[f"detection jamais vue : {c}"] = (d, len(groupe))
+        chiffres[f"cause jamais vue : {c}"] = (b, len(groupe))
+        lignes.append(f"  jamais vue : {c:<10} détection {_part(d, len(groupe))}, "
+                      f"« inconnue » {_part(b, len(groupe))}")
 
     # Fautif : causes apprises et jamais vues à part ; par cause, par série, et
     # selon que le fautif l'était déjà à l'apprentissage (un classement qui ne lit
@@ -358,15 +370,18 @@ def noter(fen: list[dict], reponses: dict, titre: str = "") -> tuple[list[str], 
     avec_fautif = [f for f in pannes if f["fautifs"]]
     rangs = {f["id"]: rang(f["fautifs"], reponses[f["id"]]["scores"], noeuds(f["donnees"]))
              for f in avec_fautif}
-    lignes.append(f"fautif{'':<25}{'top-1':>17}{'top-3':>17}{'top-1 alarme':>17}{'top-3 alarme':>17}")
+    lignes.append(f"fautif{'':<36}{'top-1':>17}{'top-3':>17}{'top-1 alarme':>17}{'top-3 alarme':>17}")
     apprises = [f for f in avec_fautif if f["attendue"] != "inconnue"]
     groupes = [("causes apprises", apprises)]
     groupes += [(c, [f for f in apprises if f["cause"] == c]) for c in sorted({f["cause"] for f in apprises})]
     groupes += [(f"série {s}", [f for f in apprises if f["serie"] == s]) for s in ("1", "2", "hors séries")]
     groupes += [("fautif déjà vu", [f for f in apprises if f["fautif_vu"]]),
                 ("fautif nouveau", [f for f in apprises if not f["fautif_vu"]])]
-    groupes += [(f"jamais vue : {c}", [f for f in avec_fautif if f["attendue"] == "inconnue" and f["cause"] == c])
-                for c in jamais]
+    for c in jamais:
+        groupe = [f for f in avec_fautif if f["attendue"] == "inconnue" and f["cause"] == c]
+        groupes += [(f"jamais vue : {c}", groupe),
+                    (f"jamais vue {c}, fautif déjà vu ailleurs", [f for f in groupe if f["fautif_vu_ailleurs"]]),
+                    (f"jamais vue {c}, jamais fautif", [f for f in groupe if not f["fautif_vu_ailleurs"]])]
     for nom, groupe in groupes:
         if not groupe:
             continue
@@ -375,7 +390,7 @@ def noter(fen: list[dict], reponses: dict, titre: str = "") -> tuple[list[str], 
             n = sum(1 for f in groupe if rangs[f["id"]] <= k and (alarme(f) or not avec_alarme))
             chiffres[f"top-{k}{' avec alarme' if avec_alarme else ''} {nom}"] = (n, len(groupe))
             valeurs.append(_part(n, len(groupe)))
-        lignes.append(f"  {nom:<29}" + "".join(f"{v:>17}" for v in valeurs))
+        lignes.append(f"  {nom:<40}" + "".join(f"{v:>17}" for v in valeurs))
 
     # Par injection : la majorité de ses fenêtres de panne au test.
     injections: dict = {}

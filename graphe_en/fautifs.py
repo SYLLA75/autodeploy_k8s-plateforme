@@ -71,6 +71,11 @@ COMMENT ON JUGE (même règle pour tous les témoins, GNN compris)
   ce sont les fautifs fixes de la première série.
   Chaque mesure est donnée par fenêtre et par injection : une injection est
   trouvée si la majorité de ses fenêtres de panne le sont.
+  Une méthode qui tire au hasard (forêts, GNN) est apprise et notée avec les
+  graines 0 à 4 : note détaillée de la graine 0, puis chaque nombre avec son
+  minimum, sa médiane et son maximum. Un seuil de rejet se cale comme face à
+  du nouveau : chaque injection (ou campagne) d'apprentissage mise de côté à
+  son tour, jamais sur le test.
 
 CE QUE FAIT LE SCRIPT
 
