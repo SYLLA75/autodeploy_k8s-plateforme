@@ -1,0 +1,69 @@
+# Fautif de chaque injection — écrit par graphe_en/fautifs.py, ne pas éditer à la main.
+# Règles fixées le 26 sept. 2026, avant tout calcul des témoins (voir fautifs.py).
+# vu : fenêtres entièrement dans l'injection où chaque fautif est un nœud du graphe figé.
+
+saine-08   graphe figé : runs/20260926-041410
+  aucune injection : référence normale, aucun fautif
+
+charge-03   graphe figé : runs/20260926-041723
+  1  03:40:01 → 03:59:59  charge   —  aucun fautif par règle (jugée sur la cause)
+  2  04:25:00 → 04:44:59  charge   —  aucun fautif par règle (jugée sur la cause)
+  3  05:10:00 → 05:29:59  charge   —  aucun fautif par règle (jugée sur la cause)
+
+blocage-02   graphe figé : runs/20260926-042549
+  1  06:17:14 → 06:37:13  blocage  instance : ts-delivery-service-79c46f4f45-bmgvs
+       registre : ts-delivery-service-79c46f4f45-bmgvs@workers2 ; vu 19 sur 19 fenêtres
+  2  07:02:14 → 07:22:13  blocage  instance : ts-delivery-service-79c46f4f45-bmgvs
+       registre : ts-delivery-service-79c46f4f45-bmgvs@workers2 ; vu 19 sur 19 fenêtres
+  3  07:47:15 → 08:07:12  blocage  instance : ts-delivery-service-79c46f4f45-bmgvs
+       registre : ts-delivery-service-79c46f4f45-bmgvs@workers2 ; vu 19 sur 19 fenêtres
+
+lenteur-01   graphe figé : runs/20260926-043347
+  1  08:33:33 → 08:53:32  lenteur  instance : ts-delivery-service-79c46f4f45-bmgvs, ts-delivery-service-79c46f4f45-r5pwb, ts-delivery-service-79c46f4f45-tvmfl
+       toutes les instances ts-delivery-service-* ; registre : ts-delivery-service x3 -> app=tsdb-mysql ; vu 19/19/19 sur 19 fenêtres
+  2  09:18:33 → 09:38:32  lenteur  instance : ts-delivery-service-79c46f4f45-bmgvs, ts-delivery-service-79c46f4f45-r5pwb, ts-delivery-service-79c46f4f45-tvmfl
+       toutes les instances ts-delivery-service-* ; registre : ts-delivery-service x3 -> app=tsdb-mysql ; vu 19/19/19 sur 19 fenêtres
+  3  10:03:33 → 10:23:32  lenteur  instance : ts-delivery-service-79c46f4f45-bmgvs, ts-delivery-service-79c46f4f45-r5pwb, ts-delivery-service-79c46f4f45-tvmfl
+       toutes les instances ts-delivery-service-* ; registre : ts-delivery-service x3 -> app=tsdb-mysql ; vu 19/19/19 sur 19 fenêtres
+
+hote-01   graphe figé : runs/20260926-044150
+  1  10:50:22 → 11:10:51  hote     host : workers0
+       registre : workers0 ; vu 19 sur 19 fenêtres
+  2  11:35:23 → 11:55:47  hote     host : workers0
+       registre : workers0 ; vu 19 sur 19 fenêtres
+  3  12:20:22 → 12:40:47  hote     host : workers0
+       registre : workers0 ; vu 19 sur 19 fenêtres
+
+saine-09   graphe figé : runs/20260926-033245
+  aucune injection : référence normale, aucun fautif
+
+blocage-03   graphe figé : runs/20260926-034025
+  1  11:16:00 → 11:35:57  blocage  instance : ts-delivery-service-79c46f4f45-bmgvs
+       registre : ts-delivery-service-79c46f4f45-bmgvs@workers2 ; vu 19 sur 19 fenêtres
+  2  12:01:00 → 12:20:57  blocage  instance : ts-delivery-service-79c46f4f45-r5pwb
+       registre : ts-delivery-service-79c46f4f45-r5pwb@workers0 ; vu 19 sur 19 fenêtres
+  3  12:46:00 → 13:05:57  blocage  instance : ts-delivery-service-79c46f4f45-tvmfl
+       registre : ts-delivery-service-79c46f4f45-tvmfl@workers5 ; vu 19 sur 19 fenêtres
+
+hote-02   graphe figé : runs/20260926-034850
+  1  13:31:35 → 13:52:00  hote     host : workers5
+       registre : workers5 ; vu 20 sur 20 fenêtres
+  2  14:16:35 → 14:37:12  hote     host : workers2
+       registre : workers2 ; vu 20 sur 20 fenêtres
+  3  15:01:35 → 15:22:09  hote     host : workers0
+       registre : workers0 ; vu 20 sur 20 fenêtres
+
+charge-04   graphe figé : runs/20260926-035654
+  1  15:48:13 → 16:08:10  charge   —  aucun fautif par règle (jugée sur la cause)
+  2  16:33:13 → 16:53:11  charge   —  aucun fautif par règle (jugée sur la cause)
+  3  17:18:12 → 17:38:11  charge   —  aucun fautif par règle (jugée sur la cause)
+
+lenteur-02   graphe figé : runs/20260926-040544
+  1  18:03:32 → 18:23:31  lenteur  instance : ts-delivery-service-79c46f4f45-bmgvs, ts-delivery-service-79c46f4f45-r5pwb, ts-delivery-service-79c46f4f45-tvmfl
+       toutes les instances ts-delivery-service-* ; registre : ts-delivery-service x3 -> app=tsdb-mysql ; vu 19/19/19 sur 19 fenêtres
+  2  18:48:33 → 19:08:31  lenteur  instance : ts-delivery-service-79c46f4f45-bmgvs, ts-delivery-service-79c46f4f45-r5pwb, ts-delivery-service-79c46f4f45-tvmfl
+       toutes les instances ts-delivery-service-* ; registre : ts-delivery-service x3 -> app=tsdb-mysql ; vu 19/19/19 sur 19 fenêtres
+  3  19:33:32 → 19:53:31  lenteur  instance : ts-delivery-service-79c46f4f45-bmgvs, ts-delivery-service-79c46f4f45-r5pwb, ts-delivery-service-79c46f4f45-tvmfl
+       toutes les instances ts-delivery-service-* ; registre : ts-delivery-service x3 -> app=tsdb-mysql ; vu 19/19/19 sur 19 fenêtres
+
+TOUS LES FAUTIFS SONT ÉTABLIS
