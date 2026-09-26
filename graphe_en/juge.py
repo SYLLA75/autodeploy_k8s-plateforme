@@ -28,7 +28,9 @@ l'identique et contrôlées contre lui)
 
 LA COUPURE, par le temps : la dernière injection de chaque campagne, avec les
 fenêtres depuis dix minutes avant elle, est le test ; une campagne sans
-injection donne son dernier tiers. Une cause « jamais vue » (base, reseau par
+injection donne son dernier tiers. validation() répète cette coupure dans
+l'apprentissage (une injection plus tôt, le vrai test mis de côté) : c'est là,
+jamais sur le test, que se font les choix de réglage des témoins et du GNN. Une cause « jamais vue » (base, reseau par
 défaut) est jugée sur toutes ses injections : ses fenêtres de panne sont
 toutes au test, et la bonne cause y est « inconnue ». Les fenêtres de saine-09
 sont marquées « vues » : la mise à l'échelle figée a été calée sur elles.
@@ -196,7 +198,8 @@ def campagne(nom: str, campagnes: Path, runs: Path, fige: dict, tag: dict,
         for f in dedans:
             f["fautifs"] = [_cle(sorte, n) for n in noms]
 
-    # La coupure.
+    # La coupure : par le temps (gardée dans « temps », pour validation()), puis
+    # les causes jamais vues.
     if injections:
         limite = injections[-1]["debut"] - timedelta(minutes=10)
         for f in fen:
@@ -206,7 +209,10 @@ def campagne(nom: str, campagnes: Path, runs: Path, fige: dict, tag: dict,
         for f in fen[len(fen) * 2 // 3:]:
             f["jeu"] = "test"
     for f in fen:
-        if f["etiquette"] == "panne" and f["cause"] in jamais_vues:
+        f["temps"] = f["jeu"]
+    for f in fen:
+        f["jamais_vue"] = f["etiquette"] == "panne" and f["cause"] in jamais_vues
+        if f["jamais_vue"]:
             f["jeu"] = "test"
     return fen
 
@@ -231,6 +237,48 @@ def lire(noms: list[str], campagnes: Path | None = None, runs: Path | None = Non
     fen = []
     for nom in noms:
         fen += campagne(nom, campagnes, runs, fige, tag, consommateur, videe, jamais_vues)
+    _attentes(fen)
+    return fen
+
+
+def validation(fen: list[dict]) -> list[dict]:
+    """
+    La coupure répétée DANS l'apprentissage, pour régler un témoin (ou le GNN)
+    sans jamais voir le test. Des copies des fenêtres de lire() : celles du
+    vrai test (coupure par le temps) passent au jeu « hors », que personne ne
+    lit ; dans ce qui reste de chaque campagne, sa dernière injection, avec les
+    fenêtres depuis dix minutes avant sa première fenêtre de panne, devient le
+    test ; une campagne sans injection donne le dernier tiers de ce qui reste.
+    Une cause jamais vue (lire, jamais_vues) va au test partout où elle reste.
+    Bonnes causes et fautifs déjà vus recalculés sur ce nouvel apprentissage.
+    Les règles de notation sont celles du test : noter() s'emploie tel quel.
+    """
+    out = []
+    for c in dict.fromkeys(f["campagne"] for f in fen):
+        miennes = [dict(f) for f in fen if f["campagne"] == c]
+        reste = [f for f in miennes if f["temps"] == "apprentissage"]
+        for f in miennes:
+            f["jeu"] = "hors" if f["temps"] == "test" else "apprentissage"
+        vues = [f for f in reste if f["etiquette"] == "panne" and f["jeu"] == "apprentissage"
+                and not f.get("jamais_vue")]
+        if vues:
+            derniere = max(f["injection"] for f in vues)
+            limite = min(f["debut"] for f in vues if f["injection"] == derniere) - timedelta(minutes=10)
+            for f in reste:
+                if f["debut"] >= limite:
+                    f["jeu"] = "test"
+        else:
+            for f in reste[len(reste) * 2 // 3:]:
+                f["jeu"] = "test"
+        for f in reste:
+            if f.get("jamais_vue"):
+                f["jeu"] = "test"
+        out += miennes
+    _attentes(out)
+    return out
+
+
+def _attentes(fen: list[dict]) -> None:
     # La bonne cause de chaque fenêtre, fixée ici une fois pour toutes, d'après
     # TOUT l'apprentissage lu : noter() ne la recalcule jamais sur la liste qu'on
     # lui passe (une liste de test seule rendrait toute cause « inconnue »).
@@ -244,7 +292,6 @@ def lire(noms: list[str], campagnes: Path | None = None, runs: Path | None = Non
         # Pour une cause jamais vue : son fautif l'a-t-il été pour une AUTRE cause ?
         # (un classement qui se souvient des anciens fautifs le devinerait)
         f["fautif_vu_ailleurs"] = any(c in {d for _, d in deja} for c in f["fautifs"])
-    return fen
 
 
 def causes_apprises(fen: list[dict]) -> set[str]:

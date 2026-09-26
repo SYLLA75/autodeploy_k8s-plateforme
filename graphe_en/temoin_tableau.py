@@ -64,6 +64,9 @@ fenêtre (repondre ne reçoit que fen["donnees"]).
 Options :
   --campaigns <dossier>  le dossier des dossiers de campagne (défaut ../campagnes)
   --runs <dossier>       où sont les runs (défaut runs)
+  --validation           la coupure répétée dans l'apprentissage (juge.validation),
+                         le vrai test jamais lu : pour régler ; écrit
+                         <campagnes>/temoin_tableau-validation.txt
   --graines <n>          nombre de graines, à partir de 0 (défaut 5)
   --no-install           n'installe jamais scikit-learn
   --help                 ce texte
@@ -253,12 +256,15 @@ def _resume_graines(notes: list[dict]) -> list[str]:
     return out
 
 
-def rapport(noms: list[str], campagnes: Path, runs: Path, graines: int) -> int:
+def rapport(noms: list[str], campagnes: Path, runs: Path, graines: int, validation: bool = False) -> int:
     try:
         fen = juge.lire(noms, campagnes, runs)
     except juge.Refus as e:
         print(f"REFUS  {e}")
         return 1
+    if validation:
+        fen = juge.validation(fen)
+        print("# VALIDATION : coupure répétée dans l'apprentissage (juge.validation), vrai test jamais lu")
     test = [f for f in fen if f["jeu"] == "test" and f["etiquette"] not in juge.ECARTEES]
     print("# Témoin 1, le tableau équitable — écrit par graphe_en/temoin_tableau.py, ne pas éditer à la main.")
     notes = []
@@ -296,6 +302,7 @@ def rapport(noms: list[str], campagnes: Path, runs: Path, graines: int) -> int:
 
 def main(argv: list[str]) -> int:
     campagnes, runs, installer, graines = HERE.parent / "campagnes", HERE / "runs", True, 5
+    validation = False
     noms: list[str] = []
     args = argv[1:]
     try:
@@ -308,6 +315,8 @@ def main(argv: list[str]) -> int:
                 campagnes = Path(args.pop(0))
             elif a == "--runs":
                 runs = Path(args.pop(0))
+            elif a == "--validation":
+                validation = True
             elif a == "--graines":
                 graines = int(args.pop(0))
                 if graines < 1:
@@ -336,11 +345,11 @@ def main(argv: list[str]) -> int:
     noms = noms or fautifs_module.SERIES
     sortie = io.StringIO()
     with contextlib.redirect_stdout(sortie):
-        code = rapport(noms, campagnes, runs, graines)
+        code = rapport(noms, campagnes, runs, graines, validation)
     texte = sortie.getvalue()
     print(texte, end="")
     if code == 0:
-        cible = campagnes / "temoin_tableau.txt"
+        cible = campagnes / ("temoin_tableau-validation.txt" if validation else "temoin_tableau.txt")
         cible.write_text(texte)
         print(f"-> {cible}")
     return code
