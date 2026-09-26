@@ -856,3 +856,16 @@ trafic est à 846 ms ; la marge n'est que de 37 ms. Résultat : `campagnes/ligne
 Conclusion : sur les quatre causes, un tableau sans flèches nomme la cause à l'aveugle comme
 en septembre. Le résultat du rapport tient ; l'intérêt des flèches et du modèle se jouera sur
 la base lente (fautif muet) et les jumeaux.
+
+## 2026-09-26 — Phase A.7 : les figures dessinent la relation `queries`
+
+`render.py` (commit a87bb6a) : les arêtes `queries` sont tracées en tirets gris foncé,
+courbées dans l'autre sens que `calls`, épaisseur selon le débit ; la vue de la file ajoute
+les bases que ses instances interrogent, avec leur hôte (5 instances, 1 file, 4 hôtes pour
+food_delivery), sans quoi la flèche réplique → base ne pourrait jamais y figurer ; chaque
+hôte affiche aussi son réseau reçu et envoyé. Les instantanés construits avant la relation
+se dessinent comme avant (pas de clé `queries`). README du graphe : cinq relations, hôte à
+9 nombres. Vérifié sur vms0, sur une copie des fenêtres de lenteur-02 (18:02 et 18:13) :
+les trois répliques et ts-food-service reliées à tsdb-mysql-0 dans la vue de la file, les
+quinze arêtes convergent vers la base dans la vue complète. Images :
+`~/verifications-phases/A7/` sur le poste.
