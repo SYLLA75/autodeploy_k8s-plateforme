@@ -250,16 +250,20 @@ def validation(fen: list[dict]) -> list[dict]:
     lit ; dans ce qui reste de chaque campagne, sa dernière injection, avec les
     fenêtres depuis dix minutes avant sa première fenêtre de panne, devient le
     test ; une campagne sans injection donne le dernier tiers de ce qui reste.
-    Une cause jamais vue (lire, jamais_vues) va au test partout où elle reste.
+    Une cause retirée pour la répétition (lire, jamais_vues, hors des causes
+    jamais vues par défaut) va au test partout où elle reste. Les causes jamais
+    vues par défaut (JAMAIS_VUES : la base lente, les jumeaux) vont TOUTES
+    « hors » : aucun réglage ne doit les voir, pas même par la validation.
     Bonnes causes et fautifs déjà vus recalculés sur ce nouvel apprentissage.
     Les règles de notation sont celles du test : noter() s'emploie tel quel.
     """
     out = []
     for c in dict.fromkeys(f["campagne"] for f in fen):
         miennes = [dict(f) for f in fen if f["campagne"] == c]
-        reste = [f for f in miennes if f["temps"] == "apprentissage"]
         for f in miennes:
-            f["jeu"] = "hors" if f["temps"] == "test" else "apprentissage"
+            f["jeu"] = "hors" if f["temps"] == "test" or (f["jamais_vue"] and f["cause"] in JAMAIS_VUES) \
+                else "apprentissage"
+        reste = [f for f in miennes if f["jeu"] == "apprentissage"]
         # Comme lire() : la dernière injection qui reste, quelle que soit sa cause.
         pannes = [f for f in reste if f["etiquette"] == "panne"]
         if pannes:
@@ -293,6 +297,19 @@ def _attentes(fen: list[dict]) -> None:
         # Pour une cause jamais vue : son fautif l'a-t-il été pour une AUTRE cause ?
         # (un classement qui se souvient des anciens fautifs le devinerait)
         f["fautif_vu_ailleurs"] = any(c in {d for _, d in deja} for c in f["fautifs"])
+
+
+def sortie(base: str, noms: list[str], validation: bool = False) -> str:
+    """Le nom du fichier de résultat : celui des deux séries n'est jamais écrasé
+    par une lecture d'autres campagnes (la phase C s'écrit à côté)."""
+    serie = fautifs_module.SERIES
+    if list(noms) == serie:
+        suffixe = ""
+    elif set(serie) <= set(noms):
+        suffixe = "-" + "+".join(n for n in noms if n not in serie)
+    else:
+        suffixe = "-" + "+".join(noms)
+    return f"{base}{suffixe}{'-validation' if validation else ''}.txt"
 
 
 def causes_apprises(fen: list[dict]) -> set[str]:
@@ -449,6 +466,8 @@ def noter(fen: list[dict], reponses: dict, titre: str = "") -> tuple[list[str], 
     cles = ["détectée", "cause", "top-1", "top-3", "top-1 a", "top-3 a"]
     trouvees = dict.fromkeys(cles, 0)
     avec = 0
+    # Les totaux aussi à part : causes apprises, et chaque cause jamais vue.
+    parts: dict[str, dict] = {}
     for (c, k), groupe in sorted(injections.items()):
         maj = lambda ok: 2 * sum(1 for f in groupe if ok(f)) > len(groupe)
         r = {"détectée": maj(alarme), "cause": maj(bonne_cause)}
@@ -459,6 +478,12 @@ def noter(fen: list[dict], reponses: dict, titre: str = "") -> tuple[list[str], 
                 r[f"top-{j} a"] = maj(lambda f: rangs[f["id"]] <= j and alarme(f))
         for cle in cles:
             trouvees[cle] += bool(r.get(cle))
+        part = parts.setdefault("causes apprises" if groupe[0]["attendue"] != "inconnue"
+                                else f"jamais vue : {groupe[0]['cause']}", {"n": 0, "avec": 0, **dict.fromkeys(cles, 0)})
+        part["n"] += 1
+        part["avec"] += bool(groupe[0]["fautifs"])
+        for cle in cles:
+            part[cle] += bool(r.get(cle))
         oui = lambda x: "—" if x is None else ("oui" if x else "non")
         lignes.append(f"  {c:<12} injection {k}  {groupe[0]['cause']:<8} {len(groupe):>3} fenêtres  "
                       + "  ".join(f"{cle} {oui(r.get(cle))}" for cle in cles))
@@ -466,6 +491,16 @@ def noter(fen: list[dict], reponses: dict, titre: str = "") -> tuple[list[str], 
     chiffres["injections"] = {k: (v, avec if k.startswith("top") else n) for k, v in trouvees.items()}
     lignes.append("  total : " + ", ".join(f"{k} {v}/{avec if k.startswith('top') else n}"
                                           for k, v in trouvees.items()))
+    if len(parts) > 1:
+        for nom, part in parts.items():
+            for k in cles:
+                chiffres["injections"][f"{k} ({nom})"] = (part[k], part["avec"] if k.startswith("top") else part["n"])
+            lignes.append(f"    dont {nom} : " + ", ".join(
+                f"{k} {part[k]}/{part['avec'] if k.startswith('top') else part['n']}" for k in cles))
+        # Détection et cause des seules causes apprises (les jamais vues ont leurs lignes plus haut).
+        appr = [f for f in pannes if f["attendue"] != "inconnue"]
+        chiffres["detection, causes apprises"] = (sum(1 for f in appr if alarme(f)), len(appr))
+        chiffres["cause, causes apprises"] = (sum(1 for f in appr if bonne_cause(f)), len(appr))
     return lignes, chiffres
 
 
@@ -662,13 +697,14 @@ def main(argv: list[str]) -> int:
         return 2
     campagnes, runs = campagnes.resolve(), runs.resolve()
     noms = noms or fautifs_module.SERIES
-    sortie = io.StringIO()
-    with contextlib.redirect_stdout(sortie):
+    tampon = io.StringIO()
+    with contextlib.redirect_stdout(tampon):
+        print(f"# campagnes lues : {', '.join(noms)}")
         code = rapport(noms, campagnes, runs, consommateur, videe)
-    texte = sortie.getvalue()
+    texte = tampon.getvalue()
     print(texte, end="")
     if code == 0:
-        cible = campagnes / "etiquettes.txt"
+        cible = campagnes / sortie("etiquettes", noms)
         cible.write_text(texte)
         print(f"-> {cible}")
     return code

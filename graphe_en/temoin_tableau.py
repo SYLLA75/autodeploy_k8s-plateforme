@@ -58,8 +58,24 @@ graines 0 à 4 (fautifs.py) : la note détaillée est celle de la graine 0, puis
 chaque nombre avec son minimum, sa médiane et son maximum sur les cinq graines.
 
 CE QUE LE TÉMOIN VOIT : à l'apprentissage, les fenêtres d'apprentissage avec
-leur étiquette, leur cause et leurs fautifs ; au test, les seuls nombres de la
-fenêtre (repondre ne reçoit que fen["donnees"]).
+leur étiquette, leur cause et leurs fautifs ; au test, les nombres de la
+fenêtre et les noms de ses nœuds, qui donnent les cases (repondre ne reçoit que
+fen["donnees"]). Deux nombres de configuration (memory_limit, cpu_quota)
+distinguent les pods MySQL, jamais fautifs à l'apprentissage : la forêt du
+fautif peut apprendre qu'ils ne le sont jamais.
+
+BUDGET DE FAUSSES ALERTES : le seuil du normal est au-dessus de 0,5, donc les
+deux rejets ensemble sonnent sur les seules fenêtres sous ce seuil : 5 % des
+fenêtres normales mises de côté, le budget le plus serré des trois témoins
+(l'en-tête du résultat donne le compte).
+
+VERSIONS ÉCARTÉES, dites honnêtement : les deux changements de B.3 ont été faits
+APRÈS avoir noté le tableau sur le test (juge.validation n'existait pas encore) :
+le rejet calé « hors sac » (cause 33 %), puis le fautif appris case par case, sans
+les flèches résumées, rejet d'un seul côté (commit 974ba15 : cause 144/153, fautif
+top-1 94/115, fautif nouveau 0/19 ; sortie dans campagnes/versions-vues-sur-test/).
+Chaque fois dans le sens qui renforce le témoin. Depuis, tout choix se fait sur
+la validation de juge.py.
 
 Options :
   --campaigns <dossier>  le dossier des dossiers de campagne (défaut ../campagnes)
@@ -184,6 +200,10 @@ class Tableau:
         self.seuil_panne = float(np.percentile(pannes_bien, CENTILE)) if pannes_bien else 0.0
         self.seuil_normal = float(np.percentile(normales, CENTILE)) if normales else 0.0
         self.calage = (len(set(filter(None, injection))), len({k for k, e in zip(campagne, y) if e == "normale"}))
+        # Le budget de fausses alertes : le seuil du normal dépasse 0,5, donc une fenêtre
+        # mise de côté que la forêt prend pour une panne est déjà sous ce seuil.
+        self.calage_normal = (sum(1 for v in normales if v < self.seuil_normal), len(normales))
+        self.calage_pannes = len(pannes_bien)
 
         # Le fautif : une forêt pour tous les nœuds.
         xs, ys = [], []
@@ -284,6 +304,10 @@ def rapport(noms: list[str], campagnes: Path, runs: Path, graines: int, validati
             print(f"# rejet : panne sous {tableau.seuil_panne:.3f} ({tableau.calage[0]} injections mises de "
                   f"côté), normal sous {tableau.seuil_normal:.3f} ({tableau.calage[1]} campagnes mises de côté), "
                   f"{CENTILE}e centile")
+            print(f"# le rejet du normal sonne sur {tableau.calage_normal[0]}/{tableau.calage_normal[1]} fenêtres "
+                  f"normales mises de côté (celles prises pour une panne comprises)")
+            if not tableau.calage_pannes:
+                print("# ATTENTION : aucune injection mise de côté n'est bien classée : le rejet des pannes est coupé")
             print(f"# fautif : une forêt pour tous les nœuds, {tableau.fautifs_appris} lignes fautives à "
                   f"l'apprentissage")
             inconnues = sum(1 for f in test if tableau.cases_inconnues(f["donnees"]))
@@ -345,11 +369,12 @@ def main(argv: list[str]) -> int:
     noms = noms or fautifs_module.SERIES
     sortie = io.StringIO()
     with contextlib.redirect_stdout(sortie):
+        print(f"# campagnes lues : {', '.join(noms)}")
         code = rapport(noms, campagnes, runs, graines, validation)
     texte = sortie.getvalue()
     print(texte, end="")
     if code == 0:
-        cible = campagnes / ("temoin_tableau-validation.txt" if validation else "temoin_tableau.txt")
+        cible = campagnes / juge.sortie("temoin_tableau", noms, validation)
         cible.write_text(texte)
         print(f"-> {cible}")
     return code

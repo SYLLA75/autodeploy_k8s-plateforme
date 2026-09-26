@@ -1,0 +1,29 @@
+# Témoin 1, le tableau équitable — écrit par graphe_en/temoin_tableau.py, ne pas éditer à la main.
+# 68 cases (nœuds), 1128 nombres par fenêtre, aucune flèche ; 200 arbres, graine 0
+# seuil de rejet (« inconnue ») : probabilité < 0.552 (5e centile, 16 injections d'apprentissage mises de côté à tour de rôle)
+# cases jamais fautives à l'apprentissage (score 0) : 62 sur 68
+
+== tableau équitable, réglé avec exemples
+détection      152/153 (99 %) fenêtres de panne avec alarme
+fausses alertes non vues : 0/120 (0 %)   saine-08 0/19, charge-03 0/16, blocage-02 0/10, lenteur-01 0/4, hote-01 0/25, blocage-03 0/6, hote-02 0/24, charge-04 0/10, lenteur-02 0/6
+fausses alertes vues (saine-09) : 0/39 (0 %)   saine-09 0/39
+cause          144/153 (94 %) fenêtres de panne bien nommées
+fautif                                     top-1            top-3     top-1 alarme     top-3 alarme
+  causes apprises                  94/115 (82 %)    96/115 (83 %)    94/115 (82 %)    95/115 (83 %)
+  blocage                           19/38 (50 %)     19/38 (50 %)     19/38 (50 %)     19/38 (50 %)
+  hote                              37/39 (95 %)    39/39 (100 %)     37/39 (95 %)     38/39 (97 %)
+  lenteur                          38/38 (100 %)    38/38 (100 %)    38/38 (100 %)    38/38 (100 %)
+  série 1                          57/57 (100 %)    57/57 (100 %)    57/57 (100 %)    57/57 (100 %)
+  série 2                           37/58 (64 %)     39/58 (67 %)     37/58 (64 %)     38/58 (66 %)
+  fautif déjà vu                    94/96 (98 %)    96/96 (100 %)     94/96 (98 %)     95/96 (99 %)
+  fautif nouveau                      0/19 (0 %)       0/19 (0 %)       0/19 (0 %)       0/19 (0 %)
+par injection  (trouvée si la majorité de ses fenêtres de test le sont ; a = avec alarme)
+  blocage-02   injection 3  blocage   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  blocage-03   injection 3  blocage   19 fenêtres  détectée oui  cause oui  top-1 non  top-3 non  top-1 a non  top-3 a non
+  charge-03    injection 3  charge    19 fenêtres  détectée oui  cause oui  top-1 —  top-3 —  top-1 a —  top-3 a —
+  charge-04    injection 3  charge    19 fenêtres  détectée oui  cause oui  top-1 —  top-3 —  top-1 a —  top-3 a —
+  hote-01      injection 3  hote      19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  hote-02      injection 3  hote      20 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  lenteur-01   injection 3  lenteur   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  lenteur-02   injection 3  lenteur   19 fenêtres  détectée oui  cause oui  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  total : détectée 8/8, cause 8/8, top-1 5/6, top-3 5/6, top-1 a 5/6, top-3 a 5/6

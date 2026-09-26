@@ -107,11 +107,23 @@ def _case(valeurs: list[int], total: int) -> str:
 
 
 def tableau_de_bord(n: dict) -> list[str]:
-    colonnes = [("détection", "detection"), ("fausses alertes", "fausses alertes non vues"),
-                ("f.a. saine-09", "fausses alertes vues (saine-09)"), ("cause", "cause"),
+    """Une ligne par témoin ; les causes apprises, puis chaque cause jamais vue à part."""
+    premier = next(iter(n.values()))[0][0]
+    jamais = sorted(k.split(" : ", 1)[1] for k in premier if k.startswith("detection jamais vue : "))
+    apprises = lambda cle: f"{cle}, causes apprises" if jamais else cle
+    injection = lambda k, part: f"{k} ({part})" if jamais else k
+    colonnes = [("détection", apprises("detection")), ("fausses alertes", "fausses alertes non vues"),
+                ("f.a. saine-09", "fausses alertes vues (saine-09)"), ("cause", apprises("cause")),
                 ("top-1", "top-1 causes apprises"), ("top-3", "top-3 causes apprises"),
                 ("top-1 blocage", "top-1 blocage"), ("top-1 hôte", "top-1 hote"),
                 ("top-1 lenteur", "top-1 lenteur"), ("top-1 nouveau", "top-1 fautif nouveau")]
+    injections = [("injections cause", injection("cause", "causes apprises")),
+                  ("injections top-1", injection("top-1", "causes apprises"))]
+    for c in jamais:
+        colonnes += [(f"{c} (jamais vue) : détection", f"detection jamais vue : {c}"),
+                     ("« inconnue »", f"cause jamais vue : {c}"),
+                     ("top-1", f"top-1 jamais vue : {c}"), ("top-3", f"top-3 jamais vue : {c}")]
+        injections += [(f"{c} : injections top-1", injection("top-1", f"jamais vue : {c}"))]
     out = []
     for nom, liste in n.items():
         out.append(f"{nom}  ({len(liste)} graine{'s' if len(liste) > 1 else ''})")
@@ -120,9 +132,10 @@ def tableau_de_bord(n: dict) -> list[str]:
             v = [c[cle][0] for c, _ in liste if cle in c]
             if v:
                 cases.append(f"{titre} {_case(v, liste[0][0][cle][1])}")
-        inj = liste[0][0]["injections"]
-        for k in ("cause", "top-1"):
-            cases.append(f"injections {k} {_case([c['injections'][k][0] for c, _ in liste], inj[k][1])}")
+        for titre, cle in injections:
+            v = [c["injections"][cle][0] for c, _ in liste if cle in c["injections"]]
+            if v:
+                cases.append(f"{titre} {_case(v, liste[0][0]['injections'][cle][1])}")
         for i in range(0, len(cases), 4):
             out.append("    " + " ; ".join(cases[i:i + 4]))
     return out
@@ -258,11 +271,12 @@ def main(argv: list[str]) -> int:
     noms = noms or fautifs_module.SERIES
     sortie = io.StringIO()
     with contextlib.redirect_stdout(sortie):
+        print(f"# campagnes lues : {', '.join(noms)}")
         code = rapport(noms, campagnes, runs, graines, validation)
     texte = sortie.getvalue()
     print(texte, end="")
     if code == 0:
-        cible = campagnes / ("temoins-validation.txt" if validation else "temoins.txt")
+        cible = campagnes / juge.sortie("temoins", noms, validation)
         cible.write_text(texte)
         print(f"-> {cible}")
     return code

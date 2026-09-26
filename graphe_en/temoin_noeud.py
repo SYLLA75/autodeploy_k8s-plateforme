@@ -112,8 +112,10 @@ VERSIONS ÉCARTÉES, dites honnêtement (le journal donne leurs chiffres) :
      n'y faisait que z = 1,5), et il était minuscule pour les nombres presque
      nuls (cpu_throttle_ratio) ; détecteur appris sur des écarts non croisés ;
      fautif appris même devant l'inconnu ; distances aux prototypes non mises
-     à l'échelle. Relevés par deux relectures indépendantes, et vérifiés sur
-     la validation (juge.validation), jamais sur le test.
+     à l'échelle. La version 4ca7001 avait été NOTÉE SUR LE TEST (sortie dans
+     campagnes/versions-vues-sur-test/ ; lenteur top-1 0/38 sans exemples).
+     Ces défauts ont été relevés par deux relectures indépendantes, et leurs
+     corrections vérifiées sur la validation (juge.validation), pas sur le test.
 Depuis, tout choix se fait sur la validation de juge.py.
 
 Options :
@@ -554,11 +556,12 @@ def main(argv: list[str]) -> int:
     noms = noms or fautifs_module.SERIES
     sortie = io.StringIO()
     with contextlib.redirect_stdout(sortie):
+        print(f"# campagnes lues : {', '.join(noms)}")
         code = rapport(noms, campagnes, runs, graines, validation)
     texte = sortie.getvalue()
     print(texte, end="")
     if code == 0:
-        cible = campagnes / ("temoin_noeud-validation.txt" if validation else "temoin_noeud.txt")
+        cible = campagnes / juge.sortie("temoin_noeud", noms, validation)
         cible.write_text(texte)
         print(f"-> {cible}")
     return code

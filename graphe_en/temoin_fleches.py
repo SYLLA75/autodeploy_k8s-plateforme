@@ -57,9 +57,16 @@ des machines ; s : limite de marche)
   USE) : cpu_busy monte avec le travail de ts-order-service, qui grandit avec la
   table des commandes au fil d'une campagne.
 
-DEUX VERSIONS, notées côte à côte. Sur les quatre causes connues, elles
-répondent pareil (l'étape 3 finit toujours par « lenteur ») : seule une
-dépendance lente pour tous les distingue, c'est-à-dire la base lente. La
+DEUX VERSIONS, notées côte à côte. Sur la validation, elles répondent pareil
+aux quatre causes connues ; pas sur le test : la littérale y accuse la base
+dans une bonne part des fenêtres de lenteur, car son épreuve « la cible
+est-elle anormale » compare à s_f (calée sur les trois nombres de la file) le
+plus grand |z| des douze nombres de la base, qui la dépasse dans 7 à 18 % des
+fenêtres normales mises de côté : devant la base lente, sa réponse dépend du
+bruit. Non corrigée (vue sur le test, version secondaire) ; la garde de
+spécificité de la table de décision (journal) l'écarte si elle accuse la base
+dans une panne connue. La cause commune, elle, ne se déclenche sur aucune des
+quatre causes connues. La
 cause commune (« la cible est-elle lente pour tout le monde, ou pour moi
 seulement ? ») est un premier réflexe de diagnostic général, sans rien de
 propre à une base ; elle change « composant anormal » en « preuve sur les
@@ -401,11 +408,12 @@ def main(argv: list[str]) -> int:
     noms = noms or fautifs_module.SERIES
     sortie = io.StringIO()
     with contextlib.redirect_stdout(sortie):
+        print(f"# campagnes lues : {', '.join(noms)}")
         code = rapport(noms, campagnes, runs, validation)
     texte = sortie.getvalue()
     print(texte, end="")
     if code == 0:
-        cible = campagnes / ("temoin_fleches-validation.txt" if validation else "temoin_fleches.txt")
+        cible = campagnes / juge.sortie("temoin_fleches", noms, validation)
         cible.write_text(texte)
         print(f"-> {cible}")
     return code
