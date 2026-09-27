@@ -230,6 +230,14 @@ reprennent la perspective (19 et 20 de la version allégée, 16 de la plénière
     pas « la cause 5 » (points 2 et 21) : 7e cause ou nouvelle numérotation, à décider
     en réécrivant.
 
+27l. **D écrit avant** (journal, 28 sept., D.1/7, relu par deux agents) : la panne (retard pur sur la
+    sortie de la machine X d'une réplique, leurre bruyant Y sans réplique), la signature attendue
+    d'après la façon dont le graphe mesure, le choix de X et Y par règle fixe, l'échelle d'intensité
+    avec le dépôt, la table de D et de l'axe (d), le banc de pannes fabriquées du GNN fixé avant de
+    connaître X. À dire : sur D, aucun témoin figé n'a de principe au niveau de la machine ; une
+    victoire du GNN sur D veut dire « il désigne une machine muette que ces méthodes ne peuvent pas
+    désigner », pas « il bat la règle à armes égales ».
+
 ### Limites à écrire honnêtement
 27. **Dérive** : toute méthode qui apprend le « normal » se trompe si le normal
     bouge (nouvelles versions, trafic, données). Réponse : recaler la

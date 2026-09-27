@@ -1440,3 +1440,160 @@ Second départ à 21:23 UTC, `essai-base --profil 25:30 --panne base --a 5 --dur
 Décision selon la règle : **75 ms retenu**. À noter sans en tirer de conclusion : la file a monté
 moins vite que pour lenteur-02 (58 à sa première minute) ; « réserver » dépasse 5 s, ce qui freine
 le dépôt comme le journal le prédisait. En attente du signal de l'utilisateur pour C.6.
+
+## 2026-09-28 — D.1/7 : ce qui décidera sur D, écrit avant
+
+Écrit pendant la campagne base-01 (C.6), sans rien lire de C, relu par deux agents, commité avant
+toute lecture du placement de D, avant l'enregistrement de D et avant l'ouverture du scellé de C.
+Les étapes de D : D.1 écrit avant ; D.2 lectures et une mesure sur le cluster (le mécanisme possible,
+la carte réseau, le temps de validation avec une suiveuse retardée, le placement) ; D.3 code de la
+panne « reseau » et du leurre ; D.4 relecture et déploiement ; D.5 essais ; D.6 campagne jumeaux-01 ;
+D.7 vérifications, graphe figé, scellé.
+
+### La panne et son sens
+Le réseau de la machine X qui porte UNE réplique du consommateur est ralenti : retard pur sur tout
+ce qui SORT de sa carte réseau physique, sans perte ni gigue. La réplique de X ralentit, la file
+déborde : une faute de coordination grise (rien ne tombe, aucune erreur). En même temps, une machine
+leurre Y reçoit le voisin bruyant de la cause hote (même mécanisme, demande de 2 cœurs, stress sur
+tous les cœurs) : elle « crie » par sa pression sans rien causer. Le fautif est X (fautifs.py,
+`reseau`), jamais Y.
+
+**La signature attendue, d'après la façon dont le graphe mesure** (edges.py : `queries` est mesurée
+chez l'appelant, `calls` chez l'appelé, par la durée du span serveur ; `publishes` et `consumes` ne
+portent qu'un débit) :
+- plus lents : les flèches queries des pods de X (+d par échange) ; le temps de traitement des pods
+  de X qui échangent hors de X ; le temps de traitement de leurs appelants hors de X, cumulé vers
+  l'amont ; les flèches calls qui ENTRENT dans X (elles suivent le temps de traitement des pods de X) ;
+- inchangées : les flèches calls qui SORTENT de X (mesurées chez l'appelé, réseau exclu), le trafic
+  entre pods de X (il ne quitte pas la carte) ;
+- la réplique de X : moins de débit consumes, temps de traitement plus long.
+
+**Les jumeaux.** Vue de la réplique seule, cette panne ressemble à une lenteur qui ne toucherait
+qu'elle. Ce qui la distingue est la structure : d'autres pods de X ralentissent aussi, pas ceux des
+autres machines (hors de l'amont). D'où la condition d'identifiabilité : X porte, en plus de la
+réplique, au moins un autre service ACTIF ; on en exige deux, par marge (ce nombre est un choix, pas
+une nécessité). Un service est actif s'il est, dans les fenêtres normales d'apprentissage des deux
+séries, SOURCE de flèches queries ou calls vers un service placé hors de X au départ de D (identité
+d'un pod = son service, comme dans temoin_noeud.py).
+
+### Le choix de X et de Y (écrit avant, jamais tiré au sort, jamais choisi en regardant un témoin)
+Lu sur le placement au départ de D, après la purge avec redémarrage, l'attente et la vérification
+du parcours « réserver ».
+- X : une machine de travail qui porte une réplique ET au moins deux autres services actifs, et qui
+  ne porte ni le leader de la base (retarder sa sortie ralentirait toute la base : ce serait C), ni
+  rabbitmq, ni le producteur ts-food-service, ni ts-order-service (un voisin ou un retard sur sa
+  machine a fait remonter la panne en amont : hote-02, 3e injection), ni la passerelle ; jamais
+  workers6 (la mesure, Locust, le contrôleur Chaos Mesh) ni le master. Une suiveuse de la base
+  n'exclut pas X SI la mesure de D.2 montre qu'une suiveuse retardée ne change pas le temps de
+  validation (la réplication n'attend qu'une suiveuse) ; sinon elle l'exclut.
+- Y : une autre machine de travail, jamais workers6 ni le master, qui ne porte ni un pod de la base
+  (leader ou suiveuse), ni rabbitmq, ni le producteur, ni ts-order-service, ni la passerelle, avec au
+  moins 2 100 m de CPU allouable libre (la demande de 2 cœurs du voisin de la seconde série).
+- Les répliques ne bougent pas à la purge (elle ne redémarre que commandes, sièges et recherche) :
+  elles sont sur workers0, workers2 et workers5. Y ne portera donc pas de réplique. Le leurre est ainsi
+  un motif NOUVEAU (une machine bruyante sans réplique), pas la signature de la cause hote ; et quand
+  la file déborde, la règle ne regarde que les machines des répliques lentes : le leurre ne piège que
+  les méthodes qui regardent toutes les machines (tableau, score par nœud, GNN).
+- Ordre fixe : X trié par nom, Y trié par nom, couples (X, Y) avec X ≠ Y dans l'ordre lexicographique ;
+  l'injection k prend le couple (k − 1) mod n ; les essais se font sur le couple de la première
+  injection. Aucun couple : D ne part pas, on en parle avec l'utilisateur (aucun choix libre).
+- campagne.sh refusera le départ si le placement relu au départ ne donne plus les mêmes couples que
+  les cibles fournies (D.3).
+- Au placement du 27 sept. (fin de essai-base) : X ne pourrait être que workers2 (workers0 porte le
+  producteur, workers5 une suiveuse, sous réserve de D.2), Y que workers1. workers2 a été fautif de la
+  cause hote à l'apprentissage (hote-02, 2e injection) : toutes les fenêtres de D y tombent dans
+  « fautif déjà vu ailleurs ».
+
+### Le mécanisme exigé (le moyen exact est fixé en D.2 et D.3)
+Retard pur sur la sortie de la carte réseau physique de X ; sans perte (décidé une fois pour toutes :
+une perte ferait bondir les retransmissions de X, le score par nœud le trouverait seul, ce serait une
+autre expérience) ; la file du netem assez grande pour ne rien jeter, et vérifiée : paquets jetés sur
+X = 0 à chaque témoin, retransmissions de X relevées ; durée portée par l'injection, levée garantie
+sans pilote, retrait vérifié (plus aucune règle de retard sur la carte de X). Le leurre est posé
+dans la même injection : une seule ligne de registre `cause=reseau`, cible `X@leurre:Y`, les deux
+confirmés à moins de 60 s d'écart, sinon l'injection est NON_CONFIRMEE.
+
+### Intensité : l'échelle, lue seulement sur les relevés, la file et le dépôt
+Calcul (pas mesure) : la réplique de X passe de 0,706 s par message à 0,706 + (5 ou 6) × d ; les
+deux autres gardent environ 1,42 message/s chacune ; pour un dépôt de 3,4 à 3,5 messages/s, le
+seuil de débordement est entre 100 et 176 ms, 150 ms est sur le seuil, 200 ms déborde d'environ 8
+messages par minute, 300 ms d'environ 16. Mais les services actifs de X (au 27 sept. : preserve et
+station, sur « réserver » et « chercher ») ralentissent aussi les parcours et donc le dépôt.
+- Les essais se font AVEC le leurre, comme la campagne (`--profil 25:30 --a 5 --duree 20`).
+- Échelle : 75 → 150 → 200 → 300 ms. Un cran est retenu s'il tient et déborde avec marge : tas > 10
+  dès la 5e minute de panne, et toujours en hausse au retrait.
+- Monter d'un cran seulement si le cran tient, ne déborde pas avec marge, ET le dépôt reste proche de
+  celui d'avant l'injection et au-dessus du retrait (la condition de C) ; sinon arrêt et décision
+  avec l'utilisateur. Un cran qui s'effondre, ou 300 ms sans débordement : arrêt et décision avec
+  l'utilisateur.
+- À chaque essai : temps des parcours Locust, dépôt, paquets jetés et retransmissions de X.
+- « Déborde » et « effondrement » comme pour C ; s'y ajoutent pour l'effondrement une machine
+  NotReady, et une seule fenêtre de panne sans le nœud host X ou sans la réplique de X.
+- Les essais de D sont sous le même scellé que D : jamais lus par un témoin ni par le GNN, jamais
+  utilisés pour le banc de pannes fabriquées. La seule vérification : un script qui ne sort que le
+  temps de traitement des trois répliques pendant l'essai ; s'il ne montre pas la réplique de X
+  nettement plus lente que les deux autres, arrêt et décision avec l'utilisateur.
+
+### Ce qui décidera sur D (même forme que C)
+- Mise en place : témoins à `temoins-figes`, appris sur les deux séries seules ; les minutes
+  normales de D n'entrent dans l'apprentissage de personne. `decision_c.py` est étendu à D, relu et
+  commité AVANT l'étiquette `gnn-fige` ; C et D sont ouvertes dans la même lecture.
+- Moins de 2 injections confirmées : D refaite à l'identique ; confirmées mais moins de 2 qui
+  comptent : D ne décide rien.
+- Une injection compte : confirmée (retard ET leurre), file vide avant, file qui déborde, pas
+  d'effondrement.
+- F_D : la machine X (nœud host) est première dans plus de la moitié des fenêtres de panne de
+  l'injection, sans tenir compte de l'alarme ; A_D la même avec l'alarme.
+- Garde G_D, calculée sur les deux séries pour CHAQUE X employé, dès que les couples sont connus et
+  avant d'ouvrir quoi que ce soit : sur aucune des 8 injections de test des causes connues, X n'est
+  premier dans plus de la moitié des fenêtres, sauf une injection hote dont X serait le fautif.
+  TROUVE exige G_D pour tous les X employés.
+- Plancher : « a priori » restreint aux machines (nœuds host, classés par leurs fenêtres fautives à
+  l'apprentissage). S'il TROUVE, D ne décide rien.
+- TROUVE, graines : comme pour C, avec X à la place de tsdb-mysql-0.
+- **Ce que D peut dire, écrit avant** : quand la file déborde, la règle des flèches ne met jamais en
+  tête une machine sans pression (temoin_fleches.py : une machine n'est désignée que par sa
+  pression ; désignés à 1e9, chemin à 1e8) ; aucun témoin figé n'a de principe au niveau de la
+  machine. La décision 2 (le GNN comparé à une règle qui TROUVE) est donc très probablement
+  inatteignable sur D, et D se ramène en pratique à « le GNN désigne-t-il X ». Une victoire sur D veut
+  dire « le GNN désigne une machine muette que des méthodes sans principe au niveau de la machine ne
+  peuvent pas désigner », pas « le GNN bat la règle à armes égales ». Le rapport le dira ainsi.
+- **L'axe (d) de C**, table fixée : le GNN TROUVE sur D en décision 3 → gagné ; décision 1, plancher,
+  moins de 2 injections qui comptent, ou personne ne trouve (GNN compris) → égal ; une version de la
+  règle TROUVE et pas le GNN → perdu. L'axe (a) n'est pas repris par D (mêmes minutes normales que
+  C). Le rapport ne présentera pas une victoire sur C obtenue par l'axe (d) comme indépendante de D.
+
+### Prédictions écrites avant D (ce sont des prédictions, pas des résultats)
+- Nombres de X : pressions stables ; débits réseau un peu plus bas ; paquets jetés 0 ;
+  retransmissions proches de 0 jusqu'à 200 ms, possibles à 300 ms (l'aller-retour dépasse le délai
+  minimal de retransmission de Linux, 200 ms) : X presque muet sur ses propres nombres. Y :
+  pressions très hautes.
+- Règle des flèches : file pleine, une réplique ralentie ; selon la chute de son débit, « blocage,
+  la réplique de X » (le débit consumes est testé avant le temps de traitement) ou, sa machine étant
+  sans pression, « lenteur, la réplique de X » ; « inconnue, tsdb-mysql-0 » seulement si la majorité
+  des appelants de la base sont sur X ET que la flèche de la réplique vers la base dépasse s. X n'est
+  pas premier.
+- Score par nœud sans exemples : la file, Y (la pression la plus haute) ou la réplique en premier.
+  Avec exemples : une cause apprise ou « inconnue », avec la file ou la réplique en premier (les
+  pannes hote avaient une file vide et workers1 n'a jamais été cible) ; X pas premier.
+- Tableau : ne désigne pas le fautif d'une cause jamais vue ; cause incertaine.
+- Le GNN : ne désignera X que si sa règle « l'erreur des pods remonte à leur machine » donne à une
+  machine l'erreur commune de plusieurs de ses pods. Cette règle est fixée avant le gel du GNN et
+  éprouvée sur le banc ci-dessous, jamais sur D ni ses essais.
+
+### Le banc de pannes fabriquées, fixé maintenant (avant de connaître X)
+Sur les fenêtres de la VALIDATION (juge.validation) des deux séries, jamais le test, jamais C ni D :
+- chaque machine de travail qui porte une réplique (workers0, workers2, workers5), tour à tour, et
+  chaque retard d ∈ {75, 150, 300} ms, avec la signature écrite plus haut ;
+- cas M, la machine : signature appliquée à tous ses pods → réponse attendue : la machine ;
+- cas R, le jumeau : la même signature sur la seule réplique → réponse attendue : la réplique ;
+- cas M+Y : le cas M et, dans les mêmes fenêtres, les pressions d'une autre machine portées aux
+  valeurs des pannes hote de l'apprentissage → réponse attendue : la machine aux pods ralentis devant
+  la machine bruyante ;
+- cas Y, la machine bruyante seule : réponse attendue celle de fautifs.py pour hote, la machine ;
+- critère : la règle de remontée (le bout de la flèche, la façon de réunir les erreurs, la remontée
+  pods → machine) qui met la réponse attendue première dans le plus de cas du banc, à condition de
+  garder la garde G de C et la validation au moins aussi bonnes ; égalités : la plus simple ;
+- la variante « sans aucune arête » du retrait des flèches garde la même remontée pods → machine
+  (elle lit la machine de chaque pod dans le champ hosts de ses nœuds, sans flèche) ; si elle
+  TROUVE X, c'est la remontée écrite à la main et pas le GNN qui trouve : on le dit.
