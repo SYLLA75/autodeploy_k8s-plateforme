@@ -1400,3 +1400,43 @@ précis (meilleure règle, perte, graines, « jamais », alarme du GNN, « débo
 scellé sur le code, la prédiction du dépôt corrigée, le repli qui lit aussi le dépôt, l'essai
 sur 20 min avec des veilles pendant la panne, les redémarrages relevés, la purge dans l'ordre de
 la seconde série, et le point 3 du calage (le risque d'un réglage poussé vers « la source »).
+
+## 2026-09-27 — Phase C, étapes 3 et 4 sur 7
+
+Les étapes de C : C.1 règles fixées et relues ; C.2 code de la panne et du pilote ; C.3 garde
+G ; C.4 préparer le cluster ; C.5 essai court ; C.6 campagne base-01 ; C.7 vérifications,
+graphe figé, scellé. C.1 et C.2 : commit 591bd59 (relectures appliquées), poussé sur vms0 et
+le master ; à blanc sur le master : leader, `verifier base` (réglage à 140 ms sur les trois
+répliques), `etat` propre, relevé lisible.
+
+**C.3** (vms0, 5 graines, `campagnes/decision-garde.txt`, commit 8104a8c) : aucune méthode ne met
+tsdb-mysql-0 premier dans une panne connue, sauf la règle littérale sans exemples
+(lenteur-01, comme prédit) : elle est écartée d'avance. Même résultat qu'à une graine.
+
+**C.4** : `donnees.sh purger --redemarrer` à 20:5x UTC (commandes, sièges, recherche
+redémarrés ; ts-order-service, bloqué depuis deux jours à 11 769 commandes, revenu à 3
+lignes) ; simulateur remis à 25 voyageurs à 20:52:42 UTC (il était à 1 depuis 17:24) ; 30 min
+d'attente avant l'essai.
+
+**C.5 (essai, jamais noté ni pris dans le normal)**. Premier départ à 21:08 UTC arrêté par le pilote à
+la minute 2, AVANT toute injection : aucun parcours ne tournait. Cause : après la purge avec
+redémarrage (20:5x), ts-preserve-service restait bloqué à « checkSecurity » et ts-security-service
+ne répondait plus (probablement des connexions gardées vers l'ancien pod de ts-order-service) ;
+chaque voyageur de Locust se coinçait sur « 30 réserver un billet ». Remède, autorisé une fois par
+l'utilisateur : redémarrage de ts-security-service et ts-preserve-service à 21:20 UTC ; les
+parcours sont repartis. Leçon : après un `--redemarrer`, vérifier « réserver » avant de lancer.
+Compte rendu du départ arrêté gardé hors du dépôt (vms0, `~/journaux-hors-campagne/`).
+
+Second départ à 21:23 UTC, `essai-base --profil 25:30 --panne base --a 5 --duree 20 --intensite
+75`, injection de 21:28:03 à 21:48:03 UTC (`campagnes/essai-base/`, tas relevé chaque minute dans
+`file-chaque-minute.txt`). Lu seulement ce que la règle écrite d'avance demande :
+- panne posée comme prévu : 75 ms vers 55 adresses, les 55 pods clients, aucune suiveuse ; aucun
+  paquet jeté à la sortie de la base ; réglage des répliques resté à 140 ms sur les trois ;
+- le site tient : trois veilles pendant l'injection, toutes « parcours ok » ; leader inchangé ;
+  aucun redémarrage ; aucun échec Locust sur l'essai (p50 sur les 30 min : chercher 2,2 s,
+  réserver 5,3 s, repas 0,54 s) ;
+- la file déborde : tas > 10 dans 19 des 20 minutes de panne (10 à la première minute, 30 à la
+  deuxième, 271 à la fin), vidée après le retrait.
+Décision selon la règle : **75 ms retenu**. À noter sans en tirer de conclusion : la file a monté
+moins vite que pour lenteur-02 (58 à sa première minute) ; « réserver » dépasse 5 s, ce qui freine
+le dépôt comme le journal le prédisait. En attente du signal de l'utilisateur pour C.6.
