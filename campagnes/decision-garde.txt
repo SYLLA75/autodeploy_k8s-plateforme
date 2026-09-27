@@ -1,0 +1,14 @@
+# Décision sur la base lente — écrit par graphe_en/decision_c.py, ne pas éditer à la main.
+# règles : notes/JOURNAL.md, 27 sept. ; graines 0 à 4 pour ce qui tire au hasard
+
+== La garde de spécificité G (test des deux séries)
+injections de test des causes connues : 8 (blocage-02#3, blocage-03#3, charge-03#3, charge-04#3, hote-01#3, hote-02#3, lenteur-01#3, lenteur-02#3)
+  tableau équitable                      base première dans 0/8 injections : G tient
+  score par nœud, sans exemples          base première dans 0/8 injections : G tient
+  score par nœud, avec exemples          base première dans 0/8 injections : G tient
+  règle littérale, sans exemples         base première dans 1/8 injections : G NE TIENT PAS
+                                         (injections accusant la base : lenteur-01#3)
+  règle littérale, avec exemples         base première dans 0/8 injections : G tient
+  règle cause commune, sans exemples     base première dans 0/8 injections : G tient
+  règle cause commune, avec exemples     base première dans 0/8 injections : G tient
+  a priori (ne lit rien)                 base première dans 0/8 injections : G tient
