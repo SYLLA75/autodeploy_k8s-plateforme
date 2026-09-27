@@ -709,7 +709,7 @@ disparaîtraient avec le cluster.
 ### Une campagne de panne
 
 Le fil qu'on casse est toujours le même : `ts-food-service` dépose dans
-`food_delivery`, les trois répliques de `ts-delivery-service` retirent. Quatre
+`food_delivery`, les trois répliques de `ts-delivery-service` retirent. Cinq
 causes font grossir le tas, chacune pour une raison différente :
 
 | `--panne` | ce qui est fait | avec quoi | ce qu'on s'attend à voir, et ce qui a été mesuré |
@@ -718,6 +718,7 @@ causes font grossir le tas, chacune pour une raison différente :
 | `lenteur` | les 3 répliques attendent 300 ms de plus à chaque échange avec leur base, en plus du réglage de base | Chaos Mesh, retard réseau entre ces pods et `tsdb-mysql` (posé par-dessus le réglage, puis le réglage retiré ; à l'inverse au retrait — jamais un instant sans retard) | `process_time_p50` ↑ sur les 3 répliques, cpu normal, hôtes normaux, `backlog` ↑. **Mesuré (essai-lenteur)** : 706 → 2 206 ms (5 échanges × 300), sortie 1,35/s |
 | `hote` | un pod voisin, hors du graphe, occupe tous les cœurs de l'hôte d'UNE réplique | Chaos Mesh, stress CPU sur ce voisin | `cpu_busy` et `cpu_pressure` ↑ sur cet hôte seul. **Mesuré (essai-hote-02)** : 0,04 → 0,83 et 0,01 → 0,63 ; mais la réplique qui y vit ne ralentit que de 0,5 % et la file reste à zéro — sa demande CPU (100 m) lui garantit sa part, et 4 m lui suffisent. Un voisin bruyant ne touche pas un consommateur borné par ses échanges réseau : c'est un résultat, pas une panne de coordination |
 | `blocage` | une seule réplique est gelée, sans être tuée | `SIGSTOP` sur son processus Java, envoyé depuis la machine par le démon Chaos Mesh | `consume_rate` 0 et cpu ≈ 0 sur elle, mémoire inchangée ; les 2 autres absorbent ; hôte normal ; après ~2 min le courtier ne compte plus que 2 consommateurs. **Mesuré (essai-blocage-02)** : conforme |
+| `base` (phase C) | la base (`tsdb-mysql-0`, le leader) répond 75 ms plus tard à TOUS ses clients ; ses suiveuses ne sont pas retardées (réplication semi-synchrone) | Chaos Mesh, objet NEUF `panne-base` : retard sur la sortie du pod de la base vers les pods de train-ticket sauf `app=tsdb-mysql` ; le réglage de base des répliques n'est pas touché, les deux retards s'ajoutent sur leur chemin (140 + 75 ms). Refusé si `tsdb-mysql-0` n'est pas le leader ; `--cible` sans objet | Prédit, pas mesuré (journal, 27 sept.) : flèches `queries` de tous les appelants +75 ms, répliques comme `lenteur-02`, nombres de la base stables ou en baisse (pas d'exportateur MySQL) |
 
 Une campagne de panne est un profil de charge ordinaire sur lequel une
 injection est posée à une minute donnée :
@@ -735,10 +736,10 @@ tmux new -s campagne
 
 | option | rôle | défaut |
 |---|---|---|
-| `--panne <cause>` | `charge`, `lenteur`, `hote`, `blocage` | — |
+| `--panne <cause>` | `charge`, `lenteur`, `hote`, `blocage`, `base` | — |
 | `--a <min[,min…]>` | minute(s) de début, depuis le premier palier ; `--a 5,35,65` répète | — |
 | `--duree <min>` | durée de chaque injection | — |
-| `--intensite <n>` | voyageurs (`charge`) · ms de retard en plus (`lenteur`) · cœurs réclamés par le voisin (`hote`) | 2 × la charge · 300 · la moitié de l'hôte |
+| `--intensite <n>` | voyageurs (`charge`) · ms de retard en plus (`lenteur`) · cœurs réclamés par le voisin (`hote`) · ms de retard sur ce que la base envoie (`base`) | 2 × la charge · 300 · la moitié de l'hôte · 75 |
 | `--cible <x[,y…]>` | nœud (`hote`) ou pod (`blocage`) ; une liste donne une cible par injection, dans l'ordre des `--a` (autant de cibles que d'injections), une seule vaut pour toutes ; toutes sont vérifiées avant le départ | le moins chargé des hôtes portant une réplique · la première réplique |
 
 Le pilote décide **quand** ; `apps/panne.sh`, sur le master, décide **comment**
@@ -766,6 +767,13 @@ panne est encore en place. Pour voir et nettoyer à la main :
 ssh master 'bash ~/autodeploy/apps/panne.sh etat'
 ssh master 'bash ~/autodeploy/apps/panne.sh retirer'
 ```
+
+Il refuse aussi de partir si `tsdb-mysql-0` n'est plus le leader de la base
+(`panne.sh leader`) : le graphe figé envoie les flèches `queries` vers lui. Le
+compte rendu note le leader au départ et à la fin (`leader_base`), et le
+placement de chaque pod de train-ticket sur sa machine, juste avant la collecte
+et à la fin (`placement_au_depart`, `placement_a_la_fin`) : une panne dépend de
+qui partage sa machine avec qui.
 
 ### Dans quel ordre
 

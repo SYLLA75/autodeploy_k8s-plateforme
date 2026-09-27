@@ -79,11 +79,11 @@
 #
 #  Options :
 #      --profil <p>       obligatoire — les paliers à appliquer
-#      --panne <cause>    charge, lenteur, hote ou blocage ; sans : campagne saine
+#      --panne <cause>    charge, lenteur, hote, blocage ou base ; sans : campagne saine
 #      --a <min[,min…]>   minute(s) où chaque injection commence, comptées
 #                         depuis le premier palier
 #      --duree <min>      durée de chaque injection
-#      --intensite <n>    voyageurs (charge), millisecondes (lenteur), cœurs (hote)
+#      --intensite <n>    voyageurs (charge), millisecondes (lenteur, base), cœurs (hote)
 #      --cible <x[,y…]>   nœud (hote) ou pod (blocage) ; sinon choisi par panne.sh.
 #                         Une liste donne une cible par injection, dans l'ordre
 #                         des --a (autant de cibles que d'injections) ; une
@@ -95,6 +95,7 @@
 #  Variables reconnues :
 #      CAMPAGNE_SSH      (défaut: master)
 #      CAMPAGNE_DISTANT  (défaut: /home/ubuntu/autodeploy)
+#      CAMPAGNE_NAMESPACE (défaut: train-ticket) l'espace dont le placement est noté
 #      FILE_VIDE_MAX     (défaut: 40) minutes d'attente, au départ, pour que la
 #                        file laissée par la campagne précédente se vide
 # ==============================================================================
@@ -108,6 +109,7 @@ main() {
 RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CIBLE="${CAMPAGNE_SSH:-master}"
 DISTANT="${CAMPAGNE_DISTANT:-/home/ubuntu/autodeploy}"
+NS_APP="${CAMPAGNE_NAMESPACE:-train-ticket}"
 
 [ -f "$RACINE/apps/journal.sh" ] && JOURNAL_NOM="campagne" . "$RACINE/apps/journal.sh"
 
@@ -186,8 +188,8 @@ done
 TYPE="saine"; DEBUTS=()
 if [ -n "$PANNE" ]; then
     TYPE="panne"
-    case "$PANNE" in charge|lenteur|hote|blocage) ;;
-        *) fail "--panne accepte charge, lenteur, hote ou blocage — pas « $PANNE »" ;; esac
+    case "$PANNE" in charge|lenteur|hote|blocage|base) ;;
+        *) fail "--panne accepte charge, lenteur, hote, blocage ou base — pas « $PANNE »" ;; esac
     [ -n "$DEBUTS_BRUTS" ] || fail "--panne exige --a <minute> : quand l'injection commence"
     [ -n "$DUREE" ]        || fail "--panne exige --duree <minutes>"
     case "$DUREE" in ''|*[!0-9]*) fail "--duree : un nombre de minutes" ;; esac
@@ -276,6 +278,12 @@ for i in "${!DEBUTS[@]}"; do
     EVENEMENTS+=("$((a * 60 + DUREE * 30)) 1 temoin pendant")
     EVENEMENTS+=("$(((a + DUREE) * 60)) 3 retirer -")
     EVENEMENTS+=("$(((a + DUREE) * 60 + 60)) 4 temoin apres")
+    # Pendant l'injection, une veille toutes les cinq minutes (en plus de celles
+    # des dizaines) : le critère d'effondrement de C se lit sur deux relevés de
+    # suite PENDANT la panne.
+    for ((m = 5; m < DUREE; m += 5)); do
+        [ $(((a + m) % 10)) -eq 0 ] || EVENEMENTS+=("$(((a + m) * 60)) 5 veille -")
+    done
 done
 mapfile -t EVENEMENTS < <(printf '%s\n' "${EVENEMENTS[@]}" | sort -n -k1,1 -k2,2)
 
@@ -316,6 +324,18 @@ if ! sortie=$(distant panne.sh etat); then
              Retirer :  ssh $CIBLE 'bash $DISTANT/apps/panne.sh retirer'
              À jour :   ./deploy.sh --push-scripts"
 fi
+# Le graphe figé envoie les flèches queries vers tsdb-mysql-0, le leader lors du
+# gel (graphe_fige.json, « bases ») ; gel.py ne verrait pas un changement de
+# leader. Une campagne dont la base a changé de leader aurait des flèches fausses.
+if leader_avant=$(distant panne.sh leader); then
+    ok "leader de la base : $leader_avant"
+else
+    fail "tsdb-mysql-0 n'est pas le leader de la base, ou la copie du master n'est pas à jour :
+             $leader_avant
+             Le graphe figé suppose tsdb-mysql-0 (graphe_fige.json) : départ refusé.
+             À jour :   ./deploy.sh --push-scripts"
+fi
+
 if [ -n "$PANNE" ]; then
     # Chaque cible est vérifiée maintenant : une faute de frappe découverte à
     # la troisième injection coûterait la campagne.
@@ -355,6 +375,7 @@ rates=0; echoues=0; injectees=0; non_injectees=0; INJECTION_ACTIVE=0; INTERROMPU
 MARGE_S=$(( ${MARGE:-2} * 60 )); T_COLLECTE=""; T0=""
 T_PILOTE=$(date +%s)          # tout journal du master écrit après cet instant est à cette campagne
 etat_avant=""; etat_apres=""; fenetre=""; registre=""; registre_pannes=""; reglage_consommateur=""; etat_donnees=""
+leader_apres=""; leader_depart=""; placement_depart=""; placement_fin=""; reglage_fin=""
 plage_date=""; plage_de=""; plage_a=""
 
 ecrire_compte_rendu() {
@@ -390,10 +411,27 @@ ecrire_compte_rendu() {
         echo "reglage_consommateur: |"
         printf '%s\n' "${reglage_consommateur:-(non lu)}" | sed 's/^/  /'
         echo
+        echo "# Le même réglage relu à la fin : une panne ne doit pas l'avoir changé."
+        echo "reglage_consommateur_a_la_fin: |"
+        printf '%s\n' "${reglage_fin:-(non lu)}" | sed 's/^/  /'
+        echo
         echo "# Données de l'application au départ (donnees.sh etat), après remise à zéro"
         echo "# sauf --sans-purge : le comportement de train-ticket en dépend."
         echo "donnees_au_depart: |"
         printf '%s\n' "${etat_donnees:-(non lu)}" | sed 's/^/  /'
+        echo
+        echo "# Leader de la base (panne.sh leader) : le graphe figé suppose tsdb-mysql-0."
+        echo "leader_base:"
+        echo "  au_depart: \"${leader_avant:-non lu}\""
+        echo "  a_la_fin: \"${leader_apres:-non lu}\""
+        echo
+        echo "# Placement pod → machine dans $NS_APP (pod, machine, phase, redémarrages par conteneur,"
+        echo "# arrêt en cours), relu juste avant"
+        echo "# la collecte et à la fin : une panne dépend de qui partage sa machine avec qui."
+        echo "placement_au_depart: |"
+        printf '%s\n' "${placement_depart:-(non lu)}" | sed 's/^/  /'
+        echo "placement_a_la_fin: |"
+        printf '%s\n' "${placement_fin:-(non lu)}" | sed 's/^/  /'
         echo
         echo "# Calculée par le pilote : mise en route de la collecte + marge → fin − marge."
         echo "plage_exploitable:"
@@ -449,6 +487,11 @@ retour_au_premier_palier() {
     fi
 }
 
+lire_placement() {   # « pod machine phase redémarrages arrêt » par pod de l'espace applicatif
+    ssh "$CIBLE" "kubectl get pods -n '$NS_APP' --no-headers -o custom-columns=:metadata.name,:spec.nodeName,:status.phase,:status.containerStatuses[*].restartCount,:metadata.deletionTimestamp" 2>/dev/null \
+        | awk 'NF {print $1, $2, $3, "redemarrages=" $4, ($5 == "<none>" ? "" : "en_arret=" $5)}' | sed 's/ *$//' | sort
+}
+
 # La fenêtre AVANT l'arrêt : collecte.sh fenetre lit la date de démarrage de la
 # passerelle ; passerelle arrêtée, il n'a plus rien à lire.
 cloturer() {
@@ -478,6 +521,15 @@ cloturer() {
     [ "$(date -u -d "@$fin" +%Y-%m-%d)" = "$plage_date" ] \
         || say "La campagne a traversé minuit : « to » est le lendemain de « date » — run.py le comprend (fin ≤ début)."
     [ "$fin" -gt "$origine" ] || { warn "Plage vide : campagne trop courte pour la marge de $((MARGE_S / 60)) min."; plage_de=""; }
+
+    placement_fin=$(lire_placement)
+    [ -n "$placement_fin" ] || warn "Placement de fin illisible."
+    reglage_fin=$(distant consommateur.sh etat) || reglage_fin="(non lu : $reglage_fin)"
+    if leader_apres=$(distant panne.sh leader); then
+        [ "$leader_apres" = "$leader_avant" ] || warn "Le leader de la base a changé d'adresse pendant la campagne : $leader_avant → $leader_apres"
+    else
+        warn "À la fin, tsdb-mysql-0 n'est plus le leader : $leader_apres — les flèches queries de cette campagne sont à vérifier."
+    fi
 
     say "Rapatriement des registres et des journaux…"
     registre=$(ssh "$CIBLE" "cat '$DISTANT/journaux/paliers.tsv'" 2>/dev/null)
@@ -546,7 +598,7 @@ reglage_consommateur=$(distant consommateur.sh etat) || reglage_consommateur="(n
 attendre_file_vide() {
     local reste=$(( ${FILE_VIDE_MAX:-40} * 60 )) n attendu=0
     while :; do
-        n=$(distant panne.sh temoin | sed -n 's/.*file [^:]*: \([0-9]*\) en attente.*/\1/p' | head -1)
+        n=$(distant panne.sh temoin court | sed -n 's/.*file [^:]*: \([0-9]*\) en attente.*/\1/p' | head -1)
         [ -n "$n" ] || { warn "File illisible (panne.sh temoin) — on part sans l'avoir vue vide."; return 0; }
         if [ "$n" -eq 0 ]; then [ "$attendu" = "1" ] && ok "file vide"; return 0; fi
         if [ "$attendu" = "0" ]; then
@@ -573,6 +625,13 @@ if [ "$PURGE" = "1" ]; then
     fi
 fi
 etat_donnees=$(distant donnees.sh etat) || etat_donnees="(non lu : $etat_donnees)"
+placement_depart=$(lire_placement)
+[ -n "$placement_depart" ] && noter_action "action: placement_lu, pods: $(printf '%s\n' "$placement_depart" | wc -l)" \
+    || warn "Placement de départ illisible."
+# Le leader relu au départ réel : l'attente de la file et la purge ont pu durer.
+if ! leader_depart=$(distant panne.sh leader) || [ "$leader_depart" != "$leader_avant" ]; then
+    fail "Le leader de la base a changé avant la collecte : « $leader_avant » puis « $leader_depart ». Départ refusé."
+fi
 
 
 if [ "$COLLECTE" = "1" ]; then
@@ -673,13 +732,21 @@ controle_des_parcours() {
 # jeter — c'est justement ce qu'on mesure. Le déroulé dit quand ça a commencé.
 veille_des_parcours() {
     local file
+    local t leader
+    t=$(distant panne.sh temoin court)
+    file=$(printf '%s\n' "$t" | sed -n 's/.*file [^:]*: \([0-9]*\) en attente.*/\1/p' | head -1)
+    # Le leader, à chaque veille : un changement est un effondrement pour C.
+    case "$(printf '%s\n' "$t" | grep '^  base :')" in
+        *"est le leader"*) leader=ok ;;
+        *ATTENTION*) leader=PERDU; warn "veille : tsdb-mysql-0 n'est plus le leader" ;;
+        *) leader="?" ;;
+    esac
     if sortie=$(distant loadgen.sh bilan); then
-        file=$(distant panne.sh temoin | sed -n 's/.*file [^:]*: \([0-9]*\) en attente.*/\1/p' | head -1)
-        noter_action "action: veille_parcours, resultat: ok, file: ${file:-?}"
-        say "veille : parcours ok, file ${file:-?}"
+        noter_action "action: veille_parcours, resultat: ok, file: ${file:-?}, leader: $leader"
+        say "veille : parcours ok, file ${file:-?}, leader $leader"
     else
         printf '%s\n' "$sortie" | grep -E "^\s+[0-9]{2} |échou|jamais" | sed 's/^/      /' >&2
-        noter_action "action: veille_parcours, resultat: EN_DEFAUT"
+        noter_action "action: veille_parcours, resultat: EN_DEFAUT, file: ${file:-?}, leader: $leader"
         warn "veille : un parcours échoue ou ne tourne pas — noté, la campagne continue."
     fi
 }

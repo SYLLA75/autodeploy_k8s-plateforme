@@ -310,7 +310,9 @@ def main(argv: list[str]) -> int:
     texte = sortie.getvalue()
     print(texte, end="")
     if code == 0:
-        cible = campagnes / "fautifs.txt"
+        # Les deux séries seules écrivent fautifs.txt ; toute autre lecture a son
+        # propre fichier, pour ne jamais écraser la sortie figée des séries.
+        cible = campagnes / ("fautifs.txt" if noms == SERIES else f"fautifs-{'-'.join(noms)}.txt")
         cible.write_text(texte)
         print(f"-> {cible}")
     return code

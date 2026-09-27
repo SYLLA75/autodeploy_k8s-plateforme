@@ -3,7 +3,7 @@
 #  apps/panne.sh — injecter une panne, la retirer, consigner qui, quand, avec quoi
 # ==============================================================================
 #
-#  Quatre causes, un même symptôme : le tas de la file grossit. Ce script sait
+#  Cinq causes, un même symptôme : le tas de la file grossit. Ce script sait
 #  provoquer chacune, la retirer, et écrire QUI a été touché, QUAND, AVEC QUOI.
 #
 #     charge     plus de voyageurs : on dépose plus vite qu'on ne retire
@@ -25,6 +25,15 @@
 #                → SIGSTOP sur son processus Java, envoyé depuis la machine
 #                  par le démon Chaos Mesh (le processus 1 d'un conteneur
 #                  ignore les signaux venus de l'intérieur)
+#
+#     base       la base de données répond plus lentement à TOUS ses clients
+#                → Chaos Mesh NetworkChaos : un retard sur ce que le pod leader
+#                  (tsdb-mysql-0) envoie aux pods de train-ticket, SAUF à ses
+#                  suiveuses (la réplication est semi-synchrone : les retarder
+#                  ralentirait chaque validation et les battements de xenon).
+#                  Le réglage de base des répliques (retard sur LEUR sortie)
+#                  n'est pas touché : les deux retards s'ajoutent sur leur
+#                  chemin. Refusé si tsdb-mysql-0 n'est pas le leader.
 #
 #  POURQUOI SIGSTOP ET PAS CHAOS MESH POUR LE BLOCAGE
 #
@@ -48,19 +57,23 @@
 #      bash ~/autodeploy/apps/panne.sh injecter <cause> [--duree <min>] [--intensite <n>] [--cible <x>]
 #      bash ~/autodeploy/apps/panne.sh retirer
 #      bash ~/autodeploy/apps/panne.sh etat
-#      bash ~/autodeploy/apps/panne.sh temoin
+#      bash ~/autodeploy/apps/panne.sh temoin [court]   (court : sans toucher le pod de la base)
+#      bash ~/autodeploy/apps/panne.sh leader     tsdb-mysql-0 est-il le leader ? (code 1 sinon)
 #
 #  --intensite, selon la cause :
 #      charge     voyageurs                      (défaut : 2 × la charge en cours)
 #      lenteur    millisecondes de retard EN PLUS du réglage de base (défaut : 300)
 #      hote       cœurs réclamés par le voisin   (défaut : la moitié de l'hôte)
 #      blocage    sans objet
+#      base       millisecondes de retard sur ce que la base envoie (défaut : 75)
 #
 #  --cible, selon la cause :
 #      hote       nom du nœud  (défaut : le moins chargé des hôtes portant une réplique)
 #      blocage    nom du pod   (défaut : la première réplique par ordre alphabétique)
 #  « verifier » accepte une ou plusieurs --cible et les contrôle toutes, pour
 #  qu'une campagne à cibles tournantes soit refusée avant son départ.
+#
+#  « base » n'accepte pas --cible : elle vise toujours tsdb-mysql-0 (PANNE_BASE_POD).
 #
 #  Registre : journaux/pannes.tsv — une ligne par injection et par retrait.
 #
@@ -69,6 +82,9 @@
 #      PANNE_CONSOMMATEUR   (défaut: ts-delivery-service)  déploiement qui retire de la file
 #      PANNE_FILE           (défaut: food_delivery)        la file relevée par « temoin »
 #      PANNE_BASE_LABEL     (défaut: app=tsdb-mysql)       les pods de la base du consommateur
+#      PANNE_BASE_POD       (défaut: tsdb-mysql-0)         le pod visé par « base » (le leader)
+#      PANNE_BASE_SVC_LEADER (défaut: tsdb-mysql-leader)   le service par lequel les clients écrivent
+#      PANNE_REGLAGE_ATTENDU (défaut: 140ms)              le réglage de base exigé par « verifier base »
 #      PANNE_VOISIN_NS      (défaut: voisin)               espace du voisin bruyant
 #      PANNE_VOISIN_IMAGE   (défaut: busybox:1.36)
 #      CHAOS_NAMESPACE      (défaut: chaos-mesh)           où vivent les démons
@@ -78,19 +94,22 @@ set -uo pipefail
 _ici="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Une simple lecture ne laisse pas de journal : il n'y a rien à garder, et
 # un relevé répété toutes les 20 s en écrirait des centaines.
-case "${1:-}" in etat|temoin|verifier) JOURNAL_OFF=1 ;; esac
+case "${1:-}" in etat|temoin|verifier|leader) JOURNAL_OFF=1 ;; esac
 [ -f "$_ici/journal.sh" ] && JOURNAL_NOM="panne" . "$_ici/journal.sh"
 
 NS="${PANNE_NAMESPACE:-train-ticket}"
 CONSO="${PANNE_CONSOMMATEUR:-ts-delivery-service}"
 FILE="${PANNE_FILE:-food_delivery}"
 BASE_LABEL="${PANNE_BASE_LABEL:-app=tsdb-mysql}"
+BASE_POD="${PANNE_BASE_POD:-tsdb-mysql-0}"
+BASE_SVC_LEADER="${PANNE_BASE_SVC_LEADER:-tsdb-mysql-leader}"
 VOISIN_NS="${PANNE_VOISIN_NS:-voisin}"
 VOISIN_IMAGE="${PANNE_VOISIN_IMAGE:-busybox:1.36}"
 LOADGEN="$_ici/loadgen.sh"
 CONSOMMATEUR="$_ici/consommateur.sh"
 CONSO_MYSQL_LABEL="${PANNE_BASE_LABEL:-app=tsdb-mysql}" CONSO_NAMESPACE="$NS" . "$_ici/mysql.sh"
 REGLAGE="consommateur-temps-de-service"   # l'objet du réglage de base (consommateur.sh)
+REGLAGE_ATTENDU="${PANNE_REGLAGE_ATTENDU:-140ms}"   # sa valeur dans les deux séries et en C
 
 JOURNAUX="$(cd "$_ici/.." && pwd)/journaux"
 ETAT="$JOURNAUX/panne.etat"
@@ -152,6 +171,45 @@ hote_le_moins_charge() {
 
 pod_rabbitmq() {
     kubectl get pods -n "$NS" -l app=rabbitmq --no-headers -o custom-columns=:metadata.name 2>/dev/null | head -1
+}
+
+# Le pod visé par « base » est-il le leader ? Deux preuves : son étiquette
+# role=leader (posée par xenon) ET l'adresse derrière le service du leader, celle
+# que les clients utilisent. Écrit ce qu'il a vu ; 0 si les deux concordent.
+base_leader() {
+    local role ip ep
+    role=$(kubectl get pod "$BASE_POD" -n "$NS" -o jsonpath='{.metadata.labels.role}' 2>/dev/null)
+    ip=$(kubectl get pod "$BASE_POD" -n "$NS" -o jsonpath='{.status.podIP}' 2>/dev/null)
+    ep=$(kubectl get endpoints "$BASE_SVC_LEADER" -n "$NS" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null)
+    echo "role=${role:-?}, adresse ${ip:-?}, $BASE_SVC_LEADER → ${ep:-?}"
+    [ "$role" = "leader" ] && [ -n "$ip" ] && [ "$ep" = "$ip" ]
+}
+
+# Le retard du réglage de base réellement posé sur une réplique (vide si rien).
+reglage_pose() {
+    kubectl get podnetworkchaos "$1" -n "$NS" \
+        -o jsonpath="{.spec.tcs[?(@.source==\"$NS/$REGLAGE\")].delay.latency}" 2>/dev/null
+}
+
+# Les paquets jetés à la sortie du pod de la base (la file du netem peut en
+# jeter : ce serait une perte, que la panne « base » exclut), lus par le démon
+# Chaos Mesh du nœud dans l'espace réseau du pod.
+jetes_base() {
+    sur_la_machine "$BASE_POD" 'cid="$1"
+for d in /proc/[0-9]*; do
+    grep -qs "$cid" "$d/cgroup" || continue
+    nsenter -t "${d#/proc/}" -n tc -s qdisc show dev eth0 2>/dev/null \
+        | sed -n "s/.*dropped \([0-9]*\).*/\1/p" | awk "{s += \$1} END {print s + 0}"
+    exit 0
+done
+exit 1'
+}
+
+# Les adresses que la panne « base » retarde, lues dans l'objet que Chaos Mesh
+# a posé sur le pod de la base (vide si rien n'est posé).
+adresses_retardees_base() {
+    kubectl get podnetworkchaos "$BASE_POD" -n "$NS" \
+        -o jsonpath="{.spec.ipsets[?(@.source==\"$NS/panne-base\")].cidrs[*]}" 2>/dev/null | tr ' ' '\n' | sed 's|/32$||' | grep .
 }
 
 chaos_pret() {
@@ -235,8 +293,8 @@ verifier_app() {
     local cause="${1:-}" problemes=0 cibles=()
     [ $# -gt 0 ] && shift
     case "$cause" in
-        charge|lenteur|hote|blocage) ;;
-        *) fail "Cause inconnue « $cause » — charge, lenteur, hote ou blocage" ;;
+        charge|lenteur|hote|blocage|base) ;;
+        *) fail "Cause inconnue « $cause » — charge, lenteur, hote, blocage ou base" ;;
     esac
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -276,6 +334,41 @@ verifier_app() {
             for h in $(repliques | cut -f2 | sort -u); do
                 demon_sur "$h" || { warn "pas de démon Chaos Mesh sur $h : le gel s'envoie depuis la machine, par lui — chaos.sh status"; problemes=1; }
             done ;;
+        base)
+            chaos_pret || { warn "Chaos Mesh absent ou sans contrôleur — chaos.sh install"; problemes=1; }
+            local phase noeud vu reglage
+            phase=$(kubectl get pod "$BASE_POD" -n "$NS" -o jsonpath='{.status.phase}' 2>/dev/null)
+            [ "$phase" = "Running" ] || { warn "$BASE_POD : ${phase:-introuvable}, pas en marche"; problemes=1; }
+            if vu=$(base_leader); then
+                say "$BASE_POD est le leader ($vu)"
+            else
+                warn "$BASE_POD n'est pas le leader ($vu) : la panne viserait une suiveuse"; problemes=1
+            fi
+            noeud=$(kubectl get pod "$BASE_POD" -n "$NS" -o jsonpath='{.spec.nodeName}' 2>/dev/null)
+            if [ -n "$noeud" ] && demon_sur "$noeud"; then
+                say "$BASE_POD sur $noeud, démon Chaos Mesh présent"
+            else
+                warn "pas de démon Chaos Mesh sur le nœud de $BASE_POD (${noeud:-?}) — chaos.sh status"; problemes=1
+            fi
+            # Sans le réglage de base, à sa valeur et posé sur chaque réplique, la
+            # campagne ne serait pas comparable aux autres.
+            reglage=$(kubectl get networkchaos "$REGLAGE" -n "$NS" -o jsonpath='{.spec.delay.latency}' 2>/dev/null)
+            if [ -z "$reglage" ]; then
+                warn "réglage de base $REGLAGE absent — consommateur.sh dimensionner"; problemes=1
+            elif [ "$reglage" != "$REGLAGE_ATTENDU" ]; then
+                warn "réglage de base à $reglage, pas $REGLAGE_ATTENDU (PANNE_REGLAGE_ATTENDU) : campagne non comparable"; problemes=1
+            else
+                local r pose manquantes=""
+                for r in $(repliques | cut -f1); do
+                    pose=$(reglage_pose "$r")
+                    [ "$pose" = "$reglage" ] || manquantes="$manquantes $r(${pose:-rien})"
+                done
+                if [ -n "$manquantes" ]; then
+                    warn "réglage de base pas posé sur :$manquantes — consommateur.sh dimensionner"; problemes=1
+                else
+                    say "réglage de base des répliques : $reglage, posé sur chacune (sur leur sortie ; la panne s'y ajoute)"
+                fi
+            fi ;;
     esac
     [ "${#cibles[@]}" -eq 0 ] || verifier_cibles "$cause" "${cibles[@]}" || problemes=1
     [ "$problemes" = "0" ] && { ok "prêt pour « $cause »"; return 0; }
@@ -290,7 +383,7 @@ verifier_cibles() {   # <cause> <cible>…
     local cause="$1" c problemes=0 liste; shift
     liste=$(repliques)
     case "$cause" in
-        charge|lenteur) warn "--cible est sans objet pour « $cause »"; return 1 ;;
+        charge|lenteur|base) warn "--cible est sans objet pour « $cause »"; return 1 ;;
     esac
     for c in "$@"; do
         case "$cause" in
@@ -534,6 +627,100 @@ for i in $p; do read -r _ _ s _ < /proc/$i/stat && echo "$i $s"; done' "$((duree
     return 1
 }
 
+# Un objet NEUF, et pas yaml_retard (mysql.sh) : celui-ci retarde ce qu'un
+# déploiement envoie VERS la base ; posé sur la base, il ne retarderait que son
+# trafic vers elle-même. Ici le retard est sur la SORTIE du pod de la base, vers
+# les pods de train-ticket qui ne sont pas des pods de la base : ses clients le
+# voient à chaque échange, ses suiveuses non. Le pod est désigné par son nom, pas
+# par role=leader, pour que la panne ne suive pas un nouveau leader.
+injecter_base() {
+    local duree="$1" intensite="${2:-75}" cible="$3"
+    [ -z "$cible" ] || fail "--cible est sans objet pour « base » : la panne vise toujours $BASE_POD"
+    [ "$intensite" -gt 0 ] || fail "--intensite : au moins 1 ms"
+    local vu; vu=$(base_leader) || fail "$BASE_POD n'est pas le leader ($vu) : la panne viserait une suiveuse — refusé"
+    local noeud; noeud=$(kubectl get pod "$BASE_POD" -n "$NS" -o jsonpath='{.spec.nodeName}' 2>/dev/null)
+    demon_sur "$noeud" || fail "Pas de démon Chaos Mesh sur « $noeud », le nœud de $BASE_POD — chaos.sh status"
+    local cle="${BASE_LABEL%%=*}" valeur="${BASE_LABEL#*=}"
+    # Les adresses des clients en marche : ce que la cible doit contenir, en entier.
+    local ips_clients clients
+    ips_clients=$(kubectl get pods -n "$NS" -l "$cle notin ($valeur)" --field-selector=status.phase=Running \
+        --no-headers -o custom-columns=:status.podIP 2>/dev/null | grep -v '<none>' | grep .)
+    clients=$(printf '%s\n' "$ips_clients" | grep -c .)
+    [ "$clients" -gt 0 ] || fail "Aucun pod client de la base en marche dans $NS"
+    # Les suiveuses : il en faut au moins une avec son adresse, sinon le contrôle
+    # « aucune suiveuse retardée » passerait à vide.
+    local suiveuses; suiveuses=$(kubectl get pods -n "$NS" -l "$BASE_LABEL" --no-headers \
+        -o custom-columns=:metadata.name,:status.podIP 2>/dev/null | awk -v b="$BASE_POD" '$1 != b && $2 ~ /^[0-9]/ {print $2}')
+    [ -n "$suiveuses" ] || fail "Aucune suiveuse de la base lue (kubectl -l $BASE_LABEL) : contrôle impossible — refusé"
+
+    say "cause  : base — $BASE_POD (sur $noeud) répond $intensite ms plus tard à ses $clients pods clients, pendant $duree min ; ses suiveuses ne sont pas retardées"
+    say "outil  : Chaos Mesh NetworkChaos $NS/panne-base, durée ${duree}m"
+    local demande; demande=$(maintenant)
+    ecrire_etat CAUSE=base OUTIL=chaos-mesh "CIBLE=$BASE_POD@$noeud -> $clients clients" "INTENSITE=$intensite" \
+                "DEBUT=$demande" "DUREE=$duree"
+    kubectl apply -f - >/dev/null <<EOF || fail "Chaos Mesh a refusé l'objet — voir ci-dessus."
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: panne-base
+  namespace: $NS
+  labels: { panne: base }
+spec:
+  action: delay
+  mode: all
+  selector:
+    pods:
+      $NS: [ "$BASE_POD" ]
+  direction: to
+  target:
+    mode: all
+    selector:
+      namespaces: [ "$NS" ]
+      expressionSelectors:
+        - { key: "$cle", operator: NotIn, values: [ "$valeur" ] }
+      podPhaseSelectors: [ "Running" ]
+  delay:
+    latency: "${intensite}ms"
+    correlation: "0"
+    jitter: "0ms"
+  duration: "${duree}m"
+EOF
+    local registre_cible="$BASE_POD@$noeud -> $clients clients"
+    if attendre_injection networkchaos "$NS" panne-base 60; then
+        # Ce que Chaos Mesh a vraiment posé : le retard, et la liste des adresses,
+        # qui doit contenir chaque client et aucune suiveuse (relue une fois après
+        # 5 s si un client manque : la liste peut arriver un peu après).
+        local retard adresses n_adr s fuite="" manque="" essai
+        for essai in 1 2; do
+            retard=$(kubectl get podnetworkchaos "$BASE_POD" -n "$NS" \
+                -o jsonpath="{.spec.tcs[?(@.source==\"$NS/panne-base\")].delay.latency}" 2>/dev/null)
+            adresses=$(adresses_retardees_base); n_adr=$(printf '%s\n' "$adresses" | grep -c .)
+            fuite=""; manque=""
+            for s in $suiveuses; do printf '%s\n' "$adresses" | grep -qxF "$s" && fuite="$fuite $s"; done
+            for s in $ips_clients; do printf '%s\n' "$adresses" | grep -qxF "$s" || manque="$manque $s"; done
+            [ -n "$manque" ] && [ "$essai" = "1" ] && { sleep 5; continue; }
+            break
+        done
+        registre_cible="$BASE_POD@$noeud -> $clients clients, $n_adr adresses"
+        if [ -n "$fuite" ] || [ -n "$manque" ] || [ "$retard" != "${intensite}ms" ]; then
+            kubectl delete networkchaos panne-base -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1
+            consigner "$demande" "" injection base "$intensite" "$registre_cible" chaos-mesh/networkchaos NON_CONFIRMEE
+            warn "objet posé mais pas comme prévu (retard « ${retard:-aucun} », $n_adr adresse(s)${fuite:+, suiveuse(s) retardée(s) :$fuite}${manque:+, client(s) non retardé(s) :$manque}) : retiré"
+            return 1
+        fi
+        consigner "$demande" "$(maintenant)" injection base "$intensite" "$registre_cible" chaos-mesh/networkchaos confirmee
+        ok "injectée — $retard sur ce que $BASE_POD envoie à $n_adr adresses (les $clients pods clients, aucune suiveuse), expire dans $duree min"
+        return 0
+    fi
+    # Non confirmée : l'objet est retiré, pour qu'aucune panne non vérifiée ne
+    # reste en place pendant des minutes notées « non confirmées ».
+    kubectl delete networkchaos panne-base -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1
+    consigner "$demande" "" injection base "$intensite" "$registre_cible" chaos-mesh/networkchaos NON_CONFIRMEE
+    warn "Chaos Mesh n'a pas confirmé en 60 s : objet retiré (kubectl get events -n $NS pour la raison)"
+    return 1
+}
+
+
 injecter_app() {
     local cause="${1:-}"; [ $# -gt 0 ] && shift
     local duree=20 intensite="" cible=""
@@ -546,8 +733,8 @@ injecter_app() {
         esac
     done
     case "$cause" in
-        charge|lenteur|hote|blocage) ;;
-        *) fail "Cause inconnue « $cause » — charge, lenteur, hote ou blocage" ;;
+        charge|lenteur|hote|blocage|base) ;;
+        *) fail "Cause inconnue « $cause » — charge, lenteur, hote, blocage ou base" ;;
     esac
     case "$duree" in ''|*[!0-9]*) fail "--duree : un nombre de minutes" ;; esac
     [ "$duree" -gt 0 ] || fail "--duree : au moins une minute"
@@ -575,6 +762,11 @@ nettoyer_residus() {
             && say "objet networkchaos/panne-lenteur supprimé" || warn "networkchaos/panne-lenteur résiste"
         trouve=1
     fi
+    if kubectl get networkchaos panne-base -n "$NS" >/dev/null 2>&1; then
+        kubectl delete networkchaos panne-base -n "$NS" --timeout=90s >/dev/null 2>&1 \
+            && say "objet networkchaos/panne-base supprimé" || warn "networkchaos/panne-base résiste"
+        trouve=1
+    fi
     if kubectl get stresschaos panne-hote -n "$VOISIN_NS" >/dev/null 2>&1; then
         kubectl delete stresschaos panne-hote -n "$VOISIN_NS" --timeout=90s >/dev/null 2>&1 \
             && say "objet stresschaos/panne-hote supprimé" || warn "stresschaos/panne-hote résiste"
@@ -592,6 +784,13 @@ nettoyer_residus() {
             trouve=1
         fi
     done
+    # Des adresses encore retardées sur la base alors que l'objet a disparu :
+    # Chaos Mesh ne les a pas retirées, rien ici ne sait le faire sans risque.
+    if [ -n "$(adresses_retardees_base)" ]; then
+        warn "$BASE_POD porte encore un retard de panne-base sans objet pour le porter :"
+        warn "  kubectl get podnetworkchaos $BASE_POD -n $NS -o yaml ; chaos.sh status — à régler à la main"
+        return 1
+    fi
     [ "$trouve" = "1" ] && ok "nettoyé" || ok "rien à retirer"
     return 0
 }
@@ -631,6 +830,19 @@ retirer_app() {
             else
                 warn "la réplique $POD n'existe plus — rien à dégeler"
             fi ;;
+        base)
+            # Le réglage de base des répliques n'est jamais touché ici.
+            kubectl delete networkchaos panne-base -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 \
+                || resultat=ECHEC
+            # Chaos Mesh retire le retard du pod de la base peu après l'objet.
+            local reste=30
+            while [ "$reste" -gt 0 ] && [ -n "$(adresses_retardees_base)" ]; do sleep 3; reste=$((reste - 3)); done
+            [ -z "$(adresses_retardees_base)" ] || { warn "$BASE_POD porte encore le retard de panne-base"; resultat=ECHEC; } ;;
+        *)
+            # L'état reste : « etat » continue de bloquer le départ suivant.
+            consigner "$demande" "$(maintenant)" retrait "$CAUSE" "${INTENSITE:-}" "$CIBLE" "$OUTIL" ECHEC
+            warn "cause « $CAUSE » inconnue de cette copie de panne.sh : rien n'a été retiré, l'état est gardé"
+            return 1 ;;
     esac
     consigner "$demande" "$(maintenant)" retrait "$CAUSE" "${INTENSITE:-}" "$CIBLE" "$OUTIL" "$resultat"
     rm -f "$ETAT"
@@ -661,6 +873,8 @@ etat_app() {
             hote)    [ "$(kubectl get stresschaos panne-hote -n "$VOISIN_NS" -o jsonpath='{.status.conditions[?(@.type=="AllInjected")].status}' 2>/dev/null)" = "True" ] \
                          && say "Chaos Mesh : injectée" || say "Chaos Mesh : pas (ou plus) injectée — expirée ?" ;;
             blocage) etat_java "$POD" | grep -q ' T$' && say "processus : gelé" || say "processus : pas (ou plus) gelé — levée programmée passée ?" ;;
+            base)    [ "$(kubectl get networkchaos panne-base -n "$NS" -o jsonpath='{.status.conditions[?(@.type=="AllInjected")].status}' 2>/dev/null)" = "True" ] \
+                         && say "Chaos Mesh : injectée" || say "Chaos Mesh : pas (ou plus) injectée — expirée ?" ;;
             charge)  say "charge en cours : $(JOURNAL_OFF=1 bash "$LOADGEN" voyageurs 2>/dev/null | tr -d '[:space:]') voyageurs (retour prévu : $RETOUR)" ;;
         esac
         say "Pour lever :  $0 retirer"
@@ -668,6 +882,15 @@ etat_app() {
     fi
     say "Aucune injection en cours."
     kubectl get networkchaos panne-lenteur -n "$NS" >/dev/null 2>&1 && { warn "reste : networkchaos/panne-lenteur"; residus=1; }
+    kubectl get networkchaos panne-base -n "$NS" >/dev/null 2>&1 && { warn "reste : networkchaos/panne-base"; residus=1; }
+    [ -z "$(adresses_retardees_base)" ] || { warn "reste : $BASE_POD porte encore un retard de panne-base"; residus=1; }
+    local echec gen obs
+    echec=$(kubectl get podnetworkchaos "$BASE_POD" -n "$NS" -o jsonpath='{.status.failedMessage}' 2>/dev/null)
+    gen=$(kubectl get podnetworkchaos "$BASE_POD" -n "$NS" -o jsonpath='{.metadata.generation}' 2>/dev/null)
+    obs=$(kubectl get podnetworkchaos "$BASE_POD" -n "$NS" -o jsonpath='{.status.observedGeneration}' 2>/dev/null)
+    [ -z "$echec" ] || { warn "reste possible : le démon n'a pas appliqué l'objet réseau de $BASE_POD ($echec)"; residus=1; }
+    [ -z "$gen" ] || [ -z "$obs" ] || [ "$gen" = "$obs" ] \
+        || { warn "reste possible : l'objet réseau de $BASE_POD n'est pas encore appliqué (génération $gen, vue $obs)"; residus=1; }
     kubectl get stresschaos panne-hote -n "$VOISIN_NS" >/dev/null 2>&1 && { warn "reste : stresschaos/panne-hote"; residus=1; }
     kubectl get pod voisin-bruyant -n "$VOISIN_NS" >/dev/null 2>&1 && { warn "reste : pod voisin-bruyant"; residus=1; }
     local pod
@@ -682,7 +905,8 @@ etat_app() {
 # ------------------------------------------------------------------------------
 # temoin — un relevé court, à lire avant / pendant / après une injection
 # ------------------------------------------------------------------------------
-temoin_app() {
+temoin_app() {   # [court] : sans rien demander à la base elle-même (les veilles)
+    local court="${1:-}"
     echo "  instant : $(maintenant)"
     local r; r=$(pod_rabbitmq)
     if [ -n "$r" ]; then
@@ -703,6 +927,24 @@ temoin_app() {
     local hotes; hotes=$(printf '%s\n' "$liste" | cut -f2 | sort -u)
     kubectl top nodes --no-headers 2>/dev/null \
         | awk -v h=" $(printf '%s ' $hotes)" 'index(h, " "$1" ") {printf "      %-10s cpu %s (%s)  mém %s (%s)\n", $1, $2, $3, $4, $5}'
+    # Le leader de la base (la panne « base » le suppose), et la dérive : le cpu du
+    # service des commandes monte avec la taille de sa table.
+    local vu; if vu=$(base_leader); then echo "  base : $BASE_POD est le leader ($vu)"
+    else echo "  base : ATTENTION, $BASE_POD n'est pas le leader ($vu)"; fi
+    echo "  ts-order-service : $(kubectl top pods -n "$NS" -l app=ts-order-service --no-headers 2>/dev/null \
+        | awk '{printf "cpu %s  mém %s ", $2, $3}')"
+    # Compter les commandes et lire les paquets jetés touchent le pod de la base :
+    # seulement aux témoins (avant, pendant, après), jamais aux veilles.
+    [ "$court" = "court" ] || echo "  commandes : $(sql "SELECT COUNT(*) FROM orders;" 2>/dev/null | tail -1) lignes dans orders"
+    # Ce qui est réellement posé sur le chemin des répliques et à la sortie de la base.
+    local r p poses="" reglage pb jetes
+    for r in $(printf '%s\n' "$liste" | cut -f1); do p=$(reglage_pose "$r"); poses="$poses ${p:-rien}"; done
+    reglage=$(kubectl get networkchaos "$REGLAGE" -n "$NS" -o jsonpath='{.spec.delay.latency}' 2>/dev/null)
+    echo "  réglage de base : ${reglage:-absent} ; posé sur les répliques :$poses"
+    pb=$(kubectl get podnetworkchaos "$BASE_POD" -n "$NS" \
+        -o jsonpath="{.spec.tcs[?(@.source==\"$NS/panne-base\")].delay.latency}" 2>/dev/null)
+    if [ "$court" = "court" ]; then jetes="non lus (veille)"; else jetes=$(jetes_base) || jetes="illisible"; fi
+    echo "  panne-base posée : ${pb:-rien} vers $(adresses_retardees_base | grep -c .) adresses ; paquets jetés à la sortie de la base : ${jetes:-illisible}"
     if [ -f "$ETAT" ]; then . "$ETAT"; echo "  injection : $CAUSE depuis $DEBUT"; else echo "  injection : aucune"; fi
 }
 
@@ -712,6 +954,7 @@ case "${1:-etat}" in
     injecter) shift; injecter_app "$@" ;;
     retirer)  retirer_app ;;
     etat)     etat_app ;;
-    temoin)   temoin_app ;;
-    *) echo "Usage: $0 {verifier <cause> [--cible <x>]…|injecter <cause> [--duree <min>] [--intensite <n>] [--cible <x>]|retirer|etat|temoin}" >&2; exit 2 ;;
+    temoin)   shift; temoin_app "$@" ;;
+    leader)   base_leader ;;
+    *) echo "Usage: $0 {verifier <cause> [--cible <x>]…|injecter <cause> [--duree <min>] [--intensite <n>] [--cible <x>]|retirer|etat|temoin|leader}" >&2; exit 2 ;;
 esac

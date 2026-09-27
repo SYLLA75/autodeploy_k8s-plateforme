@@ -41,10 +41,12 @@ pas en appliquant le diff tel quel. Décidé le 26 sept. : en une seule fois,
 | B.6 | les témoins côte à côte : tableau de bord, fausses alertes au fil du temps, répétition « panne jamais vue » | `graphe_en/temoins.py` (nouveau) | 98ec3f9 → ea31952 |
 | B.7 | relecture finale : base lente jamais dans la validation, cause jamais vue à part, sorties des deux séries jamais écrasées (`juge.sortie`), budgets affichés | `juge.py`, les trois témoins, `temoins.py` | ea31952, étiquette `temoins-figes` |
 
+| C.0 (27 sept.) | la panne « base » (objet Chaos Mesh neuf `panne-base`, retard sur la sortie de tsdb-mysql-0 vers ses clients sauf ses suiveuses, refus si ce n'est pas le leader) ; `panne.sh leader` ; le relevé note le leader, le cpu de ts-order-service et la taille de `orders` ; un cas par défaut dans `retirer` ; `campagne.sh` refuse de partir si tsdb-mysql-0 n'est pas le leader et écrit `leader_base`, `placement_au_depart`, `placement_a_la_fin` ; `decision_c.py` (garde G tout de suite, lecture de C seulement après l'étiquette `gnn-fige`) | `apps/panne.sh`, `campagne.sh`, `graphe_en/decision_c.py` (nouveau), `PROCEDURE.md` | à committer |
+
 **Encore à coder, pas encore fait :**
-- avant la prochaine campagne (début de C) : `campagne.sh` écrit le
-  placement des pods (pod → machine) dans le compte rendu de chaque campagne,
-  au début et à la fin ; et vérifie que tsdb-mysql-0 est le leader.
+- phase D : la panne « réseau » d'une machine entière et le leurre dans la même
+  injection (`panne.sh`, `campagne.sh --leurre`) ; `fautifs.py` ne doit plus
+  écraser `campagnes/fautifs.txt` quand il lit une autre campagne que les séries.
 
 **À ne jamais porter :** `graphe_en/config.yaml` (identifiants),
 `scaler.json` (propre à une référence saine), `runs/` (données).
@@ -199,10 +201,34 @@ reprennent la perspective (19 et 20 de la version allégée, 16 de la plénière
     score par nœud sans exemples 5,2 %, score par nœud avec exemples 10 %, règle
     8,4 %) : comparer à budget égal.
 
-27h. **Écrit avant C, à valider** (journal, fin de B.7) : la table de décision (mesure
-    principale, garde de spécificité, décisions dans l'ordre, axes où le GNN doit
-    battre la règle), les prédictions de chaque témoin, le calage de l'étape 1 du GNN,
-    les conditions de la campagne C.
+27h. **Écrit avant C, fixé le 27 sept.** (journal, section du 27 sept.) : la table de
+    décision (mesure principale, garde de spécificité G, décisions dans l'ordre, axes
+    où le GNN doit battre la règle), les prédictions, le calage du GNN, les conditions
+    de C. Choix de méthode à dire : (1) le SCELLÉ, C et D enregistrées mais lues par
+    personne avant que le GNN soit figé (le code le fait respecter : `decision_c.py`
+    refuse sans l'étiquette `gnn-fige` ou si le code a changé depuis les étiquettes) ;
+    (2) une injection ne compte que si la file était vide avant, déborde (tas > 10 dans
+    strictement plus de la moitié de ses minutes) et sans effondrement : le sujet est la
+    faute de COORDINATION ; (3) les minutes normales de C et D n'entrent dans l'apprentissage de
+    personne (témoins et GNN sur les deux séries seules) ; (4) aucun témoin ajouté après
+    le gel ; (5) le GNN comparé à chaque version de la règle qui trouve, à son budget de
+    fausses alertes, perte = image de la victoire. Pourquoi écrire avant : choisir après ne
+    change pas le GNN, seulement ce qu'on en dit ; le régler en regardant C abîmerait sa
+    valeur réelle. Limite dite d'avance : à 75 ms la file déborde dès la première minute,
+    donc « plus tôt » ne départagera probablement pas ; si la règle trouve la base, l'écart
+    du GNN sur C ne peut venir que des fausses alertes ou du nombre d'injections, sinon de D.
+27i. **La garde G calculée avant C** (`decision_c.py --garde` ; essai à une graine sur le
+    poste, à confirmer avec 5 graines sur vms0) : aucune méthode ne met la base première
+    dans une panne connue, sauf la règle littérale sans exemples (lenteur-01) : elle est
+    écartée d'avance, comme le journal le prédisait.
+27j. **DOMINANT** (l. 867, promis comme témoin) : jamais codé ; décidé le 27 sept. de ne
+    pas comparer à un autre GNN publié. À la place, dans le retrait des flèches : notre
+    GNN avec un seul type de lien et sans canal d'arête (« un GNN plus simple
+    suffirait-il ? »). Retirer DOMINANT de la phrase.
+27k. **Numéro de la base lente** : le tableau 2 du rapport a déjà une cause 5
+    (déséquilibre entre partitions) et une cause 6 (courtier) ; la base lente n'est donc
+    pas « la cause 5 » (points 2 et 21) : 7e cause ou nouvelle numérotation, à décider
+    en réécrivant.
 
 ### Limites à écrire honnêtement
 27. **Dérive** : toute méthode qui apprend le « normal » se trompe si le normal

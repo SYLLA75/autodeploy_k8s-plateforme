@@ -1174,100 +1174,229 @@ tableau), le normal de chaque flèche par paire de services et les consommateurs
 une base lente. Une victoire du GNN est donc prudente ; une défaite peut venir en partie
 de là.
 
-### Écrit AVANT la phase C : ce qui décidera (PROPOSÉ le 26 sept., à valider par l'utilisateur)
+La table de décision, le calage de l'étape 1 du GNN et les conditions de C ont été
+proposés ici le 26 sept., puis fixés le 27 : voir la section du 27 sept. (le texte du 26
+reste dans l'historique git, commit 0c7daf2).
 
-La logique du 24 sept. (un témoin sans flèches trouve la base lente → arrêter le
-GNN ; seule la règle qui suit les flèches → H1 gagnée, le GNN seulement s'il bat la
-règle ; personne → GNN justifié) n'était plus assez précise : la règle a deux
-versions et deux réglages, le score par nœud deux réglages. La relecture finale
-prévoit même que les deux réglages de la règle répondront à l'opposé. Table
-proposée, à figer avant C :
+## 2026-09-27 — Avant C : les règles fixées, et ce que le cluster montre
 
-**Mise en place.** Code à l'étiquette `temoins-figes`, inchangé. C lue par le juge
-avec les causes jamais vues par défaut (base, reseau). Il faut au moins 2 injections
-« base » confirmées, sinon C est refaite à l'identique.
+Proposées le 26 sept., fixées le 27 : l'utilisateur a délégué le choix (« de la meilleure
+façon que ferait un chercheur ») et tranché quatre points. Changements par rapport au 26 :
+le scellé ; une injection ne compte que si la file déborde ; les minutes normales de C et D
+hors de tout apprentissage ; « plus tôt » et « file pas encore pleine » réunis en un axe ;
+D renforcée au lieu d'abandonnée ; aucun nouveau témoin.
 
-**Mesure principale, par injection** (règle du 26 sept.) : F = tsdb-mysql-0 est
-premier dans plus de la moitié des fenêtres de panne de l'injection, sans tenir
-compte de l'alarme. A = la même avec l'alarme, donnée à côté. Méthodes au hasard :
-médiane des graines 0 à 4, avec le minimum et le maximum.
+**Décisions de l'utilisateur (27 sept.)**
+- Tout scénario reste une faute de coordination : la file doit déborder. Une panne où la
+  file ne bouge pas est hors sujet.
+- Les minutes normales de C et D ne servent à l'apprentissage de personne : témoins et GNN
+  apprennent sur les deux séries seules.
+- Pas de comparaison à un autre GNN publié (DOMINANT, promis par le rapport) : la question
+  « un GNN plus simple suffirait-il ? » est traitée par une variante de notre GNN dans le
+  retrait des flèches (plus bas). La phrase du rapport sera retirée quand on le modifiera.
+- Le simulateur tourne à 1 voyageur entre deux campagnes (fait le 27 sept. à 17:24 UTC).
+- Seuls les résultats finaux iront sur un git public.
 
-**TROUVE** (pour une méthode) : F sur une majorité stricte des injections confirmées,
-ET garde de spécificité G : sur aucune des 8 injections de test des causes connues,
-tsdb-mysql-0 n'est premier dans plus de la moitié des fenêtres (une méthode qui
-accuse la base partout ne « trouve » rien).
+**Pourquoi écrire avant.** Choisir après avoir vu C ne change pas le GNN, seulement ce qu'on
+en dit ; ce qui abîmerait sa qualité réelle, c'est de le régler en regardant C (il serait bon
+sur C et on ne saurait plus ce qu'il vaut ailleurs). D'où les deux règles : ces critères, et
+le scellé.
+
+### Le scellé
+C, puis D, sont enregistrées ; on ne lit alors que ces vérifications : la panne posée et
+confirmée, le leader, le placement et les redémarrages, les veilles Locust, le tas, gel.py
+CONFORME, le fautif présent dans chaque fenêtre (`fautifs.py base-01`, qui écrit
+`fautifs-base-01.txt` et ne touche plus la sortie des séries). Aucun témoin ni le GNN ne lit
+C ou D avant l'étiquette `gnn-fige` ; ensuite chacun passe une seule fois. `decision_c.py
+--ouvrir` refuse sans cette étiquette, ou si le code des témoins, du juge et du GNN n'est plus
+celui de leurs étiquettes. La table de décision de D est commitée avant l'enregistrement de
+D, et en tout cas avant l'ouverture du scellé de C.
+
+### Ce qui décidera sur C
+**Mise en place.** Témoins à l'étiquette `temoins-figes`, code inchangé. Ils apprennent sur
+les fenêtres d'apprentissage des deux séries seules (les mêmes que dans les sorties figées),
+puis répondent sur toutes les minutes de C. Seul `decision_c.py` lit C, à part : C et D ne
+passent jamais par `juge.lire` avec les deux séries, ni par `temoins.py`, ni par
+`--validation` (le juge, lui, ne l'empêcherait pas : il mettrait leurs minutes normales en
+apprentissage). La garde G est calculée tout de suite sur les deux séries et commitée.
+
+**Une injection compte** si elle est confirmée, si la file est vide avant (tas ≤ 10 la minute
+d'avant), si la file déborde (tas > 10 dans STRICTEMENT plus de la moitié de ses minutes de
+panne ; égalité : ne déborde pas ; le même sens partout, essai compris) et s'il n'y a pas
+d'effondrement (plus bas). Une injection qui ne compte pas est montrée à part, avec sa raison.
+Moins de 2 injections confirmées : C est refaite à l'identique. Confirmées mais moins de 2 qui
+comptent : C ne décide rien, on le dit et on en parle avec l'utilisateur.
+
+**Mesure principale, par injection** : F = tsdb-mysql-0 est premier dans plus de la moitié
+des fenêtres de panne de l'injection, sans tenir compte de l'alarme. A = la même avec
+l'alarme, donnée à côté.
+
+**TROUVE** (pour une méthode et un réglage) : F sur une majorité stricte des injections qui
+comptent, ET garde de spécificité G : sur aucune des 8 injections de test des causes connues
+tsdb-mysql-0 n'est premier dans plus de la moitié des fenêtres (une méthode qui accuse la base
+partout ne « trouve » rien). Méthodes au hasard (graines 0 à 4) : TROUVE si, sur une majorité
+stricte des graines, F et G tiennent avec la même graine ; les nombres d'injections se
+comparent par leur médiane, donnée avec le minimum et le maximum.
 
 **Décisions, dans cet ordre**
-1. Le tableau ou le score par nœud (l'un ou l'autre réglage) TROUVE → les nombres
-   des nœuds suffisent : on arrête le GNN sur C.
-2. Sinon, une version de la règle TROUVE → H1 soutenue. Le GNN n'est justifié que
-   s'il TROUVE (au moins autant d'injections que la meilleure règle) ET gagne
-   nettement sur au moins un axe sans perdre sur aucun :
-   - (a) fausses alertes sur toutes les fenêtres normales du test, à budget égal
-     (marge : au moins 3 fenêtres et 25 %, sur toutes les graines) ;
-   - (b) alarme plus tôt dans au moins 2 injections sur 3 ;
-   - (c) détection et désignation sur les fenêtres de C où la file ne se remplit
-     pas (tas ≤ 10), là où la règle, partie de la file, ne va pas ;
-   - (d) les jumeaux (phase D), table écrite avant D.
+1. Le tableau ou le score par nœud (l'un ou l'autre réglage) TROUVE : sans la structure des
+   flèches, les nombres suffisent sur C ; aucune conclusion sur le GNN n'est tirée de C (D et
+   l'axe (a) restent).
+2. Sinon, une ou plusieurs versions de la règle TROUVENT : H1 soutenue. Le GNN complet figé
+   est comparé à CHACUNE (G comprise). Il gagne sur C s'il TROUVE avec au moins autant
+   d'injections que chacune ET gagne nettement sur au moins un axe sans perdre sur aucun,
+   contre chacune. Perdre est l'image de gagner, avec la même marge. Le GNN sonne au budget de
+   fausses alertes de la méthode comparée (sa part de fausses alertes sur les minutes normales
+   mises de côté : 21/249 pour la règle). Gagner demande TOUTES les graines ; perdre, une
+   majorité stricte des graines. Calculé par `decision_c.comparer` :
+   - (a) fausses alertes sur les 120 minutes normales NON VUES du test des deux séries
+     (saine-09 à part : la mise à l'échelle y a été calée) : au moins 3 et 25 % de moins ;
+   - (b) plus tôt : la première minute de panne où la méthode sonne ET met tsdb-mysql-0
+     premier arrive au moins une minute avant, sur une majorité stricte des injections qui
+     comptent (« jamais » est plus tard que toute minute ; jamais contre jamais : égalité) ;
+   - (c) plus d'injections trouvées (F, médiane des graines) ;
+   - (d) les jumeaux (phase D), table commitée avant D.
    « Inconnue » n'est pas un axe contre la règle (elle le dit par construction).
-3. Personne ne trouve → le GNN est justifié s'il TROUVE. Si la plupart des fenêtres
-   de C ont un tas ≤ 10 : dire « une règle partie de la file ne peut pas
-   l'atteindre », pas « les flèches demandent un GNN ».
+3. Personne ne trouve : le GNN gagne sur C s'il TROUVE.
 
-**Prédictions écrites avant C** (base ralentie d'environ 75 ms par échange, comme
-la lenteur) :
-- règle, cause commune, sans exemples : trouve (inconnue, tsdb-mysql-0), si la file
-  se remplit et que la flèche des répliques vers la base dépasse s ;
-- règle, cause commune, avec exemples : répond « lenteur, les répliques » (sa limite
-  s = 5 laisse la flèche des répliques sous le seuil ; au-delà d'environ +140 ms
-  elle trouverait aussi) ;
-- règle littérale : réponse qui dépend du bruit. Sans exemples, la garde G l'écarte
-  probablement déjà (au test, elle accuse une dépendance dans la plupart des fenêtres de
-  lenteur-01 : vérifier que c'est tsdb-mysql-0) ; avec exemples (s = 5), elle n'accuse la
-  base dans aucune panne connue et G ne l'écartera pas ;
-- tableau : ne sait pas désigner le fautif d'une cause jamais vue (0 % dans la
-  répétition), alors qu'il trouve un fautif nouveau d'une cause connue (19/19) ;
-  nommera probablement la cause « lenteur » (ses nombres les plus utiles sont la
-  latence des flèches queries, le tas et le temps de traitement) ;
-- score par nœud : la base ne bouge presque pas elle-même (pas d'exportateur MySQL :
-  c'est l'instrumentation qui la rend muette, à dire) ; il désignera une victime.
+Seul le GNN complet figé entre dans la décision ; les variantes du retrait des flèches sont
+données à part. Si la variante « sans aucune arête » TROUVE, on conclut comme en 1.
 
-### Le calage de l'étape 1 du GNN, écrit avant (PROPOSÉ)
-1. Fenêtres d'apprentissage du juge ; l'étape 1 n'apprend que sur les normales.
-2. Chaque campagne mise de côté à son tour : l'étape 1 réapprise sans elle (mêmes
-   réglages, même graine), score de ses fenêtres normales ; tous mis ensemble.
-3. Score d'une fenêtre = le plus haut score de nœud, le même qui sert au classement ;
-   l'erreur d'un nœud divisée par l'échelle robuste de sa sorte dans le pli. Comment
-   l'erreur d'une flèche est rendue aux nœuds (la cible, la source, les deux) : fixé
-   avant C.
-4. Seuil = 95e centile ; plusieurs signaux d'alarme → leur union calée à 5 %, et
-   aussi donnée au budget de la règle.
-5. Modèle final sur toutes les normales d'apprentissage ; graines 0 à 4, chacune
-   avec son calage.
-6. Rejet de l'étape 2 : chaque injection mise de côté, 95e centile des distances des
-   fenêtres bien classées (comme le tableau et le score par nœud).
-7. Jamais les fenêtres de test, jamais les pannes de C, jamais `--validation` avec C
-   (le juge la met « hors » de toute façon).
-8. Tout choix du GNN (architecture, réglages) se fait sur la validation, ou sur la
-   répétition « panne jamais vue » des causes connues ; jamais sur C.
+**Prédictions écrites avant C.** Ce sont des prédictions, pas des résultats : chacune sera
+vraie ou fausse. Base ralentie de 75 ms par échange, comme la lenteur.
+- Nombres de tsdb-mysql-0 : cpu stable ou en baisse, mémoire stable, débits réseau stables ou
+  en baisse, aucun paquet jeté ; aucun temps de traitement ni de requête (pas de span côté
+  base, pas d'exportateur MySQL : c'est l'instrumentation qui la rend muette, à dire).
+- Flèches queries de ses appelants : latence d'environ +75 ms. Répliques : 140 + 75 = 215 ms
+  par échange, comme lenteur-02, donc un temps de traitement proche de lenteur-02.
+- Dépôt : chaque voyageur de Locust enchaîne ses parcours au rythme d'un toutes les 5 s
+  (constant_pacing, par voyageur et pour tous ses parcours). Si la réservation ou la recherche
+  (qui touchent la base plusieurs fois) dépassent 5 s, le repas suivant part plus tard : le
+  dépôt baisse et la file peut moins déborder (précédent : hote-02, 3e injection).
+- La file : à 75 ms elle déborde probablement dès la première minute de panne (lenteur-02, même
+  capacité : tas de 58 à sa première minute). L'axe (b) ne départagera donc probablement pas :
+  si une version de la règle TROUVE, un verdict pour le GNN sur C ne peut venir que de (a), de
+  (c) ou de D. Écrit ici pour ne pas le découvrir après.
+- Règle, cause commune, sans exemples : trouve (inconnue, tsdb-mysql-0), si la file déborde et
+  que la flèche des répliques vers la base dépasse s.
+- Règle, avec exemples (cause commune ET littérale, même limite s = 5) : répond « lenteur, les
+  répliques » (la flèche des répliques reste sous le seuil ; au-delà d'environ +140 ms elle
+  trouverait aussi).
+- Règle littérale sans exemples : écartée d'avance par G (essai à une graine : elle accuse la
+  base dans lenteur-01 ; à confirmer avec 5 graines sur vms0).
+- Tableau : ne sait pas désigner le fautif d'une cause jamais vue (0 % dans la répétition),
+  alors qu'il trouve un fautif nouveau d'une cause connue (19/19) ; nommera probablement la
+  cause « lenteur ».
+- Score par nœud : la base ne bouge presque pas elle-même ; il désignera une victime.
+- Retrait des flèches (GNN) : sans aucune arête, sans queries, sans canal d'arête, et un seul
+  type de lien sans canal : ne trouvent pas (la base ne se voit que par les nombres portés par
+  ses flèches queries) ; sans calls, publishes, consumes ou executes_on, une à la fois : même
+  réponse que le GNN complet. Toutes figées avec le GNN.
 
-### Les conditions de C, à fixer et noter avant (PROPOSÉ ; jamais réglées sur un témoin)
-- Mécanisme : un retard réseau sur le pod leader tsdb-mysql-0 seul, vers tous ses
-  clients, sans perte ni gigue ; vérifier qu'il ne double pas le retard permanent du
-  chemin répliques → base. Écrire la prédiction sur les nombres de la base.
-- Intensité : +75 ms (le même retard par échange que la lenteur). Écrire maintenant
-  la règle de repli et le critère d'effondrement (par ex. erreurs Locust > 5 %).
-  L'essai de calage n'est jamais noté ni pris dans le normal.
-- Déroulé et charge identiques à la seconde série (3 × 20 min, mêmes écarts, 135 min,
-  mêmes paliers Locust, même réglage du consommateur).
-- Purge : `donnees.sh purger --redemarrer` juste avant, aucune entre les injections ;
-  noter l'heure, le cpu de ts-order-service et la taille de la table des commandes à
-  chaque injection (la dérive).
-- Placement : pod → machine au début et à la fin (campagne.sh, à coder) ; accepté tel
-  quel, jamais retiré au sort ; dire avant de noter si une réplique partage sa machine
-  avec ts-order-service ou tsdb-mysql-0.
-- Leader : vérifier que tsdb-mysql-0 est le leader avant et après.
-- Noter sans viser : le tas, les débits de dépôt et de retrait. Que la file se
-  remplisse n'est pas un but.
-- Instrumentation inchangée : pas d'exportateur MySQL, gel.py CONFORME, cause nommée
-  « base » dans panne.sh et campagne.yaml.
+### Le calage du GNN, écrit avant
+1. Fenêtres d'apprentissage des deux séries seules ; l'étape 1 n'apprend que sur les normales.
+2. Chaque campagne mise de côté à son tour : l'étape 1 réapprise sans elle (mêmes réglages,
+   même graine), score de ses fenêtres normales ; tous mis ensemble.
+3. Score d'une fenêtre = le plus haut score de nœud, le même qui sert au classement ; l'erreur
+   d'un nœud divisée par l'échelle robuste de sa sorte dans le pli. Deux choix restent à fixer
+   avant le gel du GNN, par un principe général écrit : à quel bout va l'erreur d'une flèche
+   (la cible, la source, les deux) et comment se réunissent les erreurs de plusieurs flèches
+   sur un nœud (somme, moyenne, maximum, part des voisins) ; et comment l'erreur des pods
+   remonte à leur machine. Aucune panne connue n'a un fautif muet : régler ces choix sur la
+   seule validation pousserait vers « la source » (le fautif de la lenteur est la source de
+   ses flèches lentes), qui donnerait dans C l'erreur aux appelants, des victimes. Ils sont
+   donc aussi éprouvés, avant le gel, sur des pannes FABRIQUÉES à la main dans les minutes des
+   deux séries (un retard ajouté à toutes les flèches entrant dans un nœud, ou sortant d'un
+   nœud, ou aux pods d'une machine), jamais sur C ni D ; leur effet sur la lenteur (garde G)
+   est écrit.
+4. L'alarme : seuil au 95e centile des scores des minutes normales mises de côté ; contre
+   chaque méthode, le GNN sonne à son budget (part de fausses alertes de cette méthode sur les
+   mêmes minutes). Plusieurs signaux d'alarme : leur union, calée de même.
+5. Modèle final sur toutes les normales d'apprentissage ; graines 0 à 4, chacune avec son
+   calage.
+6. Rejet de l'étape 2 : chaque injection mise de côté, 95e centile des distances des fenêtres
+   bien classées (comme le tableau et le score par nœud).
+7. Jamais les fenêtres de test, jamais C ni D avant le gel du GNN ; C et D ne passent jamais par
+   `juge.lire` avec les séries ni par `--validation` (voir la mise en place).
+8. Tout choix du GNN (architecture, réglages) se fait sur la validation (`juge.validation`),
+   sur la répétition « panne jamais vue » DANS la validation (`temoins.py --validation`, jamais
+   celle du test), ou sur les pannes fabriquées du point 3 ; jamais sur le test, C ou D. Chaque
+   regard sur le test est compté, comme pour les témoins.
+9. Le GNN et ses variantes sont figés (étiquette `gnn-fige`) avant d'ouvrir C et D.
+
+### Les conditions de C (jamais réglées sur un témoin)
+**Vérifié sur le cluster le 27 sept.** (lecture seule, vms0 puis master) :
+- tsdb-mysql-0 est le leader (role=leader ; tsdb-mysql-leader pointe sur son adresse), sur
+  workers4 ; ses deux suiveuses sur workers5 et workers3 ; son chaos-daemon tourne, avec `tc`
+  et `nsenter`.
+- Aucun retard n'est posé côté base (podnetworkchaos de tsdb-mysql-0 vide). Le retard
+  permanent de 140 ms est sur la SORTIE des trois répliques, vers les adresses de la base
+  (pods et services) : un retard sur la sortie de tsdb-mysql-0 s'y ajoute sans le doubler.
+- La base voit ses clients par leurs adresses de pod (27 adresses dans processlist, toutes des
+  pods de train-ticket, dont les deux suiveuses) : une cible par pods les atteint.
+- Réplication semi-synchrone active (attente d'une suiveuse, AFTER_SYNC) : retarder ce que la
+  base envoie à ses suiveuses ralentirait chaque validation et les battements de xenon. Les
+  suiveuses sont donc HORS de la cible.
+- Horloges de vms0 et du master synchronisées.
+- ts-order-service est bloqué (0/1 prêt depuis 2 jours : sa table a trop grossi) ; la purge
+  avec redémarrage d'avant C le remet en route.
+
+**Mécanisme exact.** Un NetworkChaos `panne-base` NEUF (le gabarit du réglage permanent,
+yaml_retard, ciblerait la base elle-même : la mauvaise panne) : sélection = le pod
+tsdb-mysql-0 par son nom (pas role=leader, pour ne pas suivre un nouveau leader) ; direction
+« to » ; cible = les pods de train-ticket en marche sauf app=tsdb-mysql ; retard 75 ms, gigue
+0, corrélation 0, sans perte ; durée 20 min ; refus si tsdb-mysql-0 n'est pas le leader. Après
+la pose, `panne.sh` exige que chaque client en marche soit dans la liste des adresses
+retardées, aucune suiveuse, et le bon retard ; sinon l'objet est retiré et l'injection notée
+NON_CONFIRMEE (de même si Chaos Mesh ne confirme pas en 60 s). Le retrait ne touche jamais le
+réglage permanent des répliques ; `verifier base` exige ce réglage à 140 ms et posé sur chaque
+réplique.
+
+**Relevés.** Pendant chaque injection, une veille toutes les 5 minutes (campagne.sh, 27
+sept.) : bilan Locust (les 10 dernières secondes ; EN_DEFAUT = un parcours au-delà de 5 %
+d'échecs ou qui ne tourne pas), tas, leader. Aux témoins (avant, pendant, après) : en plus, le
+nombre de lignes de `orders` (un `SELECT COUNT(*)` sur la base, trois fois par injection :
+écart d'instrumentation minime par rapport aux séries, dit ici), le cpu de ts-order-service,
+le réglage posé sur chaque réplique, le retard et les adresses de panne-base, et les paquets
+jetés à la sortie de la base (`tc -s qdisc` dans son espace réseau, par le démon Chaos Mesh ;
+accepté : 0). Le placement note les redémarrages.
+
+**Effondrement** = deux veilles de suite EN_DEFAUT pendant l'injection, OU le leader perdu à
+une veille ou un témoin, OU un redémarrage de pod de train-ticket pendant l'injection (colonne
+restarts du graphe). Une injection effondrée est notée, montrée à part, et ne compte pas.
+
+**Intensité et repli**, lus seulement sur les relevés ci-dessus et la file, jamais sur un
+témoin ni le GNN :
+- essai à 75 ms, une injection de 20 min comme celles de C : `./campagne.sh essai-base
+  --profil "25:30" --panne base --a 5 --duree 20 --intensite 75` (jamais noté ni pris dans le
+  normal) ; y lire aussi les temps des parcours Locust (chercher, réserver, repas) et le dépôt ;
+- l'essai tient et la file déborde : 75 ms est retenu ;
+- il s'effondre : un seul autre essai, à 40 ms ;
+- il tient, la file ne déborde pas, ET le dépôt reste proche de celui d'avant l'injection et
+  au-dessus du retrait : un seul autre essai, à 150 ms ;
+- tout autre cas, et tout second essai qui ne donne pas « tient et déborde » : arrêt et
+  décision avec l'utilisateur ;
+- l'intensité retenue sert aux 3 injections.
+
+**Déroulé.** Comme la seconde série : `donnees.sh purger --redemarrer` (la seconde série l'a
+fait une fois, le 25 sept., avant son premier essai), puis au moins 30 min à 25 voyageurs, puis
+`./campagne.sh base-01 --profil "25:135" --panne base --a 5,50,95 --duree 20 --intensite
+<retenue>` (sa propre purge, sans redémarrage ; 135 min, 3 injections de 20 min, mêmes écarts,
+même réglage du consommateur à 140 ms). Noter l'heure, le cpu de ts-order-service et la taille
+de la table des commandes à chaque injection (la dérive).
+
+**Placement.** Codé le 27 sept. (campagne.sh) : pod → machine, phase, redémarrages, au départ
+(juste avant la collecte) et à la fin ; accepté tel quel, jamais tiré au sort. Le 27 sept. : la
+réplique r5pwb partage workers0 avec ts-order-service et ts-food-service (le producteur) ;
+aucune réplique sur workers4 (la base). À relire après la purge, qui replace commandes, sièges
+et recherche, et à dire avant de noter.
+
+**Leader** vérifié avant, au départ réel (après la purge : départ refusé s'il a changé), à
+chaque veille et témoin, et après. **Instrumentation** sinon inchangée : pas d'exportateur
+MySQL, gel.py CONFORME, cause nommée « base » dans panne.sh et campagne.yaml.
+
+**Relecture du 27 sept.** (deux agents sur ce texte, trois sur le code) : termes rendus
+précis (meilleure règle, perte, graines, « jamais », alarme du GNN, « déborde »), la garde du
+scellé sur le code, la prédiction du dépôt corrigée, le repli qui lit aussi le dépôt, l'essai
+sur 20 min avec des veilles pendant la panne, les redémarrages relevés, la purge dans l'ordre de
+la seconde série, et le point 3 du calage (le risque d'un réglage poussé vers « la source »).
