@@ -2198,3 +2198,19 @@ Reste pour gnn.py : `methodes` doit rendre les quatre noms et `empreintes(fen, f
   de jumeaux-02 est construit jusqu'à 15:20 (au lieu de 15:37) ; les minutes sans charge après le dernier retrait
   n'entrent pas dans D. Le rapport dira que la charge de D baisse au fil des injections. Pour tout banc futur : délai
   d'abandon des requêtes de Locust et contrôle du débit réel (déjà noté).
+
+## 2026-09-28 — E.5 : GNN « avec exemples » (gnn_exemples.py), EN COURS, une décision en attente
+
+Code, relecture (6 constats), correction. Validation v1, graine 0, 60 époques (chiffres provisoires, 5 graines à
+150 époques à refaire) : détection 153/153, cause 153/153, top-1 115/115 (blocage 38/38, hôte 39/39, lenteur 38/38),
+fausses alertes 4/102 (tableau et règles : 2/102 ; témoin 2 avec exemples : 28/102) ; en v2 : mêmes chiffres mais
+20/102 fausses alertes (l'alarme de l'étape 1 v2 seule en fait 13). Le top-1 vient de la régression sur les écarts du
+GNN (plongement seul : 109/115 en v1, 115/115 en v2).
+**Décision en attente de l'utilisateur (écart E-4, NOM donné ici : l'agent l'avait appelé « E-3 », déjà pris par §13)** :
+le rejet de §5 ne reconnaît presque jamais une cause jamais vue sur le profil du GNN (répétition : blocage et lenteur
+retirés → « inconnue » 0/76), donc le repli vers l'étape 1 prévu pour C et D ne se déclencherait pas. L'agent propose
+un rejet par le logit maximal de la régression du fautif (seuil au milieu entre le 5e centile des causes connues
+mises de côté et le 95e centile des causes retirées, calé sur l'apprentissage seul) : répétition → « inconnue »
+blocage 68/76, lenteur 76/76, charge 74/75, hôte 57/78. À DIRE : premier essai au 5e centile vu sur la validation
+(rejetait blocage-03), puis passage au milieu. Contraire à §12.3 (« rejet inchangé ») : pas retenu sans accord.
+Fichiers : graphe_en/gnn_exemples.py (option --rejet §5 pour l'ancien rejet), campagnes/gnn-exemples-validation*.txt.
