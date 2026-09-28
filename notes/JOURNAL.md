@@ -1743,3 +1743,20 @@ reste tsdb-mysql-0. Alors workers5 n'est pas exclue par sa suiveuse ; sinon elle
 de D est aussi essayé, à blanc : un NetworkChaos de 1 ms, 60 s, sur la carte enp6s18 de workers1
 (sans réplique) par le pod node-exporter de cette machine (réseau de l'hôte), relu dans l'espace
 réseau de l'hôte, puis retiré (la file racine doit revenir à fq_codel).
+
+## 2026-09-28 — C.6/7 et C.7/7 : base-01 enregistrée, puis scellée
+
+**C.6** : `./campagne.sh base-01 --profil 25:135 --panne base --a 5,50,95 --duree 20 --intensite 75`,
+22:00–00:15 UTC (tmux sur vms0). **C.7, seulement les vérifications permises par le scellé** :
+- 3 injections confirmées sur 3, aucune non confirmée ; chacune « 75 ms vers 55 adresses, les 55 pods
+  clients, aucune suiveuse » ;
+- leader tsdb-mysql-0 au départ, avant la collecte et à la fin (même adresse) ; placement identique
+  au départ et à la fin ; aucun redémarrage de pod ;
+- veilles toutes « parcours ok » (pendant les pannes aussi) ;
+- tas relevé chaque minute (`campagnes/base-01/file-chaque-minute.txt`) : au-dessus de 10 dans 19/20,
+  19/19 et 18/19 minutes de panne ; la file revenue à 0–2 avant chaque injection ;
+- graphe figé : run.py (mise à l'échelle apply), `runs/20260928-021822` sur vms0, 130 fenêtres ;
+  gel.py CONFORME ; `fautifs.py base-01` : tsdb-mysql-0 vu dans 19 fenêtres sur 19 pour chaque
+  injection, « TOUS LES FAUTIFS SONT ÉTABLIS » ;
+- lecture.txt écrit par lecture.py sans être affiché (le juge en a besoin pour trouver le run).
+**C est sous scellé** : aucun témoin, aucun decision_c `--ouvrir` avant `gnn-fige`.

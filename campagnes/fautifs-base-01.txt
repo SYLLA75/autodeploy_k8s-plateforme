@@ -1,0 +1,13 @@
+# Fautif de chaque injection — écrit par graphe_en/fautifs.py, ne pas éditer à la main.
+# Règles fixées le 26 sept. 2026, avant tout calcul des témoins (voir fautifs.py).
+# vu : fenêtres entièrement dans l'injection où chaque fautif est un nœud du graphe figé.
+
+base-01   graphe figé : runs/20260928-021822
+  1  22:05:55 → 22:25:50  base     instance : tsdb-mysql-0
+       graphe_fige.json, bases ; vu 19 sur 19 fenêtres
+  2  22:50:55 → 23:10:49  base     instance : tsdb-mysql-0
+       graphe_fige.json, bases ; vu 19 sur 19 fenêtres
+  3  23:35:56 → 23:55:50  base     instance : tsdb-mysql-0
+       graphe_fige.json, bases ; vu 19 sur 19 fenêtres
+
+TOUS LES FAUTIFS SONT ÉTABLIS
