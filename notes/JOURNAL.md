@@ -2078,3 +2078,27 @@ les données (§1), l'étape 1 (§2 : R-GCN hétérogène 2 couches, H = 32, can
 principe P et la grille B/H/V avec ses critères dans l'ordre (§3.5), l'alarme et les budgets (§4), l'étape 2
 (§5), les variantes du retrait des flèches (§6), le banc de pannes fabriquées (§7), l'ordre de travail et les tests
 T1–T7 (§8). Aucun hyperparamètre ne sera cherché ; un seul essai de rechange au plus, sur la validation, noté.
+
+## 2026-09-28 — D.5/7 : la vraie cause des essais sans débordement (Locust à un quart de sa charge)
+
+- **Mesure (lecture seule, statistiques de Locust, 12:36 UTC).** 25 voyageurs comptés, mais 1,1 parcours/s et
+  1,6 requête/s depuis 12:20 ; réponses toutes rapides (max 5,4 s). À 25 voyageurs au rythme de 5 s, il faut
+  5 parcours/s : environ 6 voyageurs travaillaient, les autres attendaient une réponse qui ne vient jamais
+  (les requêtes de Locust n'ont pas de délai d'abandon ; blocage probable depuis la panne du site de 09:55).
+  Dès 10:55 le débit était déjà bas (≈ 1,9 requête/s ; 5,5/s dans la nuit). La file recevait ≈ 1 message/s au
+  lieu de ≈ 3,3 : deux répliques (2,83/s) absorbaient tout, panne ou non.
+- **Conséquence.** Les essais `essai-reseau-b-300`, `essai-reseau-b-400` (workers2) et la 1re injection de
+  `jumeaux-01` (workers5, 12:25) ont tourné à environ un tiers de la charge : ils ne disent RIEN du moyen.
+  L'explication écrite à l'écart 4 (le dépôt baisse autant que la capacité à cause des requêtes de station,
+  config et order-other) était au mieux secondaire : les mesures de requêtes (9,0/s contre 5,5/s) restent vraies,
+  mais ce n'est pas ce qui a empêché le débordement. X = workers5 est gardé (moins de parcours ralentis, code et
+  vérifications prêts), en le disant.
+- **Remède** (commandes lancées par l'utilisateur, le classifieur me refusant l'arrêt) : `jumeaux-01` arrêtée
+  proprement à 12:3x (kill -INT au pilote + à son sleep : panne retirée, collecte arrêtée, compte rendu écrit ;
+  campagne à mettre à part, charge fausse, NON utilisée) ; voyageurs relancés (loadgen.sh scale 0 puis 25) :
+  7,4 requêtes/s, ≈ 5 parcours/s à 12:38, dépôt ≈ 3/s.
+- **`jumeaux-02` lancée à 12:38:35 UTC**, même commande (workers5:workers1 ×4, 400 ms, --a 5,50,95,140, 20 min) ;
+  sa 1re injection sert d'essai (tas > 10 à la 5e minute de panne), comme à l'écart 4.
+- **Leçon pour le banc** (à coder dans campagne.sh après la campagne, jamais pendant) : au départ et à chaque
+  veille, comparer le débit RÉEL de Locust à voyageurs / rythme (refus sous 80 %) ; le compte de voyageurs ne
+  suffit pas. Et donner un délai d'abandon aux requêtes de Locust (changerait la charge : à décider hors D).
