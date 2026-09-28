@@ -1,8 +1,8 @@
 """
 Le banc de pannes fabriquées du GNN, et le choix de la grille B/H/V.
 
-    ./.venv/bin/python gnn_banc.py [--graines n] [--epoques e] [--version v1|v2|v3]
-    ./.venv/bin/python gnn_banc.py --verifier [--version v1|v2|v3]
+    ./.venv/bin/python gnn_banc.py [--graines n] [--epoques e] [--version v12|v1|v2|v3]
+    ./.venv/bin/python gnn_banc.py --verifier [--version v12|v1|v2|v3]
 
 Phase E. Écrit d'après notes/GNN_SPEC.md §7 (le banc) et §3.5 (le choix), avec
 la signature de l'écart 3 du journal (J 1989-1996). Importe gnn.py sans le
@@ -72,13 +72,21 @@ Options :
   --verifier             les contrôles du banc (T5 de la spécification, et ceux de la
                          notation, du parallélisme et du choix), sur un petit jeu
                          et 2 époques
-  --version <v>          la version de l'étape 1 (gnn.VERSIONS, §11 : chacune fixe
-                         SON choix B/H/V) ; v1 par défaut
+  --version <v>          la version de l'étape 1 (gnn.TOUTES_VERSIONS, §11 : chacune
+                         fixe SON choix B/H/V ; v12 : celui de v1, §15) ; défaut
+                         celui de gnn.py (v12)
   --graines <n>          graines 0 à n−1 (défaut 5)
   --epoques <e>          époques d'apprentissage (défaut 150)
   --campaigns <dossier>  le dossier des dossiers de campagne (défaut ../campagnes)
   --runs <dossier>       où sont les runs (défaut runs)
   --help                 ce texte
+
+v12 (écart E-5, §15) : la grille, les familles et G_val sont ceux de l'exemplaire
+  du classement (v1) ; le CHOIX de v12 est FIXÉ (B5/H2/V0, celui de v1) : la sortie
+  dit si ce banc le redonne, et les critères 1 et 3 de §15 (G_val pour chaque
+  graine ; F_C ≥ 0,5 et F_D ≥ 0,5, F_R rapporté). En plus, à titre d'information,
+  l'alarme de l'exemplaire v2 sur chaque famille (seuil propre, budget de la règle,
+  et « alarme ET rang 1 »).
 
 Écrit <campagnes>/gnn-banc-validation.txt (v1 ; gnn-banc-validation-v2.txt…
 pour les autres versions). Code de sortie 0 ; 1 si une campagne
@@ -236,28 +244,34 @@ def _leurre(d2: dict, Y: str, pressions: dict) -> None:
 
 
 def fabriquer(donnees: dict, cas: str, X: str | None, d: float, Y: str | None = None,
-              file: list | None = None, pressions: dict | None = None) -> dict:
+              file: list | None = None, pressions: dict | None = None, sans_file: bool = False) -> dict:
     """
     Une panne fabriquée, sur une COPIE PROFONDE de `donnees` (jamais modifié).
       cas « M », « R », « M+Y » : X est la machine ; « Y » : X et d ignorés ;
       cas « entrant », « sortant » : X est le NOM du pod T.
     `file` : la ligne food_delivery d'une fenêtre de panne lenteur (file pleine) ;
     `pressions` : {cpu_pressure, memory_pressure, io_pressure} pour Y.
+    `sans_file` : la même panne, la ligne de file laissée telle quelle (information seulement :
+    l'alarme sur la signature réseau seule, section 5 du rapport ; jamais dans la grille).
     """
     if cas not in CAS:
         raise ValueError(f"cas inconnu : {cas}")
     d2 = copy.deepcopy(donnees)
     inst = d2["nodes"]["instance"]
+    if sans_file:
+        file, remplir = None, lambda d2_, file_: None
+    else:
+        remplir = _remplir_file
     if cas in ("M", "M+Y"):
         _machine_lente(d2, X, d)
-        _remplir_file(d2, file)
+        remplir(d2, file)
     if cas == "R":
         reps = repliques(d2, X)
         if not reps:
             raise ValueError(f"aucune réplique sur {X} dans cette fenêtre")
         for i in reps:
             _replique_lente(d2, i, d)
-        _remplir_file(d2, file)
+        remplir(d2, file)
     if cas in ("M+Y", "Y"):
         if Y is None or pressions is None:
             raise ValueError("le leurre demande Y et les pressions")
@@ -274,7 +288,7 @@ def fabriquer(donnees: dict, cas: str, X: str | None, d: float, Y: str | None = 
         for s in sorted(sources):
             _ajouter(inst, s, TRAITEMENT + REQUETE, (5 if s in reps else 1) * d)
         if sources & reps:
-            _remplir_file(d2, file)
+            remplir(d2, file)
     if cas == "sortant":
         t = inst["names"].index(X)
         if not inst["names"][t].startswith(REPLIQUE):
@@ -285,7 +299,7 @@ def fabriquer(donnees: dict, cas: str, X: str | None, d: float, Y: str | None = 
                 if s == t:
                     _ajouter(e, j, LATENCES, d)
         _ajouter(inst, t, TRAITEMENT, 5 * d)
-        _remplir_file(d2, file)
+        remplir(d2, file)
     return d2
 
 
@@ -372,17 +386,21 @@ def _init_processus(brut: bytes) -> None:
     gnn.charger_echelle(_ETAT["fige"])
     _ETAT["charges"] = {g: gnn.charger(sd, _ETAT["dims"], "complet", _ETAT["version"])
                         for g, (sd, _) in _ETAT["modeles"].items()}
+    _ETAT["charges_alarme"] = {g: gnn.charger(sd, _ETAT["dims"], "complet", v)
+                               for g, (sd, _, v, _c) in (_ETAT.get("alarmes") or {}).items()}
 
 
-def _fenetre(etat: dict, element: tuple) -> tuple[dict, list[str]]:
-    """(données à noter, réponse attendue) d'un élément : ("banc", i, cas, cible, d) ou ("val", j)."""
+def _fenetre(etat: dict, element: tuple, sans_file: bool = False) -> tuple[dict, list[str]]:
+    """(données à noter, réponse attendue) d'un élément : ("banc", i, cas, cible, d) ou ("val", j) ;
+    `sans_file` : la même panne sans la ligne de file (fabriquer)."""
     if element[0] == "val":
         j = element[1]
         return etat["val"][j], list(etat["val_fautifs"][j])
     _, i, cas, cible, d = element
     base = etat["banc"][i]
     files = etat["files"]
-    donnees = fabriquer(base, cas, cible, d, Y_LEURRE, file=files[i % len(files)], pressions=etat["pressions"])
+    donnees = fabriquer(base, cas, cible, d, Y_LEURRE, file=files[i % len(files)], pressions=etat["pressions"],
+                        sans_file=sans_file)
     return donnees, attendue(base, cas, cible, Y_LEURRE)
 
 
@@ -390,17 +408,35 @@ def _tache(t: tuple) -> tuple[list, float]:
     graine, elements = t
     debut = time.perf_counter()
     modele, calage = _ETAT["charges"][graine], _ETAT["modeles"][graine][1]
+    alarme = (_ETAT.get("alarmes") or {}).get(graine)
     out = []
     for el in elements:
         donnees, att = _fenetre(_ETAT, el)
-        out.append(noter_fenetre(modele, calage, donnees, att, _ETAT["base"]))
+        res = noter_fenetre(modele, calage, donnees, att, _ETAT["base"])
+        # v12 (§15) : le score de fenêtre de l'exemplaire de l'alarme, sous son choix (None sinon) ;
+        # puis le même sur la panne SANS la ligne de file (information : ce que l'alarme voit de la
+        # signature réseau seule ; égal à S quand le cas ne remplit pas la file).
+        s_a = s_sf = None
+        if alarme is not None:
+            s_de = lambda x: gnn.noter_noeuds(gnn.residus(_ETAT["charges_alarme"][graine], x), alarme[1], alarme[3])[1]
+            s_a = s_de(donnees)
+            if el[0] == "banc":
+                sans, _ = _fenetre(_ETAT, el, sans_file=True)
+                q = donnees["nodes"]["queue"]
+                iq = q["names"].index(FILE)
+                s_sf = s_a if sans["nodes"]["queue"]["X"][iq] == q["X"][iq] else s_de(sans)
+            else:
+                s_sf = s_a
+        out.append(res + (s_a, s_sf))
         gnn._GRAPHES.clear()                     # les fenêtres fabriquées ne servent qu'une fois
     return out, time.perf_counter() - debut
 
 
 def noter_tout(etapes: dict, fige: dict, banc: list[dict], val: list[dict], files: list, pressions: dict,
-               elements: list[tuple]) -> tuple[dict, float, float]:
-    """({graine : [résultat de chaque élément]}, durée réelle, temps de calcul cumulé)."""
+               elements: list[tuple], alarmes: dict | None = None) -> tuple[dict, float, float]:
+    """({graine : [résultat de chaque élément]}, durée réelle, temps de calcul cumulé). Un
+    résultat : (rangs, base en tête, premiers, S de l'alarme, S de l'alarme sans la file) ;
+    `alarmes` {graine : (étape 1 de l'alarme, son choix)} (v12, §15) donne les deux S, sinon None."""
     for e1 in etapes.values():
         for b in gnn.BOUTS:
             e1.calage.tau(b)                     # calculé ici une fois, envoyé tel quel
@@ -410,7 +446,9 @@ def noter_tout(etapes: dict, fige: dict, banc: list[dict], val: list[dict], file
     etat = {"fige": fige, "dims": gnn.dimensions(fige), "base": dc.cles_base(fige), "version": versions.pop(),
             "banc": [f["donnees"] for f in banc], "val": [f["donnees"] for f in val],
             "val_fautifs": [f["fautifs"] for f in val], "files": files, "pressions": pressions,
-            "modeles": {g: ({k: v for k, v in e1.modele.state_dict().items()}, e1.calage) for g, e1 in etapes.items()}}
+            "modeles": {g: ({k: v for k, v in e1.modele.state_dict().items()}, e1.calage) for g, e1 in etapes.items()},
+            "alarmes": {g: ({k: v for k, v in e1a.modele.state_dict().items()}, e1a.calage, e1a.version, dict(ch))
+                        for g, (e1a, ch) in (alarmes or {}).items()}}
     taches = [(g, elements[i:i + LOT_TACHE]) for g in sorted(etapes) for i in range(0, len(elements), LOT_TACHE)]
     debut = time.perf_counter()
     with ProcessPoolExecutor(max_workers=min(gnn.PROCESSUS, len(taches)),
@@ -627,7 +665,7 @@ COLONNES = ("M", "R", "M+Y", "Y", "entrant", "sortant", "400 (hors)")
 def _agreger(res: list, groupes: list[tuple], k: int, n_banc: int) -> dict:
     """{groupe : [au rang 1, total, Counter des premiers]} pour la combinaison k."""
     out: dict = {}
-    for (rangs, _, premiers), groupe in zip(res[n_banc:], groupes):
+    for (rangs, _, premiers, _s, _sf), groupe in zip(res[n_banc:], groupes):
         case = out.setdefault(groupe, [0, 0, Counter()])
         case[0] += rangs[k] == 1
         case[1] += 1
@@ -656,15 +694,30 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques: int, version: st
     print("# VALIDATION seule (juge.validation) : modèles appris sur ses normales d'apprentissage ; vrai test "
           "(« hors ») jamais lu ; ni C, ni D, ni leurs essais")
     print(f"# graines 0 à {graines - 1} ; {epoques} époques ; étape 1 « complet », version {version} "
-          f"({gnn.VERSIONS[version]})"
+          f"({gnn.decrire(version)})"
           + ("" if graines >= 5 else f" ; ATTENTION : {graines} graine(s) seulement, la spécification en "
                                      f"demande 5 (choix indicatif)"))
+    va, vc = gnn.exemplaires(version)
     duree_app = gnn.preparer(fen, fige, graines, ("complet",), epoques, version)
-    etapes = {g: gnn.etape1(fen, fige, "complet", g, epoques, version) for g in range(graines)}
+    # Le classement (la grille B/H/V) est celui de l'exemplaire du classement (v12 : v1).
+    etapes = {g: gnn.etape1(fen, fige, "complet", g, epoques, vc) for g in range(graines)}
     e0 = etapes[0]
-    print(f"# étape 1 : {e0.infos[0]['parametres']} paramètres, {e0.infos[0]['fenetres']} normales "
+    print(f"# étape 1 du classement ({vc}) : {e0.infos[0]['parametres']} paramètres, {e0.infos[0]['fenetres']} normales "
           f"d'apprentissage, {len(e0.campagnes)} plis ; empreintes des modèles finals : "
           + ", ".join(f"graine {g} {e.empreinte[:16]}" for g, e in etapes.items()))
+    alarmes, seuils_a = None, None
+    if va != vc:
+        # v12 (§15) : l'alarme de l'exemplaire v2, au seuil propre et au budget de la règle, notée
+        # sur les mêmes fenêtres (information ; elle ne change ni la grille ni le choix).
+        gnns = {g: (gnn.GNN(fen, fige, graine=g, reglage="sans exemples", epoques=epoques, version=version),
+                    gnn.GNN(fen, fige, graine=g, reglage="sans exemples", budget="règle", epoques=epoques,
+                            version=version)) for g in range(graines)}
+        alarmes = {g: (m.etape1_alarme, m.choix_alarme) for g, (m, _) in gnns.items()}
+        seuils_a = {g: (m.seuil, mb.seuil) for g, (m, mb) in gnns.items()}
+        print(f"# étape 1 de l'alarme ({va}, {gnn.nom_choix(gnns[0][0].choix_alarme)}) : empreintes des modèles finals : "
+              + ", ".join(f"graine {g} {m.etape1_alarme.empreinte[:16]}" for g, (m, _) in gnns.items())
+              + " ; seuils propre / budget de la règle : "
+              + ", ".join(f"graine {g} {a:.3f} / {b:.3f}" for g, (a, b) in seuils_a.items()))
     print(f"# fenêtres du banc : {len(banc)} normales jeu == « test » de la validation ("
           + ", ".join(f"{c} {n}" for c, n in Counter(f["campagne"] for f in banc).items()) + ")")
     tas = [ligne[0] for ligne in b["files"]]
@@ -689,7 +742,7 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques: int, version: st
     print(f"# {len(elements)} fenêtres fabriquées ({dans} dans le critère, {len(elements) - dans} à 400 ms hors "
           f"critère ; le cas Y ne dépend ni de X ni de d : compté une fois) ; plus {n_val} fenêtres du test de la "
           f"validation pour G_val et le top-1")
-    res, duree_notes, cumul = noter_tout(etapes, fige, banc, val, b["files"], b["pressions"], tout)
+    res, duree_notes, cumul = noter_tout(etapes, fige, banc, val, b["files"], b["pressions"], tout, alarmes)
     print(f"# durées : apprentissage {duree_app:.0f} s ({graines * (1 + len(e0.campagnes))} entraînements, "
           f"{gnn.PROCESSUS} processus au plus) ; notation {duree_notes:.0f} s de temps réel, {cumul:.0f} s de calcul "
           f"({1000 * cumul / (len(tout) * graines):.0f} ms par fenêtre et 30 combinaisons)")
@@ -757,7 +810,23 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques: int, version: st
     print("\n== 2. le choix de l'écart E-3 (§13, dans l'ordre) : c'est le CHOIX")
     print("\n".join(lignes_e3))
     print(f"CHOIX = {json.dumps(choix, ensure_ascii=False)}"
-          + ("" if graines >= 5 else f"   (sur {graines} graine(s) : indicatif, à refaire sur 5)"))
+          + ("" if graines >= 5 else f"   (sur {graines} graine(s) : indicatif, à refaire sur 5)")
+          + (f"   (le choix que ce banc donnerait à l'exemplaire {vc} ; celui de {version} est fixé par §15, "
+             f"ci-dessous)" if va != vc else ""))
+    if version in gnn.COMBINEES:
+        fixe = gnn.CHOIX_VERSIONS[version]
+        nf = gnn.nom_choix(fixe)
+        fc, fd, fr = (_med(parts[nf][c]) for c in FAMILLES_E3)
+        print(f"\n== 2 ter. {version} (écart E-5, §15) : le CHOIX du classement est FIXÉ, {nf} (celui de "
+              f"l'exemplaire {vc}) ; ce banc lui donnerait {gnn.nom_choix(choix)}"
+              + (" : le même" if gnn.nom_choix(choix) == nf else " : AUTRE, à expliquer"))
+        print(f"critère 1 (G_val tient pour les {graines} graines) : injections qui accusent la base, par graine "
+              f"{'/'.join(str(x) for x in g_val[nf])} → {'tenu' if all(x == 0 for x in g_val[nf]) else 'NON TENU'}")
+        print(f"critère 3 (banc : F_C ≥ 0,5 et F_D ≥ 0,5, médianes des graines) : F_C {_part(parts[nf]['F_C'])}, "
+              f"F_D {_part(parts[nf]['F_D'])} → {'tenu' if fc >= 0.5 and fd >= 0.5 else 'NON TENU'} ; F_R "
+              f"{_part(parts[nf]['F_R'])} (rapporté : faiblesse connue) ; Y {_part(parts[nf]['Y'])} ; « entrant » "
+              f"ts-order-service {_part(parts[nf]['ent. order'])} ; top-1 de validation {_case(t1[nf])}/{n_app}")
+        choix = fixe
 
     print("\n== 2 bis. pour comparaison : l'ancien choix du §3.5 (remplacé par le §13)")
     print("\n".join(lignes_choix))
@@ -768,7 +837,8 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques: int, version: st
           f"{mins_e3[gnn.nom_choix(choix_ancien)]:.3f})")
 
     nom_c, nom_a, nom_p = gnn.nom_choix(choix), gnn.nom_choix(choix_ancien), gnn.nom_choix(MINIMAUX)
-    titres = ((nom_c, "le choix, §13"), (nom_a, "l'ancien choix, §3.5"), (nom_p, "le plus simple"))
+    titres = ((nom_c, "le choix, §15" if version in gnn.COMBINEES else "le choix, §13"),
+              (nom_a, "l'ancien choix, §3.5"), (nom_p, "le plus simple"))
     for numero, nom in zip(("3", "3 bis", "3 ter"), dict.fromkeys((nom_c, nom_a, nom_p))):
         k = NOMS.index(nom)
         role = " ; ".join(t for n, t in titres if n == nom)
@@ -795,8 +865,59 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques: int, version: st
             print(f"  {nom:<12}" + ", ".join(f"{c}#{i}" for c, i in acc))
     if rien:
         print("  aucune")
+    if alarmes:
+        print("\n".join(_alarme_du_banc(res, groupes, val, base, seuils_a, NOMS.index(nom_c), n_val)))
     print(f"\n# durée totale {time.perf_counter() - debut_total:.0f} s")
     return 0
+
+
+def _alarme_du_banc(res: dict, groupes: list, val: list[dict], base, seuils: dict, k: int, n_val: int) -> list[str]:
+    """v12 (§15, information : ne change ni la grille ni le choix) : l'alarme de l'exemplaire
+    de l'alarme sur les pannes fabriquées, au seuil propre et au budget de la règle ; puis
+    « alarme ET rang 1 » sous le CHOIX (ce que lit la minute de decision_c) ; puis l'alarme sur
+    les mêmes pannes SANS la ligne de file copiée (la signature réseau seule) ; F_D aussi par
+    machine X ; et, pour repère, sur les fenêtres du test de la validation (pannes, normales non vues)."""
+    out = ["", "== 5. l'alarme de l'exemplaire de l'alarme sur le banc (information, §15) : part des fenêtres où elle "
+               "sonne, médiane des graines [min–max] ; « et rang 1 » : sonne ET la réponse attendue est première sous "
+               "le CHOIX ; « sans la file » : la même panne, la ligne de file laissée telle quelle (la file pleine "
+               "copiée d'une vraie panne lenteur suffit seule à faire sonner l'alarme : ces lignes disent ce que "
+               "l'alarme voit de la signature réseau) ; M <X> : le cas M seul (sans le leurre, qui fait sonner à lui "
+               "seul : colonne Y) sur la machine X, d = 75 à 300"]
+    cols = COLONNES_E3 + tuple(f"M {x}" for x in XS)
+
+    def colonnes(groupe: tuple) -> list[str]:
+        c = colonne_e3(groupe, base)
+        if c is None:
+            return []
+        return [c] + ([f"M {groupe[2]}"] if groupe[1] == "M" and groupe[3] != HORS_CRITERE else [])
+    out.append(f"{'':<36}" + "".join(f"{c:>18}" for c in cols))
+    pannes = [j for j, f in enumerate(val) if f["jeu"] == "test" and f["etiquette"] == "panne"]
+    nv = [j for j, f in enumerate(val) if f["jeu"] == "test" and f["etiquette"] == "normale" and not f["vue"]]
+
+    def part(v: list) -> str:
+        return f"{_med(v):.2f}" + (f" [{min(v):.2f}–{max(v):.2f}]" if min(v) != max(v) else "")
+    for titre, i in (("seuil propre", 0), ("budget de la règle", 1)):
+        for et, sf in ((False, False), (True, False), (False, True)):
+            par = {c: [] for c in cols}
+            for g, r in res.items():
+                theta = seuils[g][i]
+                n = Counter()
+                t = Counter()
+                for (rangs, _, _, s_a, s_sf), groupe in zip(r[n_val:], groupes):
+                    s = s_sf if sf else s_a
+                    for c in colonnes(groupe):
+                        t[c] += 1
+                        n[c] += s > theta and (not et or rangs[k] == 1)
+                for c in cols:
+                    par[c].append(n[c] / t[c] if t[c] else 0.0)
+            nom = titre + (" et rang 1" if et else "") + (", sans la file" if sf else "")
+            out.append(f"{nom:<36}" + "".join(f"{part(par[c]):>18}" for c in cols))
+    for titre, i in (("seuil propre", 0), ("budget de la règle", 1)):
+        det = [sum(1 for j in pannes if res[g][j][3] > seuils[g][i]) for g in res]
+        fa = [sum(1 for j in nv if res[g][j][3] > seuils[g][i]) for g in res]
+        out.append(f"validation, {titre} : détection {_case(det, len(pannes))} ; fausses alertes non vues "
+                   f"{_case(fa, len(nv))}")
+    return out
 
 
 # ------------------------------------------------------------------------------
@@ -889,6 +1010,11 @@ def _t5(banc: list[dict], files: list, pressions: dict) -> tuple[bool, str]:
             hors = ch - _permises(avant, cas, cible, Y_LEURRE)
             if hors:
                 soucis.append(f"{ou} : {len(hors)} cellules hors du prévu, dont {sorted(hors, key=str)[0]}")
+            iq_ = avant["nodes"]["queue"]["names"].index(FILE)
+            sans = fabriquer(avant, cas, cible, d, Y_LEURRE, file=files[i % len(files)], pressions=pressions,
+                             sans_file=True)
+            if _changees(avant, sans) != {c for c in ch if c[:3] != ("n", "queue", iq_)}:
+                soucis.append(f"{ou} : sans la file, ce n'est pas la même panne moins la ligne de file")
             if cas in ("M", "R", "M+Y"):
                 for r in repliques(avant, cible):
                     for c in TRAITEMENT:
@@ -944,7 +1070,8 @@ def _t5(banc: list[dict], files: list, pressions: dict) -> tuple[bool, str]:
                             soucis.append(f"{ou} : une flèche entrante de T n'est pas avant + d")
         if json.dumps(avant, sort_keys=True, default=str) != empreinte:
             soucis.append(f"{f['id']} : l'entrée a été modifiée")
-    return not soucis, f"{n} fenêtres fabriquées sur 4 fenêtres du banc, tous les cas et d = 75 à 400" + (
+    return not soucis, f"{n} fenêtres fabriquées sur 4 fenêtres du banc, tous les cas et d = 75 à 400, avec et " \
+                       f"sans la file" + (
         f" ; {len(soucis)} soucis, dont {soucis[0]}" if soucis else "")
 
 
@@ -1089,11 +1216,12 @@ def verifier(campagnes: Path, runs: Path, version: str = gnn.VERSION) -> int:
     resultats["T10 le choix du §3.5"] = _t10()
     resultats["T12 le choix de l'écart E-3 (§13)"] = _t12()
 
-    # Un petit modèle (2 époques) pour la notation.
+    # Un petit modèle (2 époques) pour la notation (v12 : le classement est l'exemplaire v1).
+    va, vc = gnn.exemplaires(version)
     petit = gnn._petit_jeu(fen)
     gnn.preparer(petit, fige, graines=1, variantes=("complet",), epoques=2, version=version)
-    e1 = gnn.etape1(petit, fige, "complet", 0, 2, version)
-    print(f"# version {version} : {gnn.VERSIONS[version]}")
+    e1 = gnn.etape1(petit, fige, "complet", 0, 2, vc)
+    print(f"# version {version} : {gnn.decrire(version)}")
 
     # T8 : la notation factorisée de la grille = gnn.noter_noeuds, combinaison par combinaison.
     pire, n8 = 0.0, 0
@@ -1116,8 +1244,37 @@ def verifier(campagnes: Path, runs: Path, version: str = gnn.VERSION) -> int:
     # trois combinaisons comparées ici n'en ont aucune.
     elements = [("val", j) for j in range(len(val))]
     fabr = [("banc", i, cas, cible, d) for i in range(2) for cas, cible, d, _ in cas_du_banc(banc[i]["donnees"], (150,))]
-    res, duree, cumul = noter_tout({0: e1}, fige, banc, val, b["files"], b["pressions"], elements + fabr)
+    m12 = gnn.GNN(petit, fige, graine=0, reglage="sans exemples", epoques=2, version=version)
+    alarmes = {0: (m12.etape1_alarme, m12.choix_alarme)} if va != vc else None
+    res, duree, cumul = noter_tout({0: e1}, fige, banc, val, b["files"], b["pressions"], elements + fabr, alarmes)
     r0 = res[0]
+    if va != vc:
+        # T13 (v12) : le S de l'alarme noté dans les processus est celui de gnn.GNN (v12), et le
+        # classement du CHOIX celui de gnn.GNN (v12).
+        pire, n13, faux13, n_sf = 0.0, 0, [], 0
+        k = NOMS.index(gnn.nom_choix(m12.choix))
+        for el, (rangs, _, premiers, s_a, s_sf) in zip(elements + fabr, r0):
+            if el[0] == "val":
+                donnees, att = val[el[1]]["donnees"], list(val[el[1]]["fautifs"])
+                sans = donnees
+            else:
+                _, i, cas, cible, d = el
+                donnees = fabriquer(banc[i]["donnees"], cas, cible, d, Y_LEURRE,
+                                    file=b["files"][i % len(b["files"])], pressions=b["pressions"])
+                sans = fabriquer(banc[i]["donnees"], cas, cible, d, Y_LEURRE,
+                                 file=b["files"][i % len(b["files"])], pressions=b["pressions"], sans_file=True)
+                att = attendue(banc[i]["donnees"], cas, cible, Y_LEURRE)
+            rep = m12.repondre(donnees)
+            pire = max(pire, abs(rep["_S"] - s_a), abs(m12.repondre(sans)["_S"] - s_sf))
+            n_sf += s_sf != s_a
+            if att and juge.rang(att, rep["scores"], juge.noeuds(donnees)) != rangs[k]:
+                faux13.append(f"{el}")
+            n13 += 1
+        resultats["T13 v12 : alarme v2 et classement v1 dans le banc"] = (
+            pire == 0.0 and not faux13, f"{n13} fenêtres : S de l'alarme ({va}) = gnn.GNN {version}, plus grand écart "
+                                        f"{pire:.1e} (avec et sans la file ; {n_sf} fenêtres où la file change S) ; "
+                                        f"rang sous {gnn.nom_choix(m12.choix)} = gnn.GNN {version}"
+            + (f" ; {len(faux13)} rangs faux" if faux13 else ""))
     soucis = []
     for nom in ("B1/H0/V0", "B4/H1/V1", "B5/H2/V1"):
         k = NOMS.index(nom)
@@ -1131,7 +1288,7 @@ def verifier(campagnes: Path, runs: Path, version: str = gnn.VERSION) -> int:
             _, tient = dc.garde(val, fige, 1, [(nom, lambda fen_, g, rep=rep: rep, False)])
         if tient[nom][0] != (len(gval(val, r0, k)) == 0):
             soucis.append(f"{nom} : G_val {len(gval(val, r0, k))} injections contre decision_c.garde {tient[nom][0]}")
-        for el, (rangs, _, premiers) in zip(fabr, r0[len(elements):]):
+        for el, (rangs, _, premiers, _s, _sf) in zip(fabr, r0[len(elements):]):
             _, i, cas, cible, d = el
             donnees = fabriquer(banc[i]["donnees"], cas, cible, d, Y_LEURRE, file=b["files"][i % len(b["files"])],
                                 pressions=b["pressions"])
@@ -1177,7 +1334,7 @@ def main(argv: list[str]) -> int:
                     raise ValueError
             elif a == "--version":
                 version = args.pop(0)
-                if version not in gnn.VERSIONS:
+                if version not in gnn.TOUTES_VERSIONS:
                     raise ValueError
             elif a == "--campaigns":
                 campagnes = Path(args.pop(0))

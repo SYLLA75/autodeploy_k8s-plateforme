@@ -2232,3 +2232,18 @@ run `runs/20260928-174321` sur vms0 ; gel.py : CONFORME ; fautifs.py : tous les 
 jumeaux-01 (ÉCARTÉE : charge fausse, Locust figé), essai-reseau-b-300 et b-400 (comptes rendus RECONSTRUITS, charge
 fausse). Scellé : ni témoin ni GNN ne lisent jumeaux-02 avant gnn-fige ; ouverture unique par
 `decision_c.py --ouvrir base-01 --jumeaux jumeaux-02`.
+
+## 2026-09-29 — E.7 : GNN combiné v12 calculé, relu, corrigé ; les 4 critères de §15 tiennent (à la médiane)
+
+Code v12 (gnn.py, gnn_exemples.py, gnn_banc.py) ; 3 relecteurs (justesse, honnêteté, recompte indépendant) : 16 constats,
+corrigés ou écrits (GNN_SPEC.md §16) ; les quatre --verifier refaits sur les fichiers finals : TOUT PASSE. Relu par moi
+dans les sorties (campagnes/gnn-*-v12.txt). Validation et banc, 5 graines, 150 époques, médiane [min–max] :
+- critère 1, G_val : tient pour les 5 graines ;
+- critère 2, détection au budget de la règle : 153/153 ;
+- critère 3, banc : base fabriquée F_C 0,77 [0,12–0,99], machine fabriquée F_D 0,87 [0,86–0,97] ; réplique seule F_R 0,05 ;
+- critère 4, GNN avec exemples : top-1 115/115 [113–115], détection 153/153, cause 151/153 ; « inconnue » quand une cause
+  est retirée : blocage 72/76, charge 75/75, hôte 78/78, lenteur 75/76.
+Faiblesses à dire : fausses alertes (sans exemples 7/102, avec exemples 14/102, contre 2/102 pour la règle et le tableau) ;
+le GNN sans exemples trouve le fautif 38/115 (règle : 114/115 ; blocage et lenteur 0/38) ; blocage et lenteur retirés :
+repli sans fautif (0/76) ; production, alarme sur 2 minutes : fausses alertes divisées par 1,75 à 3,5, 1 min de retard ;
+les règles restent meilleures (0 fausse alerte). Rien n'est figé : gel à la décision de l'utilisateur.

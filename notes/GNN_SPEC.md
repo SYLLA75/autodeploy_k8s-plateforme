@@ -659,3 +659,24 @@ Si un critère manque : pas de gel, décision avec l'utilisateur.
 mesurée sur la validation (fausses alertes par heure, détection, retard de détection), comme etat.txt le propose
 (E:81). Consigne de l'utilisateur : rendre le GNN le plus performant possible honnêtement avant le gel, et le meilleur
 possible en production.
+
+---
+
+## 16. Compléments écrits avant le gel (29 sept.) : ce que le code du GNN combiné fait et que §14–§15 ne disaient pas
+
+Constats des relecteurs d'E.7 : le code applique déjà ces choix ; ils sont écrits ici, avant tout gel, pour que rien
+de ce qui décide ne reste hors de la spec. Aucun n'a été réglé sur C, D ou le vrai test.
+1. **Rejet E-4, deux règles de plus** : (a) si les logits des causes connues et ceux des causes retirées se
+   chevauchent, le seuil retombe au 5e centile des causes connues (mises de côté injection par injection) ;
+   (b) la cause « charge » (sans fautif) garde le rejet de §5. Coût mesuré (répétition) : charge retirée → blocage
+   top-1 32/38 [22–38] au lieu de 38/38 ; blocage retiré → lenteur 37/38 [31–38].
+2. **« GNN, avec exemples, budget de la règle »** : les deux alarmes (forêt et exemplaire v2) sont calées ensemble,
+   chacune à son k-ième score tenu, avec le plus grand k qui tient 10/121 (budget de la règle mis à l'échelle).
+3. **Mesure de production** (§15, hors décision) : alarme sur 2 minutes de suite ; le retard se compte depuis le
+   début de l'injection ; la mesure répond aussi sur les minutes que le juge écarte (à cheval, vidange), pour ne pas
+   couper la suite des minutes ; 4 minutes normales sans minute précédente sont signalées.
+4. **Variantes** (« GNN sans aucune arête », retrait de chaque relation…) : rendues par `methodes()` en réglage sans
+   exemples, pour le retrait des flèches.
+5. **Ce que coûte le classement v1** (à dire au rapport) : sans exemples, l'exemplaire v2 seul trouvait 76/115 fautifs
+   au top-1 de validation (lenteur 37/38) ; v12 en trouve 38/115 (lenteur 0/38). C'est le prix de F_C 0,77 et F_D 0,87.
+   Les critères 3 et 4 de §15 ne tiennent qu'à la MÉDIANE des graines (une graine : F_C 0,12 ; une autre : top-1 113/115).

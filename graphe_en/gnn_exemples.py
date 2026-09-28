@@ -1,7 +1,7 @@
 """
 Le GNN « avec exemples » : les mêmes droits que le témoin 2 (écart E-2).
 
-    ./.venv/bin/python gnn_exemples.py --verifier [--version v1|v2|v3]
+    ./.venv/bin/python gnn_exemples.py --verifier [--version v12|v1|v2|v3]
     ./.venv/bin/python gnn_exemples.py --validation [--graines n] [--epoques e] [--version v]
                                        [--sans-temoins] [--sans-repetition] [--variantes a,b|toutes]
     ./.venv/bin/python gnn_exemples.py --test [mêmes options]   refusé sans l'étiquette gnn-fige
@@ -94,14 +94,32 @@ LE REJET : ÉCART E-3 PROPOSÉ (à écrire dans la spécification par l'utilisat
   « §5 »            la spécification à la lettre (distance au prototype, seuil de
                     gnn.GNN) : donné à côté dans le tableau, pour comparaison
 
+LE GNN COMBINÉ v12 (écart E-5, §15 ; la version par défaut de gnn.py) : les
+  parties apprises (forêt, régression du fautif, prototypes) lisent les écarts et
+  le plongement de l'exemplaire v2 (sous son choix B/H/V) ; le rejet est celui du
+  logit (E-4, §14, « E-3 » ci-dessus) ; le repli est le classement de l'exemplaire
+  v1 sous B5/H2/V0 ; l'alarme est la forêt OU l'alarme de l'exemplaire v2.
+
+LE BUDGET DE LA RÈGLE (« GNN, avec exemples, budget de la règle », pour decision_c) :
+  les deux alarmes calées ENSEMBLE sur les mêmes normales mises de côté (scores
+  tenus de l'étape 1, probabilités du double croisement) : chacune à son k-ième
+  score, le plus grand k tel que leur union sonne sur au plus b = 21/249 (mis à
+  l'échelle) de ces normales. Les parties apprises ne changent pas.
+
+LA PRODUCTION (§15, rapportée à part, ne change aucune décision) : l'alarme
+  « persistante » (deux minutes de suite), pour chaque GNN et chaque témoin, sur le
+  test de la validation : détection, retard de détection, fausses alertes par heure.
+
 LE SCELLÉ : juge.lire n'est appelé qu'avec fautifs.SERIES ; tout se règle et se
   note sur juge.validation (jamais « hors ») ; --test est refusé tant que
   l'étiquette gnn-fige n'existe pas.
 
 Options :
-  --verifier             les contrôles X1 à X9 (forme, déterminisme, aucun nom,
+  --verifier             les contrôles X1 à X12 (forme, déterminisme, aucun nom,
                          repli, croisement, scellé, double croisement, aucun seuil
-                         ne lit le test), sur toute la validation à 2 époques
+                         ne lit le test, v12 = parties v2 et repli v1, budget de
+                         la règle, mesure de production), sur toute la validation
+                         à 2 époques
   --validation           le tableau de bord sur juge.validation, avec les témoins
                          et la répétition « panne jamais vue » ; écrit
                          <campagnes>/gnn-exemples-validation.txt (-v2, -v3 selon la
@@ -148,7 +166,7 @@ HERE = Path(__file__).resolve().parent
 SORTES = gnn.SORTES
 NOM = "GNN, avec exemples"
 FILS = 4                 # fils de la forêt (des fils, pas des processus ; sans effet sur le résultat)
-PROCESSUS = 5            # entraînements de l'étape 1 en parallèle : au plus 6 processus avec celui-ci
+PROCESSUS = 4            # entraînements de l'étape 1 en parallèle : au plus 6 processus avec celui-ci et le suivi des ressources
 CAUSES_NON_APPRISES = ("normale", "inconnue")
 REJETS = ("E-3", "§5")
 RANG_PAIRES = 500        # rangs des modèles « sans c ni c' » : graine × 1009 + 500 + i, jamais celui d'un pli
@@ -179,7 +197,14 @@ def _version(version: str | None) -> str:
 
 
 def _versions() -> tuple[str, ...]:
-    return tuple(getattr(gnn, "VERSIONS", {"v1": None}))
+    return tuple(getattr(gnn, "TOUTES_VERSIONS", None) or getattr(gnn, "VERSIONS", {"v1": None}))
+
+
+def _exemplaires(version: str | None) -> tuple[str, str]:
+    """(version du modèle de l'alarme, du classement) : v12 (écart E-5, §15) : (v2, v1)."""
+    v = _version(version)
+    f = getattr(gnn, "exemplaires", None)
+    return f(v) if f else (v, v)
 
 
 def _asinh(modele) -> bool:
@@ -188,8 +213,9 @@ def _asinh(modele) -> bool:
 
 
 def _par_identite(version: str) -> bool:
+    """Un exemplaire au moins est-il calé par identité (v2, v3 ; v12 par son alarme v2) ?"""
     versions = getattr(gnn, "VERSIONS", None)
-    return bool(versions and versions[version].get("identite"))
+    return bool(versions and any(versions[v].get("identite") for v in _exemplaires(version)))
 
 
 # ------------------------------------------------------------------------------
@@ -379,9 +405,10 @@ def preparer_paires(fen: list[dict], fige: dict, graines: int, variantes, epoque
     debut = time.perf_counter()
     normales = gnn._normales(fen)
     taches, a_faire = [], []
+    va = _exemplaires(version)[0]         # les parties apprises lisent l'exemplaire de l'alarme
     for v in variantes:
         for g in range(graines):
-            e1 = gnn.etape1(fen, fige, v, g, epoques, **_kw(gnn.etape1, version=version))
+            e1 = gnn.etape1(fen, fige, v, g, epoques, **_kw(gnn.etape1, version=va))
             cle = _cle_e1(e1, normales)
             if cle in _ETATS_PAIRES:
                 continue
@@ -471,7 +498,11 @@ class GNNExemples:
         self.graine, self.variante, self.version, self.rejet = graine, variante, _version(version), rejet
         self.base = gnn.GNN(fen, fige, graine=graine, variante=variante, reglage="avec exemples",
                             **_kw(gnn.GNN, version=version, epoques=epoques))
-        self.e1, self.choix = self.base.etape1, self.base.choix
+        # Les parties apprises lisent l'exemplaire de l'ALARME (v12 : v2, sous son choix) ; le
+        # repli est le classement de la méthode sans exemples (v12 : l'exemplaire v1, B5/H2/V0).
+        self.e1 = getattr(self.base, "etape1_alarme", self.base.etape1)
+        self.choix = getattr(self.base, "choix_alarme", self.base.choix)
+        self.combinee = bool(getattr(self.base, "combinee", False))
         self.lecteur = lecteur(self.e1, self.choix)
         garde = [f for f in fen if f["jeu"] == "apprentissage" and f["etiquette"] not in juge.ECARTEES]
         normales = [f for f in garde if f["etiquette"] == "normale"]
@@ -507,6 +538,7 @@ class GNNExemples:
             d = foret().fit(np_.array([self.lecteur.vue_sans(c, f, self.paires) for f in reste]), y)
             p = d.predict_proba(np_.array([self.lecteur.vue_tenue(c, f, self.paires) for f in ici]))
             probas += [(f["id"], float(x)) for f, x in zip(ici, p[:, list(d.classes_).index(1)])]
+        self.probas = probas                 # (id, probabilité) des normales mises de côté : les budgets
         self.seuil_detecteur = tn._q([p for _, p in probas], 1 - tn.CENTILE / 100) if probas else 1.0
         # Ce que coûtent les deux alarmes ensemble, sur les mêmes fenêtres mises de côté.
         tenu = {i: s for _, i, s in self.base.tenus}
@@ -564,16 +596,45 @@ class GNNExemples:
         self.calage_confiance = (len(injections), len(confiances))
         self.calage_inconnues = (len(self.apprises), len(inconnues), separees)
 
-    def repondre(self, donnees: dict, rejet: str | None = None) -> dict:
-        """La réponse ; `rejet` (« E-3 » ou « §5 ») remplace celui de la méthode, sans rien
-        réapprendre : le tableau donne les deux sur les mêmes apprentissages."""
+    def seuils_au_budget(self, budget) -> tuple[float, float, int, int, int]:
+        """Les deux alarmes (étape 1, forêt) calées ENSEMBLE à un budget (un nom de
+        gnn.BUDGETS, sur 249 minutes, mis à l'échelle) : sur les mêmes normales mises de
+        côté (scores tenus de l'étape 1, probabilités du double croisement), chacune à son
+        k-ième score, le plus grand k tel que leur union sonne sur au plus b d'entre elles.
+        Rend (seuil de l'étape 1, seuil de la forêt, k, union, b)."""
+        tenu = {i: x for _, i, x in self.base.tenus}
+        proba = dict(self.probas)
+        ids = sorted(set(tenu) & set(proba))
+        if len(ids) != len(tenu) or len(ids) != len(proba):
+            raise ValueError("les normales mises de côté de l'étape 1 et de la forêt ne sont pas les mêmes")
+        b = gnn.budget_mis_a_l_echelle(budget, len(ids))
+        for k in range(b, -1, -1):
+            s1 = gnn.seuil_budget([tenu[i] for i in ids], k)
+            sf = gnn.seuil_budget([proba[i] for i in ids], k)
+            union = sum(1 for i in ids if tenu[i] > s1 or proba[i] > sf)
+            if union <= b:
+                return s1, sf, k, union, b
+        raise AssertionError("k = 0 fait toujours tenir le budget")
+
+    def classement(self, donnees: dict, scores1: dict) -> dict:
+        """Le classement du repli : celui de la méthode sans exemples (gnn.GNN) ; pour une
+        version simple, ce sont les scores de l'étape 1 que lit la régression (scores1)."""
+        if not self.combinee:
+            return dict(scores1)
+        return self.base.classement(donnees)[0]
+
+    def repondre(self, donnees: dict, rejet: str | None = None, seuils: tuple[float, float] | None = None) -> dict:
+        """La réponse ; `rejet` (« E-3 » ou « §5 ») remplace celui de la méthode, `seuils`
+        (étape 1, forêt) ses seuils d'alarme, sans rien réapprendre : le tableau donne les
+        autres réglages sur les mêmes apprentissages."""
         rejet = rejet or self.rejet
+        seuil1, seuil_f = seuils or (self.base.seuil, self.seuil_detecteur)
         cles, x, scores1, s, vue = self.lecteur.lignes(donnees)
-        alarme1 = bool(s > self.base.seuil)
+        alarme1 = bool(s > seuil1)
         proba = 0.0
         if self.detecteur is not None:
             proba = float(self.detecteur.predict_proba(np.array([vue]))[0][list(self.detecteur.classes_).index(1)])
-        detecte = proba > self.seuil_detecteur
+        detecte = proba > seuil_f
         logit = self.fautif.decision_function(x) if self.fautif is not None and len(cles) else None
         confiance = float(logit.max()) if logit is not None else -math.inf
         sur = confiance >= self.seuil_confiance
@@ -589,41 +650,55 @@ class GNNExemples:
         if cause not in CAUSES_NON_APPRISES and logit is not None and (rejet == "§5" or sur):
             scores, repli = {c: float(v) for c, v in zip(cles, logit)}, False
         else:
-            scores, repli = dict(scores1), True
+            scores, repli = self.classement(donnees, scores1), True
         return {"alarme": bool(detecte or alarme1), "cause": cause, "scores": scores,
                 "_repli": repli, "_p": proba, "_S": s, "_alarme_etape1": alarme1, "_detecte": bool(detecte),
                 "_sans_rejet": brute, "_confiance": confiance, "_sur": sur}
 
 
-class _AutreRejet:
-    """La même méthode apprise (mêmes forêt, régression, prototypes), avec l'autre rejet."""
+class _AutreReglage:
+    """La même méthode apprise (mêmes forêt, régression, prototypes), avec un autre rejet
+    ou d'autres seuils d'alarme (un budget : GNNExemples.seuils_au_budget)."""
 
-    def __init__(self, t: GNNExemples, rejet: str):
-        self.t, self.rejet = t, rejet
+    def __init__(self, t: GNNExemples, rejet: str, budget=None):
+        self.t, self.rejet, self.budget = t, rejet, budget
+        self.seuils = None
+        if budget is not None:
+            s1, sf, self.k, self.union, self.b = t.seuils_au_budget(budget)
+            self.seuils = (s1, sf)
 
     def repondre(self, donnees: dict) -> dict:
-        return self.t.repondre(donnees, self.rejet)
+        return self.t.repondre(donnees, self.rejet, self.seuils)
 
 
 _FAITS: dict[tuple, tuple] = {}
 
 
-def _fabrique(fen, fige, g, version, variante, epoques, rejet) -> GNNExemples:
-    """Une méthode par (fenêtres, graine, version, variante, époques) : l'entrée « autre
-    rejet » du tableau reprend celle de la méthode principale au lieu de la réapprendre."""
+def _fabrique(fen, fige, g, version, variante, epoques, rejet, budget=None):
+    """Une méthode par (fenêtres, graine, version, variante, époques) : les entrées « autre
+    rejet » et « budget de la règle » du tableau reprennent celle de la méthode principale
+    au lieu de la réapprendre."""
     cle = (id(fen), g, version, variante, epoques)
     if cle not in _FAITS or _FAITS[cle][0] is not fen:
         _FAITS[cle] = (fen, GNNExemples(fen, fige, graine=g, version=version, variante=variante, epoques=epoques,
                                         rejet=rejet))
     t = _FAITS[cle][1]
-    return t if t.rejet == rejet else _AutreRejet(t, rejet)
+    return t if t.rejet == rejet and budget is None else _AutreReglage(t, rejet, budget)
+
+
+NOM_BUDGET = f"{NOM}, budget de la règle"
 
 
 def methodes(fige: dict, epoques: int | None = None, version: str | None = None,
-             variantes=(), rejet: str = "E-3") -> list[tuple[str, object, bool]]:
+             variantes=(), rejet: str = "E-3", budgets: bool = False) -> list[tuple[str, object, bool]]:
     """(nom, fabrique(fen, graine), tire au hasard) : noms commençant par « GNN »
-    (decision_c.methodes) ; une variante de gnn.VARIANTES : « GNN <variante>, avec exemples »."""
+    (decision_c.methodes) ; `budgets` : aussi « GNN, avec exemples, budget de la règle »
+    (les deux alarmes calées ensemble à 21/249) ; une variante de gnn.VARIANTES :
+    « GNN <variante>, avec exemples »."""
     out = [(NOM, lambda fen, g: _fabrique(fen, fige, g, version, "complet", epoques, rejet), True)]
+    if budgets:
+        out.append((NOM_BUDGET, lambda fen, g: _fabrique(fen, fige, g, version, "complet", epoques, rejet, "règle"),
+                    True))
     for v in variantes:
         if v != "complet":
             out.append((f"GNN {v}, avec exemples",
@@ -748,11 +823,12 @@ def verifier(campagnes: Path, runs: Path, version: str | None) -> int:
     for f in test:
         rep = reps[f["id"]]
         cles, x, scores1, _, _ = a.lecteur.lignes(f["donnees"])
+        classement = a.base.classement(f["donnees"])[0] if hasattr(a.base, "classement") else scores1
         if rep["cause"] in a.causes_a_fautif and not rep["_sur"]:
             mauvais.append(f["id"])
         if rep["cause"] in CAUSES_NON_APPRISES or not rep["_sur"]:
             n_repli += 1
-            if rep["scores"] != scores1 or not rep["_repli"]:
+            if rep["scores"] != classement or not rep["_repli"]:
                 mauvais.append(f["id"])
         else:
             n_appris += 1
@@ -760,7 +836,9 @@ def verifier(campagnes: Path, runs: Path, version: str | None) -> int:
             if rep["_repli"] or any(rep["scores"][k] != float(l) for k, l in zip(cles, logit)):
                 mauvais.append(f["id"])
     resultats["X4 repli sur l'étape 1"] = (not mauvais, f"{n_repli} réponses « normale », « inconnue » ou pas "
-                                                         f"sûres classées par l'étape 1, {n_appris} par la régression "
+                                                         f"sûres classées par l'étape 1 (exemplaire "
+                                                         f"{a.base.etape1.version}, {gnn.nom_choix(a.base.choix)}), "
+                                                         f"{n_appris} par la régression "
                                                          f"(seuil de confiance {a.seuil_confiance:.2f})"
                                            + (f" ; {len(mauvais)} fausses, dont {mauvais[0]}" if mauvais else ""))
 
@@ -810,6 +888,56 @@ def verifier(campagnes: Path, runs: Path, version: str | None) -> int:
                                                   f"seuils et régression identiques {memes} ; confiance : "
                                                   f"{_calage_confiance(a)}")
 
+    # X10 (v12, écart E-5, §15) : les parties apprises sont celles de l'exemplaire de
+    # l'alarme (v2) — mêmes seuils, même régression, même forêt, mêmes réponses hors repli
+    # que le GNN avec exemples de la version v2 — et le repli est le classement de
+    # l'exemplaire v1 sous B5/H2/V0 (les scores de gnn.GNN en version v1).
+    va, vc = _exemplaires(version)
+    if va != vc:
+        e2 = GNNExemples(fen, fige, graine=0, version=va, epoques=epo)
+        c1 = gnn.GNN(fen, fige, graine=0, reglage="sans exemples", epoques=epo, version=vc)
+        memes_parts = ((e2.seuil_detecteur, e2.seuil_confiance, e2.seuil_rejet) ==
+                       (a.seuil_detecteur, a.seuil_confiance, a.seuil_rejet)
+                       and np.array_equal(e2.fautif.coef_, a.fautif.coef_) and a.e1 is e2.e1)
+        soucis10 = []
+        for f in test:
+            r12, r2 = reps[f["id"]], e2.repondre(f["donnees"])
+            for k in ("alarme", "cause", "_p", "_S", "_alarme_etape1", "_detecte", "_confiance", "_sur", "_repli"):
+                if r12[k] != r2[k]:
+                    soucis10.append(f"{f['id']} : {k}")
+            attendu = c1.repondre(f["donnees"])["scores"] if r12["_repli"] else r2["scores"]
+            if r12["scores"] != attendu:
+                soucis10.append(f"{f['id']} : scores ({'repli' if r12['_repli'] else 'régression'})")
+        n_repli = sum(1 for r in reps.values() if r["_repli"])
+        resultats["X10 v12 = parties apprises v2, repli v1"] = (
+            memes_parts and not soucis10,
+            f"seuils, régression et lecteur identiques à {va} {memes_parts} ; {len(test)} réponses : alarme, cause, "
+            f"probabilité, confiance identiques à {va}, scores = régression ou, au repli ({n_repli}), ceux de "
+            f"{vc} {gnn.nom_choix(c1.choix)}" + (f" ; {len(soucis10)} soucis, dont {soucis10[0]}" if soucis10 else ""))
+
+    # X11 : le budget de la règle. Les deux alarmes calées ensemble sonnent sur au plus b des
+    # normales mises de côté, et k est le plus grand qui tient ; les réponses ne diffèrent
+    # de la méthode que par l'alarme (et la cause qui en dépend).
+    s1, sf, k, union, b = a.seuils_au_budget("règle")
+    tenu = {i: x for _, i, x in a.base.tenus}
+    proba = dict(a.probas)
+    recompte = sum(1 for i in tenu if tenu[i] > s1 or proba[i] > sf)
+    plus = k + 1
+    trop = sum(1 for i in tenu if tenu[i] > gnn.seuil_budget(list(tenu.values()), plus)
+               or proba[i] > gnn.seuil_budget(list(proba.values()), plus)) > b if plus <= b else True
+    ab = _AutreReglage(a, a.rejet, "règle")
+    diff11 = []
+    for f in test:
+        rb, r0 = ab.repondre(f["donnees"]), reps[f["id"]]
+        if (rb["_p"], rb["_S"], rb["_confiance"]) != (r0["_p"], r0["_S"], r0["_confiance"]) \
+                or rb["alarme"] != (rb["_S"] > s1 or rb["_p"] > sf):
+            diff11.append(f["id"])
+    resultats["X11 budget de la règle"] = (
+        recompte == union <= b and trop and not diff11,
+        f"b = {b}/{len(tenu)} ; k = {k} ; les deux alarmes ensemble sur {union} normales mises de côté ; k + 1 "
+        f"dépasserait {trop} ; seuils étape 1 {s1:.3f}, forêt {sf:.3f} ; {len(test)} réponses : ne diffèrent que "
+        f"par l'alarme {not diff11}" + (f" ; fausses : {diff11[:3]}" if diff11 else ""))
+
     # X7 : le mode test est refusé sans gnn-fige.
     if gnn.scelle_ouvert():
         resultats["X7 test refusé sans gnn-fige"] = (True, "l'étiquette existe ici : refus non éprouvé")
@@ -818,8 +946,32 @@ def verifier(campagnes: Path, runs: Path, version: str | None) -> int:
             code = main(["gnn_exemples.py", "--test", "--graines", "1", "--epoques", "1"])
         resultats["X7 test refusé sans gnn-fige"] = (code == 1, f"--test rend le code {code}")
 
+    # X12 : la mesure de production (§15). Deux alarmes fabriquées, sans modèle : A sonne sur
+    # les fenêtres de panne seules, B aussi sur la minute à cheval du début. Le retard se compte
+    # depuis le début de l'injection : A 1 minute = 1 si l'injection a une minute à cheval, sinon
+    # 0 ; B 1 minute = 0 ; la persistante d'une alarme qui ne sonne sur aucune minute normale
+    # arrive une minute après celle d'une minute, pour chaque injection.
+    tr = terrain_production(fen)
+    soucis = []
+    for nom_a, sonne in (("A", lambda f: f["etiquette"] == "panne"),
+                         ("B", lambda f: f["etiquette"] == "panne" or any(f is fs[0] and f["etiquette"] == "a_cheval"
+                                                                          for fs in tr["debuts"].values()))):
+        a1 = {f["id"]: sonne(f) for f in tr["tous"]}
+        r1 = retards_par_injection(a1, tr)
+        rp = retards_par_injection(persistante(a1, tr["avant"]), tr)
+        for cle, fs in tr["debuts"].items():
+            attendu = 1 if nom_a == "A" and fs[0]["etiquette"] == "a_cheval" else 0
+            if r1[cle] != attendu or rp[cle] != attendu + 1:
+                soucis.append(f"{nom_a} {cle} : {r1[cle]} et {rp[cle]} au lieu de {attendu} et {attendu + 1}")
+    sans_prec = sorted({f["campagne"] for f in tr["nv"] if tr["avant"][f["id"]] is None})
+    resultats["X12 mesure de production"] = (
+        not soucis, f"{len(tr['debuts'])} injections dont {tr['a_cheval']} commencent sur une minute à cheval ; "
+                    f"retards de deux alarmes fabriquées comme prévu (persistante = 1 minute + 1) ; "
+                    f"{len(tr['nv']) - len(tr['nv_p'])} minutes normales non vues sans précédente "
+                    f"({', '.join(sans_prec)})" + (f" ; {len(soucis)} soucis, dont {soucis[0]}" if soucis else ""))
+
     echecs = 0
-    for nom, (ok, detail) in sorted(resultats.items()):
+    for nom, (ok, detail) in sorted(resultats.items(), key=lambda x: int(x[0].split()[0][1:])):
         print(f"{nom:<32} {'réussi' if ok else 'ÉCHEC'}  ({detail})")
         echecs += not ok
     print("TOUT PASSE" if not echecs else f"{echecs} ÉCHEC(S)")
@@ -832,10 +984,12 @@ def verifier(campagnes: Path, runs: Path, version: str | None) -> int:
 def _entrees(fige: dict, epoques, version, variantes, rejet: str = "E-3") -> list[tuple[str, object]]:
     kw = _kw(gnn.GNN, version=version, epoques=epoques)
     autre = REJETS[1] if rejet == REJETS[0] else REJETS[0]
-    out = [(nom, fab) for nom, fab, _ in methodes(fige, epoques, version, variantes, rejet)]
-    out.insert(1, (nom_autre(rejet), lambda fen, g: _fabrique(fen, fige, g, version, "complet", epoques, autre)))
-    out.insert(2, ("GNN, sans exemples", lambda fen, g: gnn.GNN(fen, fige, graine=g, reglage="sans exemples", **kw)))
-    out.insert(3, ("GNN, étape 1 + prototypes (avant E-2)", lambda fen, g: gnn.GNN(fen, fige, graine=g, **kw)))
+    out = [(nom, fab) for nom, fab, _ in methodes(fige, epoques, version, variantes, rejet, budgets=True)]
+    out.insert(2, (nom_autre(rejet), lambda fen, g: _fabrique(fen, fige, g, version, "complet", epoques, autre)))
+    out.insert(3, ("GNN, sans exemples", lambda fen, g: gnn.GNN(fen, fige, graine=g, reglage="sans exemples", **kw)))
+    out.insert(4, ("GNN, sans exemples, budget de la règle",
+                   lambda fen, g: gnn.GNN(fen, fige, graine=g, reglage="sans exemples", budget="règle", **kw)))
+    out.insert(5, ("GNN, étape 1 + prototypes (avant E-2)", lambda fen, g: gnn.GNN(fen, fige, graine=g, **kw)))
     return out
 
 
@@ -852,12 +1006,130 @@ def _notes(fen, fige, graines, epoques, version, variantes, sans_temoins, brutes
             rep = {i: _propre(r) for i, r in b.items()}
             n[nom].append((juge.noter(fen, rep)[1], rep))
             brutes[nom].append((t, b))
-    if sans_temoins:
-        rep = juge.factices(fen)["a priori"]
-        n["a priori (ne lit rien)"] = [(juge.noter(fen, rep)[1], rep)]
-    else:
-        n.update(temoins_module.notes(fen, fige, graines))
+    if not sans_temoins:
+        # temoins.notes recopié, en gardant chaque témoin appris (pour la production, §15).
+        for nom, fabrique, hasard in temoins_module.temoins(fige):
+            n[nom], brutes[nom] = [], []
+            for g in range(graines if hasard else 1):
+                t = fabrique(fen, g)
+                rep = temoins_module.repondre(t, fen)
+                n[nom].append((juge.noter(fen, rep)[1], rep))
+                brutes[nom].append((t, rep))
+    rep = juge.factices(fen)["a priori"]
+    n["a priori (ne lit rien)"] = [(juge.noter(fen, rep)[1], rep)]
     return n
+
+
+PERSISTANCE = 2          # minutes de suite (§15, etat.txt E:81)
+
+
+def terrain_production(fen: list[dict]) -> dict:
+    """Les minutes du test de la validation pour la mesure de production : la minute
+    précédente de chacune (même campagne, dans le test ; None sinon), les fenêtres de
+    panne par injection, et le DÉBUT de chaque injection : la minute à cheval juste avant
+    sa première fenêtre de panne, s'il y en a une (l'injection y commence), sinon la
+    première fenêtre de panne."""
+    tous = [f for f in fen if f["jeu"] == "test"]
+    place = {(f["campagne"], f["numero"]): f for f in tous}
+    avant = {f["id"]: place.get((f["campagne"], f["numero"] - 1)) for f in tous}
+    pannes = [f for f in tous if f["etiquette"] == "panne"]
+    nv = [f for f in tous if f["etiquette"] == "normale" and not f["vue"]]
+    injections: dict = {}
+    for f in pannes:
+        injections.setdefault((f["campagne"], f["injection"]), []).append(f)
+    debuts, a_cheval = {}, 0
+    for cle, fs in injections.items():
+        fs.sort(key=lambda f: f["numero"])
+        v = avant[fs[0]["id"]]
+        if v is not None and v["etiquette"] == "a_cheval":
+            debuts[cle] = [v] + fs
+            a_cheval += 1
+        else:
+            debuts[cle] = fs
+    return {"tous": tous, "avant": avant, "pannes": pannes, "nv": nv,
+            "nv_p": [f for f in nv if avant[f["id"]] is not None],
+            "vues": [f for f in tous if f["etiquette"] == "normale" and f["vue"]],
+            "injections": injections, "debuts": debuts, "a_cheval": a_cheval}
+
+
+def persistante(alarme: dict, avant: dict) -> dict:
+    """{id : l'alarme sonne à cette minute ET à la précédente} (PERSISTANCE = 2)."""
+    return {i: alarme[i] and avant[i] is not None and alarme[avant[i]["id"]] for i in alarme}
+
+
+def retards_par_injection(a: dict, tr: dict) -> dict:
+    """{injection : minutes depuis son début jusqu'à la première alarme (None : jamais)}."""
+    return {cle: next((f["numero"] - fs[0]["numero"] for f in fs if a[f["id"]]), None)
+            for cle, fs in tr["debuts"].items()}
+
+
+def production(fen: list[dict], brutes: dict) -> list[str]:
+    """
+    §15, rapporté à part (ne change aucune décision) : l'alarme « persistante » sonne à
+    la minute i si l'alarme sonne aux minutes i et i − 1 de la même campagne (fenêtres
+    d'une minute, contiguës). Sur le test de la validation ; les minutes écartées du
+    juge (à cheval, vidange) sont aussi répondues, pour ne pas couper la suite. Pour
+    chaque méthode, graine par graine, médiane [min–max] : détection (fenêtres de panne,
+    injections), retard de détection, fausses alertes (minutes normales non vues ;
+    épisodes et par heure ; saine-09 à part). La même chose pour l'alarme d'une minute.
+    Le retard se compte depuis le DÉBUT de l'injection : la minute à cheval où elle
+    commence quand il y en a une (juge : « a_cheval » juste avant la première fenêtre de
+    panne), sinon la première fenêtre de panne ; une alarme sur la minute à cheval compte,
+    pour l'alarme d'une minute comme pour la persistante (sans quoi la persistante
+    paraîtrait aussi rapide que l'autre alors qu'elle sonne au moins une minute après
+    elle). Les minutes normales non vues sans minute précédente dans le test ne peuvent
+    pas donner d'alarme persistante : les fausses alertes sont aussi données sur les
+    seules minutes qui ont une précédente, pour les deux alarmes.
+    """
+    tr = terrain_production(fen)
+    tous, avant, pannes, nv, nv_p, vues = (tr[k] for k in ("tous", "avant", "pannes", "nv", "nv_p", "vues"))
+    injections, a_cheval = tr["injections"], tr["a_cheval"]
+    heures = len(nv) / 60
+    m = statistics.median
+
+    def case(v: list, total=None, fmt="{:g}") -> str:
+        t = fmt.format(m(v)) + (f"/{total}" if total is not None else "")
+        return t + (f" [{fmt.format(min(v))}–{fmt.format(max(v))}]" if min(v) != max(v) else "")
+
+    out = [f"# {len(pannes)} fenêtres de panne, {len(injections)} injections ; {len(nv)} minutes normales non vues "
+           f"({heures:.2f} h ; {len(nv_p)} ont une minute précédente dans le test, les {len(nv) - len(nv_p)} autres ne "
+           f"peuvent pas donner d'alarme persistante), {len(vues)} de saine-09 ; persistante = {PERSISTANCE} minutes "
+           f"de suite ; retard en minutes depuis le début de l'injection, la minute à cheval où elle commence "
+           f"({a_cheval} injections sur {len(injections)}) ou sinon la première fenêtre de panne (0 : l'alarme sonne "
+           f"dès cette minute ; la persistante ne peut sonner qu'à partir de la minute suivante, sauf si la minute "
+           f"d'avant, normale, avait déjà sonné) ; « jamais » : injections non détectées"]
+    for nom, liste in brutes.items():
+        res = {"1": [], "p": []}
+        for t, rep in liste:
+            alarme = {}
+            for f in tous:
+                r = rep.get(f["id"])
+                alarme[f["id"]] = bool((r if r is not None else t.repondre(f["donnees"]))["alarme"])
+            for cle, a in (("1", alarme), ("p", persistante(alarme, avant))):
+                par_inj = retards_par_injection(a, tr)
+                retards = [x for x in par_inj.values() if x is not None]
+                jamais = len(par_inj) - len(retards)
+                episodes = sum(1 for f in nv if a[f["id"]] and not (avant[f["id"]] is not None
+                                                                     and avant[f["id"]]["etiquette"] == "normale"
+                                                                     and not avant[f["id"]]["vue"]
+                                                                     and a[avant[f["id"]]["id"]]))
+                res[cle].append({"det": sum(1 for f in pannes if a[f["id"]]), "inj": len(injections) - jamais,
+                                 "retard": m(retards) if retards else math.inf, "jamais": jamais,
+                                 "fa": sum(1 for f in nv if a[f["id"]]), "ep": episodes,
+                                 "fa_p": sum(1 for f in nv_p if a[f["id"]]),
+                                 "fa_vues": sum(1 for f in vues if a[f["id"]])})
+        out.append(f"{nom}  ({len(liste)} graine{'s' if len(liste) > 1 else ''})")
+        for cle, titre in (("1", "1 minute   "), ("p", "persistante")):
+            r = res[cle]
+            g = lambda k: [x[k] for x in r]
+            ret = [x for x in g("retard") if math.isfinite(x)]
+            out.append(f"    {titre} détection {case(g('det'), len(pannes))} ; injections {case(g('inj'), len(injections))}"
+                       f" ; retard médian {case(ret, fmt='{:g}') + ' min' if ret else 'jamais'} ; fausses alertes "
+                       f"{case(g('fa'), len(nv))} min ({case(g('fa_p'), len(nv_p))} sur celles qui ont une "
+                       f"précédente), {case(g('ep'))} épisodes, "
+                       f"{case([x / heures for x in g('ep')], fmt='{:.1f}')} par heure ; saine-09 "
+                       f"{case(g('fa_vues'), len(vues))}")
+    return out
 
 
 def _repli(fen: list[dict], brutes: list[tuple], cause: str | None = None) -> str:
@@ -909,10 +1181,19 @@ def _en_tete(t: GNNExemples) -> list[str]:
     b, e1 = t.base, t.e1
     n = len(b.tenus)
     b25 = gnn.budget_mis_a_l_echelle("score par nœud, avec", n) if hasattr(gnn, "budget_mis_a_l_echelle") else None
-    return [
-        f"# étape 1 version {t.version} ({e1.variante}, graine {e1.graine}) : {e1.epoques} époques, "
-        f"{len(e1.campagnes)} plis ; empreinte {e1.empreinte[:16]} ; post-traitement {gnn.nom_choix(t.choix)} "
-        f"(celui de gnn.py pour cette version)",
+    s1, sf, k, union, b21 = t.seuils_au_budget("règle")
+    lignes = [
+        f"# version {t.version} ; exemplaire de l'alarme et des parties apprises : étape 1 version {e1.version} "
+        f"({e1.variante}, graine {e1.graine}) : {e1.epoques} époques, {len(e1.campagnes)} plis ; empreinte "
+        f"{e1.empreinte[:16]} ; post-traitement {gnn.nom_choix(t.choix)} (celui de gnn.py pour cette version)"]
+    if t.combinee:
+        c = b.etape1
+        lignes.append(f"#   exemplaire du classement (le repli) : étape 1 version {c.version} ; empreinte "
+                      f"{c.empreinte[:16]} ; post-traitement {gnn.nom_choix(b.choix)} (écart E-5, §15)")
+    return lignes + [
+        f"#   budget de la règle ({b21}/{n}) : les deux alarmes calées ensemble, chacune à son {k}e score tenu "
+        f"(étape 1 au-dessus de {s1:.3f}, forêt au-dessus de {sf:.3f}) ; elles sonnent ensemble sur {union}/{n} "
+        f"normales mises de côté",
         f"#   alarme de l'étape 1 au-dessus de {b.seuil:.3f} ({b.calage_alarme[0]}/{b.calage_alarme[1]} scores tenus "
         f"au-dessus)",
         f"#   détecteur : forêt de {tn.ARBRES} arbres sur le profil + S ({t.croisees[0]}/{t.croisees[1]} fenêtres "
@@ -1032,6 +1313,9 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques, version, variant
         import temoin_tableau
         print(f"\n# {NOM}, sur {graines} graines : chaque nombre de la note")
         print("\n".join(temoin_tableau._resume_graines([c for c, _ in n[NOM]])))
+    print("\n== 4 bis. production (§15, rapporté à part, ne change aucune décision) : alarme persistante, "
+          f"{PERSISTANCE} minutes de suite, sur le test de la validation")
+    print("\n".join(production(fen, {k: v for k, v in brutes.items() if k != nom_autre(rejet)})))
     if avec_repetition:
         print("\n== 5. répétition « panne jamais vue » (une cause connue retirée de l'apprentissage ; "
               "le repli doit s'y voir)")

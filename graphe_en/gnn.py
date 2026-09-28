@@ -1,9 +1,9 @@
 """
 Le GNN : reconstruire le normal de chaque nœud par ses voisins, puis nommer la cause.
 
-    ./.venv/bin/python gnn.py --verifier [--version v1|v2|v3]
+    ./.venv/bin/python gnn.py --verifier [--version v12|v1|v2|v3]
     ./.venv/bin/python gnn.py --validation [--graines n] [--epoques e] [--sans-temoins]
-                              [--variantes a,b|toutes] [--repetition] [--version v1|v2|v3]
+                              [--variantes a,b|toutes] [--repetition] [--version v12|v1|v2|v3]
     ./.venv/bin/python gnn.py --repetition [mêmes options]
     ./.venv/bin/python gnn.py --test [mêmes options]       refusé sans l'étiquette gnn-fige
 
@@ -67,6 +67,19 @@ LES TROIS VERSIONS DE L'ÉTAPE 1 (écart E-1, §11 de la spécification, fixées
   La version entre dans la clé du cache et le nom des sorties, et s'imprime à côté
   de l'empreinte (qui reste le sha256 du §8, sans la version).
 
+LE GNN COMBINÉ v12 (écart E-5, §15, écrit avant tout calcul ; VERSION par défaut) :
+  deux exemplaires du même modèle, appris à part sur les mêmes normales et les
+  mêmes graines (chacun a son cache, ses plis, son calage, son empreinte) :
+    alarme      l'exemplaire v2 : son score de fenêtre sous SON choix (B2/H0/V1),
+                son seuil propre et ses budgets (§4) ; la cause (prototypes du §5)
+                sur ses profils d'écart ;
+    classement  l'exemplaire v1 sous le CHOIX B5/H2/V0 (celui que §13 donne à v1).
+  methodes() rend les quatre noms de decision_c (« GNN, sans exemples », « GNN, sans
+  exemples, budget de la règle », « GNN, avec exemples », « GNN, avec exemples,
+  budget de la règle » ; les deux derniers par gnn_exemples.py sur la même version),
+  puis les variantes (sans exemples) ; empreintes() rend l'empreinte de chaque modèle
+  (modèles finaux, plis, et les modèles « sans c ni c' » de l'avec exemples).
+
 L'ALARME : le plus haut score de nœud de la fenêtre, celui qui sert au classement.
   Seuil propre : 95e centile des scores des normales tenues hors pli ; face à une
   autre méthode, son budget (BUDGETS, sur 249 minutes, mis à l'échelle si N ≠ 249).
@@ -85,8 +98,10 @@ LE SCELLÉ : juge.lire n'est appelé qu'avec fautifs.SERIES ; --validation et
 
 Options :
   --verifier             les contrôles T1 à T4, T6, T7 de la spécification, T12
-                         (le calage de la sortie) et T13 (l'empreinte), sur 20 fenêtres de validation et
-                         2 époques, pour la version donnée
+                         (le calage de la sortie), T13 (l'empreinte), T15 (les
+                         empreintes de tous les modèles), T16 (les noms de
+                         decision_c) et, pour v12, T14 (alarme = v2, classement =
+                         v1 B5/H2/V0), sur 20 fenêtres de validation et 2 époques
   --validation           le tableau de bord sur juge.validation ; écrit
                          <campagnes>/gnn-validation.txt
   --repetition           la répétition « panne jamais vue », dans la validation
@@ -96,8 +111,9 @@ Options :
   --sans-temoins         ne recalcule pas les témoins (seulement « a priori »)
   --variantes <liste>    variantes en plus du complet, séparées par des virgules,
                          ou « toutes »
-  --version <v>          v1 (défaut), v2 ou v3 ; les sorties d'une version autre
-                         que v1 portent son nom (gnn-validation-v2.txt)
+  --version <v>          v12 (défaut, le GNN combiné), v1, v2 ou v3 ; les sorties
+                         d'une version autre que v1 portent son nom
+                         (gnn-validation-v12.txt)
   --campaigns <dossier>  le dossier des dossiers de campagne (défaut ../campagnes)
   --runs <dossier>       où sont les runs (défaut runs)
   --help                 ce texte
@@ -154,7 +170,7 @@ LR = 3e-3
 WD = 1e-4
 EPOQUES = 150
 LOT = 16
-PROCESSUS = 6            # au plus 6 entraînements en parallèle sur vms0
+PROCESSUS = 4            # au plus 4 entraînements en parallèle sur vms0 : 6 processus avec le principal et le suivi des ressources de multiprocessing (spawn)
 CENTILE = 95
 
 # Les budgets de fausses alertes des témoins, sur 249 minutes normales mises de
@@ -190,8 +206,52 @@ CHOIX_SOURCES = {v: f"fixé par campagnes/{'gnn-banc-validation.txt' if v == 'v1
 VERSIONS = {"v1": {"masque": True, "asinh": True, "identite": False},
             "v2": {"masque": True, "asinh": False, "identite": True},
             "v3": {"masque": False, "asinh": False, "identite": True}}
-VERSION = "v1"
 GOULOT = 8               # v3 : la dimension du plongement final, lu seul par les décodeurs
+# Le GNN combiné (écart E-5, §15 de la spécification, écrit avant tout calcul) : deux
+# exemplaires du même modèle, appris à part sur les mêmes normales et les mêmes graines,
+# chacun dans sa version ; l'ALARME est celle de l'exemplaire v2 (son score de fenêtre
+# sous SON choix B/H/V, son seuil propre et ses budgets, §4), le CLASSEMENT celui de
+# l'exemplaire v1 sous le CHOIX B5/H2/V0 que §13 donne à v1. Aucune identité n'entre
+# dans aucun des deux modèles. C'est la version par défaut.
+COMBINEES = {"v12": {"alarme": "v2", "classement": "v1"}}
+TOUTES_VERSIONS = tuple(VERSIONS) + tuple(COMBINEES)
+VERSION = "v12"
+# Ce qui travaille sur UN modèle (Reconstructeur, entrainer, charger, Calage, Etape1,
+# etape1) prend une version de VERSIONS, jamais une combinée ; v1 par défaut, comme avant v12.
+MODELE_DEFAUT = "v1"
+CHOIX_VERSIONS["v12"] = CHOIX_VERSIONS[COMBINEES["v12"]["classement"]]
+CHOIX_SOURCES["v12"] = ("celui de l'exemplaire v1 (§15 : B5/H2/V0, fixé par campagnes/gnn-banc-validation.txt, "
+                        "5 graines, 150 époques) ; l'alarme vient de l'exemplaire v2 sous son propre choix "
+                        f"{'/'.join(CHOIX_VERSIONS['v2'].values())}")
+
+
+def exemplaires(version: str) -> tuple[str, str]:
+    """(version du modèle de l'ALARME, version du modèle du CLASSEMENT) : les deux sont
+    la même pour v1, v2, v3 ; v12 : (v2, v1)."""
+    if version in COMBINEES:
+        return COMBINEES[version]["alarme"], COMBINEES[version]["classement"]
+    if version in VERSIONS:
+        return version, version
+    raise ValueError(f"version inconnue : {version}")
+
+
+def modeles_de(version: str) -> tuple[str, ...]:
+    """Les versions de modèle à apprendre pour une version (une, ou deux pour v12)."""
+    return tuple(dict.fromkeys(exemplaires(version)))
+
+
+def decrire(version: str) -> str:
+    """Une ligne qui dit ce qu'est la version."""
+    def un(v: str) -> str:
+        cfg = VERSIONS[v]
+        return (f"{'masque' if cfg['masque'] else f'auto-encodeur sans masque, goulot {GOULOT}'}, "
+                f"{'asinh' if cfg['asinh'] else 'sans asinh'}, calage {'par identité' if cfg['identite'] else 'par sorte'}")
+    if version in COMBINEES:
+        va, vc = exemplaires(version)
+        return (f"GNN combiné (écart E-5, §15) : alarme = exemplaire {va} ({un(va)}, choix "
+                f"{'/'.join(CHOIX_VERSIONS[va].values())}) ; classement = exemplaire {vc} ({un(vc)}, choix "
+                f"{'/'.join(CHOIX_VERSIONS[version].values())}) ; mêmes normales, mêmes graines")
+    return un(version)
 
 # Les variantes du retrait des flèches (§6) : relations du passage de messages,
 # canal d'arête, un seul W lié, flèches notées, relations lues par V (H2 lit toujours
@@ -344,7 +404,7 @@ class Reconstructeur(nn.Module):
     que ce plongement final.
     """
 
-    def __init__(self, dims: dict, variante: str = "complet", version: str = VERSION):
+    def __init__(self, dims: dict, variante: str = "complet", version: str = MODELE_DEFAUT):
         super().__init__()
         cfg = VARIANTES[variante]
         self.dims, self.lie = dims, cfg["lie"]
@@ -443,7 +503,7 @@ def _un_fil() -> None:
 
 
 def entrainer(graphes: list[Graphe], dims: dict, variante: str, graine: int, rang_pli: int,
-              epoques: int = EPOQUES, version: str = VERSION) -> tuple[dict, dict]:
+              epoques: int = EPOQUES, version: str = MODELE_DEFAUT) -> tuple[dict, dict]:
     """(state_dict, informations). Déterministe : graine × 1009 + rang_pli, un fil.
     Les graphes sont convertis pour la version (asinh ou non)."""
     _un_fil()
@@ -515,7 +575,7 @@ def entrainer_tous(taches: list[tuple], graphes: dict) -> list[tuple[dict, dict]
         return [_des_octets(b) for b in ex.map(_tache, taches)]
 
 
-def charger(etat: dict, dims: dict, variante: str, version: str = VERSION) -> Reconstructeur:
+def charger(etat: dict, dims: dict, variante: str, version: str = MODELE_DEFAUT) -> Reconstructeur:
     modele = Reconstructeur(dims, variante, version)
     modele.load_state_dict(etat)
     return modele.eval()
@@ -871,7 +931,7 @@ class Calage:
     par sorte ou par relation. L'identité ne cale que la sortie : le modèle ne la
     voit jamais."""
 
-    def __init__(self, sorties: list[Sortie], variante: str, notees: list[str], version: str = VERSION):
+    def __init__(self, sorties: list[Sortie], variante: str, notees: list[str], version: str = MODELE_DEFAUT):
         self.variante, self.notees, self.sorties = variante, list(notees), sorties
         self.version = version
         self.par_identite = VERSIONS[version]["identite"]
@@ -981,7 +1041,7 @@ class Calage:
 # L'étape 1 : le modèle final, les plis, les résidus tenus
 # ------------------------------------------------------------------------------
 def _taches(normales: list[dict], dims: dict, variante: str, graine: int, epoques: int,
-            version: str = VERSION) -> list[tuple]:
+            version: str = MODELE_DEFAUT) -> list[tuple]:
     """Le modèle final (rang 0), puis un pli par campagne dans l'ordre trié (rang 1 à n)."""
     campagnes = sorted({f["campagne"] for f in normales})
     ids = lambda garde: tuple(id(f["donnees"]) for f in garde)
@@ -1007,7 +1067,7 @@ class Etape1:
     """
 
     def __init__(self, normales: list[dict], fige: dict, variante: str = "complet", graine: int = 0,
-                 epoques: int = EPOQUES, etats: list[tuple[dict, dict]] | None = None, version: str = VERSION):
+                 epoques: int = EPOQUES, etats: list[tuple[dict, dict]] | None = None, version: str = MODELE_DEFAUT):
         if variante not in VARIANTES:
             raise ValueError(f"variante inconnue : {variante}")
         if version not in VERSIONS:
@@ -1027,6 +1087,9 @@ class Etape1:
         self.modele = charger(etats[0][0], self.dims, variante, version)
         self.plis = {c: charger(etats[r][0], self.dims, variante, version) for r, c in enumerate(self.campagnes, 1)}
         self.empreinte = empreinte(etats[0][0])   # §8 : sha256 de torch.save en mémoire
+        # Toutes les empreintes (modèle final et plis : les plis calent le seuil), pour empreintes().
+        self.empreintes = {"modèle final": self.empreinte,
+                           **{f"pli sans {c}": empreinte(etats[r][0]) for r, c in enumerate(self.campagnes, 1)}}
         self.tenues = {c: [(f["id"], residus(self.plis[c], f["donnees"])) for f in normales if f["campagne"] == c]
                        for c in self.campagnes}
         notees = self.modele.notees
@@ -1056,7 +1119,7 @@ class Etape1:
 _CACHE: dict[tuple, Etape1] = {}
 
 
-def _cle_cache(normales: list[dict], variante: str, graine: int, epoques: int, version: str = VERSION) -> tuple:
+def _cle_cache(normales: list[dict], variante: str, graine: int, epoques: int, version: str = MODELE_DEFAUT) -> tuple:
     return (version, variante, graine, epoques, frozenset(f["id"] for f in normales))
 
 
@@ -1065,7 +1128,7 @@ def _normales(fen: list[dict]) -> list[dict]:
 
 
 def etape1(fen: list[dict], fige: dict, variante: str = "complet", graine: int = 0,
-           epoques: int = EPOQUES, version: str = VERSION) -> Etape1:
+           epoques: int = EPOQUES, version: str = MODELE_DEFAUT) -> Etape1:
     """L'étape 1 apprise sur les normales d'apprentissage de `fen`, gardée en mémoire."""
     normales = _normales(fen)
     cle = _cle_cache(normales, variante, graine, epoques, version)
@@ -1076,24 +1139,62 @@ def etape1(fen: list[dict], fige: dict, variante: str = "complet", graine: int =
 
 def preparer(fen: list[dict], fige: dict, graines: int = 5, variantes=tuple(VARIANTES),
              epoques: int = EPOQUES, version: str = VERSION) -> float:
-    """Tous les entraînements manquants en une fois, en parallèle. Rend la durée (s)."""
+    """Tous les entraînements manquants en une fois, en parallèle. Rend la durée (s).
+    Une version combinée (v12) apprend ses deux exemplaires (v2 et v1), l'un après l'autre."""
     debut = time.perf_counter()
     normales = _normales(fen)
-    graphes = {id(f["donnees"]): convertir(f["donnees"], VERSIONS[version]["asinh"]) for f in normales}
     dims = dimensions(fige)
-    a_faire, taches = [], []
+    for mv in modeles_de(version):
+        a_faire, taches = [], []
+        for v in variantes:
+            for g in range(graines):
+                cle = _cle_cache(normales, v, g, epoques, mv)
+                if cle in _CACHE:
+                    continue
+                t = _taches(normales, dims, v, g, epoques, mv)
+                a_faire.append((cle, v, g, len(taches), len(t)))
+                taches += t
+        if not taches:
+            continue
+        graphes = {id(f["donnees"]): convertir(f["donnees"], VERSIONS[mv]["asinh"]) for f in normales}
+        etats = entrainer_tous(taches, graphes)
+        for cle, v, g, debut_t, n in a_faire:
+            _CACHE[cle] = Etape1(normales, fige, v, g, epoques, etats=etats[debut_t:debut_t + n], version=mv)
+    return time.perf_counter() - debut
+
+
+def empreintes(fen: list[dict], fige: dict, graines: int = 5, epoques: int = EPOQUES, version: str = VERSION,
+               variantes=tuple(VARIANTES), avec_exemples: bool = True) -> dict[str, str]:
+    """
+    {clé : sha256 de torch.save en mémoire (§8)} de tous les modèles qui entrent dans les
+    décisions (decision_c.empreintes_du_gnn) : pour chaque variante de methodes(), chaque
+    graine et chaque exemplaire (v12 : l'alarme v2 et le classement v1), le modèle final
+    ET chaque pli (ils calent le seuil) ; et, pour « GNN, avec exemples » (complet), les
+    modèles « sans c ni c' » de l'exemplaire de l'alarme, qui calent le seuil de sa forêt
+    (gnn_exemples). Ce qui manque est appris (mêmes caches que les réponses). La forêt et
+    les régressions (scikit-learn) n'ont pas d'empreinte : elles se refont, déterministes
+    par graine, sur ces modèles.
+    """
+    preparer(fen, fige, graines, variantes, epoques, version)
+    va, vc = exemplaires(version)
+    roles = [(va, "alarme et classement")] if va == vc else [(va, "alarme"), (vc, "classement")]
+    out = {}
     for v in variantes:
         for g in range(graines):
-            cle = _cle_cache(normales, v, g, epoques, version)
-            if cle in _CACHE:
-                continue
-            t = _taches(normales, dims, v, g, epoques, version)
-            a_faire.append((cle, v, g, len(taches), len(t)))
-            taches += t
-    etats = entrainer_tous(taches, graphes)
-    for cle, v, g, debut_t, n in a_faire:
-        _CACHE[cle] = Etape1(normales, fige, v, g, epoques, etats=etats[debut_t:debut_t + n], version=version)
-    return time.perf_counter() - debut
+            for mv, role in roles:
+                e1 = etape1(fen, fige, v, g, epoques, mv)
+                for nom, sha in e1.empreintes.items():
+                    out[f"{version} {v} exemplaire {mv} ({role}) graine {g} {nom}"] = sha
+    if avec_exemples:
+        import gnn_exemples           # import paresseux : gnn_exemples importe gnn
+        gnn_exemples.preparer_paires(fen, fige, graines, ("complet",), epoques, version)
+        normales = _normales(fen)
+        for g in range(graines):
+            e1 = etape1(fen, fige, "complet", g, epoques, va)
+            for (a, b), etat in gnn_exemples._ETATS_PAIRES[gnn_exemples._cle_e1(e1, normales)].items():
+                out[f"{version} complet exemplaire {va} (alarme, avec exemples) graine {g} modèle sans {a} ni {b}"] = \
+                    empreinte(etat)
+    return out
 
 
 # ------------------------------------------------------------------------------
@@ -1134,6 +1235,11 @@ class GNN:
     La méthode, comme un témoin : fabriquée sur toutes les fenêtres (elle filtre
     elle-même l'apprentissage), elle répond fenêtre par fenêtre sur les seuls
     nombres, flèches et noms de la fenêtre.
+
+    Deux étapes 1 : `etape1_alarme` (son score de fenêtre sous `choix_alarme` fait
+    l'alarme, ses profils d'écart la cause) et `etape1` (ses scores sous `choix` font
+    le classement). Pour v1, v2, v3, c'est la même, sous le même choix ; pour v12
+    (écart E-5, §15), l'exemplaire v2 sous son choix, et l'exemplaire v1 sous B5/H2/V0.
     """
 
     def __init__(self, fen: list[dict], fige: dict, graine: int = 0, variante: str = "complet",
@@ -1143,13 +1249,17 @@ class GNN:
             raise ValueError(f"réglage inconnu : {reglage}")
         charger_echelle(fige)
         self.reglage, self.variante, self.budget, self.version = reglage, variante, budget, version
+        va, vc = exemplaires(version)
         self.choix = dict(choix or CHOIX_VERSIONS[version])
+        self.choix_alarme = dict(self.choix) if va == vc else dict(CHOIX_VERSIONS[va])
         garde = [f for f in fen if f["jeu"] == "apprentissage" and f["etiquette"] not in juge.ECARTEES]
         pannes = [f for f in garde if f["etiquette"] == "panne"]
-        self.etape1 = etape1(fen, fige, variante, graine, epoques, version)
+        self.etape1 = etape1(fen, fige, variante, graine, epoques, vc)
+        self.etape1_alarme = self.etape1 if va == vc else etape1(fen, fige, variante, graine, epoques, va)
+        self.combinee = va != vc
 
         # L'alarme : les scores tenus hors pli (gardés pour recaler à tout budget).
-        self.tenus = self.etape1.tenus(self.choix)
+        self.tenus = self.etape1_alarme.tenus(self.choix_alarme)
         s = [x for _, _, x in self.tenus]
         self.seuil_propre = _q95(s)
         self.calage_propre = (sum(1 for x in s if x > self.seuil_propre), len(s))
@@ -1163,11 +1273,12 @@ class GNN:
             self.budget_b = b
             self.calage_budget = self.calage_alarme
 
-        # L'étape 2 : prototypes sur les profils d'écart du modèle final, rejet par injection.
+        # L'étape 2 : prototypes sur les profils d'écart du modèle final (de l'alarme), rejet par injection.
         self.prototypes, self.seuil_rejet, self.calage_rejet = None, math.inf, (0, 0)
         if reglage == "avec exemples" and pannes:
-            cal = self.etape1.calage
-            profils = {f["id"]: profil(self.etape1.sortie(f["donnees"]), cal) for f in pannes}
+            e1a = self.etape1_alarme
+            cal = e1a.calage
+            profils = {f["id"]: profil(e1a.sortie(f["donnees"]), cal) for f in pannes}
             self.prototypes = tn.Prototypes([profils[f["id"]] for f in pannes], [f["cause"] for f in pannes])
             bien = []
             injections = sorted({(f["campagne"], f["injection"]) for f in pannes})
@@ -1183,9 +1294,17 @@ class GNN:
             self.seuil_rejet = _q95(bien) if bien else math.inf
             self.calage_rejet = (len(injections), len(bien))
 
+    def classement(self, donnees: dict) -> tuple[dict, float, dict]:
+        """(scores du classement, score de fenêtre de l'exemplaire du classement, diagnostic)."""
+        return noter_noeuds(self.etape1.sortie(donnees), self.etape1.calage, self.choix)
+
+    def score_alarme(self, donnees: dict) -> float:
+        """Le score de fenêtre de l'exemplaire de l'alarme, sous son choix."""
+        return noter_noeuds(self.etape1_alarme.sortie(donnees), self.etape1_alarme.calage, self.choix_alarme)[1]
+
     def repondre(self, donnees: dict) -> dict:
-        sortie = self.etape1.sortie(donnees)
-        scores, s, diag = noter_noeuds(sortie, self.etape1.calage, self.choix)
+        scores, s_c, diag = self.classement(donnees)
+        s = self.score_alarme(donnees) if self.combinee else s_c
         alarme = bool(s > self.seuil)
         brute = None
         if not alarme:
@@ -1193,22 +1312,41 @@ class GNN:
         elif self.reglage == "sans exemples" or self.prototypes is None:
             cause = "inconnue"
         else:
-            brute, d = self.prototypes.plus_proche(profil(sortie, self.etape1.calage))
+            e1a = self.etape1_alarme
+            brute, d = self.prototypes.plus_proche(profil(e1a.sortie(donnees), e1a.calage))
             cause = brute if d <= self.seuil_rejet else "inconnue"
-        return {"alarme": alarme, "cause": cause, "scores": scores, "_S": s, "_premier": diag["premier"],
-                "_racine": diag["racines"], "_pointeurs": diag["pointeurs"], "_sans_rejet": brute}
+        return {"alarme": alarme, "cause": cause, "scores": scores, "_S": s, "_S_classement": s_c,
+                "_premier": diag["premier"], "_racine": diag["racines"], "_pointeurs": diag["pointeurs"],
+                "_sans_rejet": brute}
 
 
-def methodes(fige: dict, epoques: int = EPOQUES, version: str = VERSION) -> list[tuple[str, object, bool]]:
+NOMS_DECISION = ("GNN, sans exemples", "GNN, sans exemples, budget de la règle",
+                 "GNN, avec exemples", "GNN, avec exemples, budget de la règle")
+
+
+def methodes(fige: dict, epoques: int = EPOQUES, version: str = VERSION,
+             variantes=tuple(v for v in VARIANTES if v != "complet")) -> list[tuple[str, object, bool]]:
     """(nom, fabrique(fen, graine), tire au hasard) : noms commençant par « GNN »
-    (decision_c.methodes). Seuil propre ; « budget de la règle » : θ_21."""
-    out = [("GNN", lambda fen, g: GNN(fen, fige, graine=g, epoques=epoques, version=version), True),
-           ("GNN, budget de la règle", lambda fen, g: GNN(fen, fige, graine=g, budget="règle", epoques=epoques,
-                                                          version=version), True)]
-    for v in VARIANTES:
+    (decision_c.methodes), les quatre qu'attend decision_c (NOMS_DECISION, écart E-2) :
+      « GNN, sans exemples »                   l'étape 1 seule (v12 : alarme v2, classement v1), seuil propre ;
+      « GNN, sans exemples, budget de la règle »  la même, θ_21 ;
+      « GNN, avec exemples »                   gnn_exemples sur la même version (écart E-2, rejet E-4) ;
+      « GNN, avec exemples, budget de la règle »  la même, ses deux alarmes calées ensemble à 21/249 ;
+    puis les variantes (« GNN sans aucune arête »… : sans exemples, seuil propre), pour la
+    décision 1 et la ligne 0 de l'axe (d)."""
+    import gnn_exemples           # import paresseux : gnn_exemples importe gnn
+    out = [(NOMS_DECISION[0], lambda fen, g: GNN(fen, fige, graine=g, reglage="sans exemples", epoques=epoques,
+                                                 version=version), True),
+           (NOMS_DECISION[1], lambda fen, g: GNN(fen, fige, graine=g, reglage="sans exemples", budget="règle",
+                                                 epoques=epoques, version=version), True)]
+    out += [(nom, fab, hasard) for nom, fab, hasard in gnn_exemples.methodes(fige, epoques, version, budgets=True)]
+    for v in variantes:
         if v != "complet":
-            out.append((f"GNN {v}", lambda fen, g, v=v: GNN(fen, fige, graine=g, variante=v, epoques=epoques,
-                                                            version=version), True))
+            out.append((f"GNN {v}", lambda fen, g, v=v: GNN(fen, fige, graine=g, variante=v, reglage="sans exemples",
+                                                            epoques=epoques, version=version), True))
+    noms = [n for n, _, _ in out]
+    if noms[:4] != list(NOMS_DECISION):
+        raise ValueError(f"gnn.methodes : {noms[:4]} au lieu de {list(NOMS_DECISION)}")
     return out
 
 
@@ -1333,12 +1471,20 @@ def _petit_jeu(fen: list[dict]) -> list[dict]:
 
 
 def verifier(campagnes: Path, runs: Path, version: str = VERSION) -> int:
+    """Les contrôles, pour la version donnée. Une version combinée (v12) passe les
+    contrôles d'un modèle (T3, T2 sur la grille et les résidus bruts, T12, T13) pour
+    CHACUN de ses exemplaires, les contrôles de la réponse (T1, T2 sur la réponse, T4,
+    T6) sur la méthode combinée, et en plus T14 (l'alarme est celle de l'exemplaire v2,
+    le classement celui de l'exemplaire v1 sous B5/H2/V0, la cause celle de v2), T15 (les
+    empreintes de tous les modèles) et T16 (les noms qu'attend decision_c)."""
     _un_fil()
     fige, ecarts_ref, _ = gel.reference()
     if ecarts_ref:
         print(f"REFUS  {ecarts_ref[0]}")
         return 1
     resultats = {}
+    mvs = modeles_de(version)
+    va, vc = exemplaires(version)
 
     # T7 : l'empreinte de l'échelle est contrôlée.
     faux = copy.deepcopy(fige)
@@ -1353,26 +1499,31 @@ def verifier(campagnes: Path, runs: Path, version: str = VERSION) -> int:
 
     fen = juge.validation(juge.lire(fautifs_module.SERIES, campagnes, runs))
     petit = _petit_jeu(fen)
-    print(f"# version {version} : {VERSIONS[version]}")
+    print(f"# version {version} : {decrire(version)}")
     print(f"# petit jeu : {len(petit)} fenêtres de validation "
           f"({sum(1 for f in petit if f['jeu'] == 'apprentissage' and f['etiquette'] == 'normale')} normales "
           f"d'apprentissage sur {len({f['campagne'] for f in _normales(petit)})} campagnes), 2 époques")
 
-    # T3 : deux entraînements à la même graine, identiques (dans ce processus et dans un autre).
+    # T3 : deux entraînements à la même graine, identiques (dans ce processus et dans un autre) ;
+    # pour chaque exemplaire.
     dims = dimensions(fige)
-    asinh = VERSIONS[version]["asinh"]
-    graphes = [convertir(f["donnees"], asinh) for f in _normales(petit)]
-    a, info = entrainer(graphes, dims, "complet", 0, 0, 2, version)
-    b, _ = entrainer(graphes, dims, "complet", 0, 0, 2, version)
-    c, _ = entrainer(graphes, dims, "complet", 1, 0, 2, version)
-    [(d_, _)] = entrainer_tous([(tuple(id(f["donnees"]) for f in _normales(petit)), dims, "complet", 0, 0, 2,
-                                 version)],
-                               {id(f["donnees"]): convertir(f["donnees"], asinh) for f in _normales(petit)})
     egal = lambda x, y: x.keys() == y.keys() and all(torch.equal(x[k], y[k]) for k in x)
-    t3 = egal(a, b) and egal(a, d_) and not egal(a, c)
-    resultats["T3 entraînement déterministe"] = (
-        t3, f"même graine : identique ici {egal(a, b)}, dans un processus spawn {egal(a, d_)} ; "
-            f"autre graine différente {not egal(a, c)} ; {info['parametres']} paramètres")
+    finals, t3, det3 = {}, True, []
+    for mv in mvs:
+        asinh = VERSIONS[mv]["asinh"]
+        graphes = [convertir(f["donnees"], asinh) for f in _normales(petit)]
+        a, info = entrainer(graphes, dims, "complet", 0, 0, 2, mv)
+        b, _ = entrainer(graphes, dims, "complet", 0, 0, 2, mv)
+        c, _ = entrainer(graphes, dims, "complet", 1, 0, 2, mv)
+        [(d_, _)] = entrainer_tous([(tuple(id(f["donnees"]) for f in _normales(petit)), dims, "complet", 0, 0, 2,
+                                     mv)],
+                                   {id(f["donnees"]): convertir(f["donnees"], asinh) for f in _normales(petit)})
+        finals[mv] = a
+        ok = egal(a, b) and egal(a, d_) and not egal(a, c)
+        t3 = t3 and ok
+        det3.append(f"{mv} : même graine identique ici {egal(a, b)}, dans un processus spawn {egal(a, d_)} ; "
+                    f"autre graine différente {not egal(a, c)} ; {info['parametres']} paramètres")
+    resultats["T3 entraînement déterministe"] = (t3, " ; ".join(det3))
 
     # T1 : forme de la réponse, pour chaque variante et chaque fenêtre ; flèches vides.
     soucis = []
@@ -1401,105 +1552,121 @@ def verifier(campagnes: Path, runs: Path, version: str = VERSION) -> int:
                                                        f"plus une fenêtre sans aucune flèche"
                                            + (f" ; {len(soucis)} soucis, dont {soucis[0]}" if soucis else ""))
 
-    # T2 : renommer, permuter, réindexer ne change rien (toutes les combinaisons B/H/V).
-    # Calage par identité (v2, v3) : seuls les pods de Deployment sont renommés (dans leur
-    # service), et les résidus bruts du modèle doivent en plus être invariants quand TOUT
-    # est renommé (pods, StatefulSet, machines) : aucun nom n'entre dans le modèle.
-    tout = not VERSIONS[version]["identite"]
-    pire, pire_res, cas = 0.0, 0.0, 0
+    # T2 : renommer, permuter, réindexer ne change rien (toutes les combinaisons B/H/V), pour
+    # chaque exemplaire. Calage par identité (v2, v3) : seuls les pods de Deployment sont
+    # renommés (dans leur service), et les résidus bruts du modèle doivent en plus être
+    # invariants quand TOUT est renommé (pods, StatefulSet, machines) : aucun nom n'entre
+    # dans le modèle. Et la réponse de la méthode (v12 : alarme, S, scores), sous le
+    # renommage que permettent tous ses exemplaires.
+    pire, pire_res, pire_rep, cas, det2 = 0.0, 0.0, 0.0, 0, []
+    tout_rep = not any(VERSIONS[mv]["identite"] for mv in mvs)
     for v in ("complet", "sans aucune arête"):
-        e1 = modeles[v].etape1
+        m = modeles[v]
+        for e1 in dict.fromkeys((m.etape1, m.etape1_alarme)):
+            tout = not VERSIONS[e1.version]["identite"]
+            for f in petit[-6:]:
+                d2, renomme = _permuter(f["donnees"], 7, tout)
+                s1, s2 = e1.sortie(f["donnees"]), e1.sortie(d2)
+                for ch in grille():
+                    sc1, S1, _ = noter_noeuds(s1, e1.calage, ch)
+                    sc2, S2, _ = noter_noeuds(s2, e1.calage, ch)
+                    pire = max(pire, abs(S1 - S2), *(abs(sc1[k] - sc2[renomme[k]]) for k in sc1))
+                    cas += 1
+                d3, renomme3 = _permuter(f["donnees"], 11, True)
+                s3 = e1.sortie(d3)
+                place1 = {c: i for i, c in enumerate(s1.cles())}
+                place3 = {c: i for i, c in enumerate(s3.cles())}
+                for k in SORTES:
+                    o1, o3 = s1.decal[k], s3.decal[k]
+                    for c, i in place1.items():
+                        if c.startswith(k + ":"):
+                            a1, a3 = s1.res_n[k][i - o1], s3.res_n[k][place3[renomme3[c]] - o3]
+                            if not np.array_equal(np.isnan(a1), np.isnan(a3)):
+                                pire_res = math.inf
+                            else:
+                                pire_res = max(pire_res, float(np.nanmax(np.abs(a1 - a3), initial=0.0)))
+            det2.append(f"{v} {e1.version} : " + ("tout renommé" if tout else "pods de Deployment renommés"))
         for f in petit[-6:]:
-            d2, renomme = _permuter(f["donnees"], 7, tout)
-            s1, s2 = e1.sortie(f["donnees"]), e1.sortie(d2)
-            for ch in grille():
-                sc1, S1, _ = noter_noeuds(s1, e1.calage, ch)
-                sc2, S2, _ = noter_noeuds(s2, e1.calage, ch)
-                pire = max(pire, abs(S1 - S2), *(abs(sc1[k] - sc2[renomme[k]]) for k in sc1))
-                cas += 1
-            d3, renomme3 = _permuter(f["donnees"], 11, True)
-            s3 = e1.sortie(d3)
-            place1 = {c: i for i, c in enumerate(s1.cles())}
-            place3 = {c: i for i, c in enumerate(s3.cles())}
-            for k in SORTES:
-                o1, o3 = s1.decal[k], s3.decal[k]
-                for c, i in place1.items():
-                    if c.startswith(k + ":"):
-                        a1, a3 = s1.res_n[k][i - o1], s3.res_n[k][place3[renomme3[c]] - o3]
-                        if not np.array_equal(np.isnan(a1), np.isnan(a3)):
-                            pire_res = math.inf
-                        else:
-                            pire_res = max(pire_res, float(np.nanmax(np.abs(a1 - a3), initial=0.0)))
-    renommage = ("tout renommé" if tout else
-                 "pods de Deployment renommés dans leur service, StatefulSet et machines gardés")
+            d2, renomme = _permuter(f["donnees"], 13, tout_rep)
+            r1, r2 = m.repondre(f["donnees"]), m.repondre(d2)
+            if r1["alarme"] != r2["alarme"] or r1["cause"] != r2["cause"]:
+                pire_rep = math.inf
+            pire_rep = max(pire_rep, abs(r1["_S"] - r2["_S"]),
+                           *(abs(r1["scores"][k] - r2["scores"][renomme[k]]) for k in r1["scores"]))
     resultats["T2 aucun nom, invariance par permutation"] = (
-        pire <= 1e-5 and pire_res <= 1e-5,
-        f"{cas} cas (2 variantes × 6 fenêtres × 30 combinaisons, {renommage}) ; plus grand écart {pire:.2e} ; "
-        f"résidus bruts du modèle, tout renommé : plus grand écart {pire_res:.2e}")
+        pire <= 1e-5 and pire_res <= 1e-5 and pire_rep <= 1e-5,
+        f"{cas} cas (2 variantes × {len(mvs)} exemplaire(s) × 6 fenêtres × 30 combinaisons ; {', '.join(det2)}) ; "
+        f"plus grand écart {pire:.2e} ; résidus bruts du modèle, tout renommé : plus grand écart {pire_res:.2e} ; "
+        f"réponse de la méthode ({'tout renommé' if tout_rep else 'pods de Deployment renommés'}) : {pire_rep:.2e}")
 
-    # T12 : le calage de la sortie. v1 : par sorte, le nom ne compte pas. v2, v3 : par
-    # identité (médiane et échelle recalculées ici à part), et repli par sorte pour une
-    # identité inconnue (tsdb-mysql-0 et une machine renommées).
-    e1 = modeles["complet"].etape1
-    cal = e1.calage
-    soucis12, n12 = [], 0
-    for f in petit[-6:]:
-        s1 = e1.sortie(f["donnees"])
-        z1 = ecarts(s1, cal)[0]
-        d4 = copy.deepcopy(f["donnees"])
-        inst, hotes = d4["nodes"]["instance"], d4["nodes"]["host"]
-        change = {}
-        for i, nom in enumerate(inst["names"]):
-            if tn.identite("instance", nom) == f"instance:{nom}":        # un StatefulSet
-                inst["names"][i] = f"inconnu-{i}"
-                change[("instance", i)] = True
-        vieux = hotes["names"][0]
-        hotes["names"][0] = "machine-inconnue"
-        inst["hosts"] = ["machine-inconnue" if h == vieux else h for h in inst["hosts"]]
-        change[("host", 0)] = True
-        z4 = ecarts(e1.sortie(d4), cal)[0]
-        noeuds = s1.identites()[0]
-        for k in SORTES:
-            for i in range(s1.n[k]):
-                n12 += 1
-                ident = noeuds[k][i]
-                if not cal.par_identite or change.get((k, i)) or ident not in cal.ident_n[k]:
-                    attendu = (s1.res_n[k][i] - cal.med_n[k]) / cal.ech_n[k]
-                else:
-                    vals = [s.res_n[k][j] for s in cal.sorties for j, x in enumerate(s.identites()[0][k]) if x == ident]
-                    vals = np.array(vals)
-                    attendu = s1.res_n[k][i].copy()
-                    for c in range(vals.shape[1]):
-                        col = vals[:, c][~np.isnan(vals[:, c])]
-                        if len(col) >= tn.MIN_OBS:
-                            med = float(np.median(col))
-                            ech = cal.ident_n[k][ident][1][c]
-                            if ech < tn.echelle(col.tolist()) - 1e-12:
-                                soucis12.append(f"{ident} col {c} : échelle sous tn.echelle")
-                            attendu[c] = (attendu[c] - med) / ech
-                        else:
-                            attendu[c] = (attendu[c] - cal.med_n[k][c]) / cal.ech_n[k][c]
-                zi = z4[k][i] if change.get((k, i)) else z1[k][i]
-                if not np.allclose(zi, attendu, equal_nan=True, atol=1e-9):
-                    soucis12.append(f"{f['id']} {k} {i} ({ident})")
-    connus = cal.connues(e1.sortie(petit[-1]["donnees"]))
+    # T12 : le calage de la sortie, pour chaque exemplaire. v1 : par sorte, le nom ne compte
+    # pas. v2, v3 : par identité (médiane et échelle recalculées ici à part), et repli par
+    # sorte pour une identité inconnue (tsdb-mysql-0 et une machine renommées).
+    soucis12, n12, det12 = [], 0, []
+    for e1 in dict.fromkeys((modeles["complet"].etape1, modeles["complet"].etape1_alarme)):
+        cal = e1.calage
+        for f in petit[-6:]:
+            s1 = e1.sortie(f["donnees"])
+            z1 = ecarts(s1, cal)[0]
+            d4 = copy.deepcopy(f["donnees"])
+            inst, hotes = d4["nodes"]["instance"], d4["nodes"]["host"]
+            change = {}
+            for i, nom in enumerate(inst["names"]):
+                if tn.identite("instance", nom) == f"instance:{nom}":        # un StatefulSet
+                    inst["names"][i] = f"inconnu-{i}"
+                    change[("instance", i)] = True
+            vieux = hotes["names"][0]
+            hotes["names"][0] = "machine-inconnue"
+            inst["hosts"] = ["machine-inconnue" if h == vieux else h for h in inst["hosts"]]
+            change[("host", 0)] = True
+            z4 = ecarts(e1.sortie(d4), cal)[0]
+            noeuds = s1.identites()[0]
+            for k in SORTES:
+                for i in range(s1.n[k]):
+                    n12 += 1
+                    ident = noeuds[k][i]
+                    if not cal.par_identite or change.get((k, i)) or ident not in cal.ident_n[k]:
+                        attendu = (s1.res_n[k][i] - cal.med_n[k]) / cal.ech_n[k]
+                    else:
+                        vals = [s.res_n[k][j] for s in cal.sorties for j, x in enumerate(s.identites()[0][k])
+                                if x == ident]
+                        vals = np.array(vals)
+                        attendu = s1.res_n[k][i].copy()
+                        for c in range(vals.shape[1]):
+                            col = vals[:, c][~np.isnan(vals[:, c])]
+                            if len(col) >= tn.MIN_OBS:
+                                med = float(np.median(col))
+                                ech = cal.ident_n[k][ident][1][c]
+                                if ech < tn.echelle(col.tolist()) - 1e-12:
+                                    soucis12.append(f"{ident} col {c} : échelle sous tn.echelle")
+                                attendu[c] = (attendu[c] - med) / ech
+                            else:
+                                attendu[c] = (attendu[c] - cal.med_n[k][c]) / cal.ech_n[k][c]
+                    zi = z4[k][i] if change.get((k, i)) else z1[k][i]
+                    if not np.allclose(zi, attendu, equal_nan=True, atol=1e-9):
+                        soucis12.append(f"{e1.version} {f['id']} {k} {i} ({ident})")
+        connus = cal.connues(e1.sortie(petit[-1]["donnees"]))
+        det12.append(f"{e1.version} {'par identité' if cal.par_identite else 'par sorte'}, identités calées dans une "
+                     f"fenêtre : {connus[0]}/{connus[1]} nœuds, {connus[2]}/{connus[3]} flèches")
     resultats["T12 calage de la sortie"] = (
-        not soucis12, f"{n12} nœuds ({'par identité' if cal.par_identite else 'par sorte'} ; "
-                      f"identités calées dans une fenêtre : {connus[0]}/{connus[1]} nœuds, "
-                      f"{connus[2]}/{connus[3]} flèches ; StatefulSet et machine renommés : repli par sorte)"
+        not soucis12, f"{n12} nœuds ({' ; '.join(det12)} ; StatefulSet et machine renommés : repli par sorte)"
         + (f" ; {len(soucis12)} soucis, dont {soucis12[0]}" if soucis12 else ""))
 
     # T13 : l'empreinte du modèle final est celle du §8 dans toutes les versions : le sha256
     # de torch.save en mémoire du state_dict, sans rien d'autre ; recalculée ici sur
-    # l'entraînement `a` (même jeu, graine 0, rang 0, 2 époques : le modèle final de T1).
-    tampon = io.BytesIO()
-    torch.save(a, tampon)
-    refaite = hashlib.sha256(tampon.getvalue()).hexdigest()
-    resultats["T13 empreinte du §8"] = (
-        e1.empreinte == refaite, f"version {version} : imprimée {e1.empreinte[:16]}, refaite sur torch.save "
-                                 f"du state_dict {refaite[:16]}")
+    # l'entraînement de T3 (même jeu, graine 0, rang 0, 2 époques : le modèle final de T1),
+    # pour chaque exemplaire.
+    ok13, det13 = True, []
+    for mv in mvs:
+        tampon = io.BytesIO()
+        torch.save(finals[mv], tampon)
+        refaite = hashlib.sha256(tampon.getvalue()).hexdigest()
+        imprimee = etape1(petit, fige, "complet", 0, 2, mv).empreinte
+        ok13 = ok13 and imprimee == refaite
+        det13.append(f"{mv} : imprimée {imprimee[:16]}, refaite sur torch.save du state_dict {refaite[:16]}")
+    resultats["T13 empreinte du §8"] = (ok13, " ; ".join(det13))
 
-    # T4 : θ_b fait sonner exactement b scores tenus.
+    # T4 : θ_b fait sonner exactement b scores tenus (ceux de l'alarme).
     m = modeles["complet"]
     s = [x for _, _, x in m.tenus]
     # Exactement b au-dessus quand il n'y a pas d'égalité à la limite ; jamais plus de b sinon.
@@ -1528,7 +1695,74 @@ def verifier(campagnes: Path, runs: Path, version: str = VERSION) -> int:
         resultats["T6 test refusé sans gnn-fige"] = (t6 and code == 1, f"exiger_scelle refuse : {t6} ; "
                                                                       f"--test rend le code {code}")
 
-    print(f"# durée d'un entraînement de 2 époques sur {info['fenetres']} fenêtres : {info['duree']:.2f} s")
+    if version in COMBINEES:
+        # T14 : l'alarme de v12 est celle de l'exemplaire v2 (score, seuils propre et au budget,
+        # cause), le classement celui de l'exemplaire v1 sous B5/H2/V0 ; sur chaque fenêtre,
+        # chaque variante, chaque réglage, seuil propre et budget de la règle.
+        soucis14, n14 = [], 0
+        if CHOIX_VERSIONS[version] != CHOIX_VERSIONS[vc] or CHOIX_VERSIONS[vc] != {"bout": "B5", "remontee": "H2",
+                                                                                     "explication": "V0"}:
+            soucis14.append(f"choix du classement {CHOIX_VERSIONS[version]}")
+        for v in VARIANTES:
+            for reglage in tn.REGLAGES:
+                for budget in (None, "règle"):
+                    m12 = GNN(petit, fige, graine=0, variante=v, epoques=2, version=version, reglage=reglage,
+                              budget=budget)
+                    ma = GNN(petit, fige, graine=0, variante=v, epoques=2, version=va, reglage=reglage, budget=budget)
+                    mc = GNN(petit, fige, graine=0, variante=v, epoques=2, version=vc, reglage=reglage, budget=budget)
+                    if (m12.seuil, m12.seuil_propre, m12.tenus) != (ma.seuil, ma.seuil_propre, ma.tenus):
+                        soucis14.append(f"{v} {reglage} {budget} : seuils ou scores tenus de l'alarme")
+                    if m12.etape1 is not mc.etape1 or m12.etape1_alarme is not ma.etape1:
+                        soucis14.append(f"{v} : les exemplaires ne sont pas ceux de {va} et {vc}")
+                    for f in petit:
+                        r12, ra, rc = (x.repondre(f["donnees"]) for x in (m12, ma, mc))
+                        n14 += 1
+                        if (r12["alarme"], r12["cause"], r12["_S"]) != (ra["alarme"], ra["cause"], ra["_S"]):
+                            soucis14.append(f"{v} {reglage} {budget} {f['id']} : alarme, cause ou S ≠ {va}")
+                        if r12["scores"] != rc["scores"] or r12["_S_classement"] != rc["_S"]:
+                            soucis14.append(f"{v} {reglage} {budget} {f['id']} : classement ≠ {vc}")
+        resultats["T14 v12 = alarme v2 + classement v1"] = (
+            not soucis14, f"{n14} réponses ({len(VARIANTES)} variantes × 2 réglages × 2 seuils × {len(petit)} "
+                          f"fenêtres) : alarme, S, cause, seuils identiques à {va} ; scores identiques à {vc} "
+                          f"({nom_choix(CHOIX_VERSIONS[version])})"
+            + (f" ; {len(soucis14)} soucis, dont {soucis14[0]}" if soucis14 else ""))
+
+    # T15 : les empreintes de tous les modèles (decision_c --empreintes, --ouvrir) : chaque
+    # exemplaire, modèle final et plis, et les modèles « sans c ni c' » de l'avec exemples.
+    emp = empreintes(petit, fige, 1, 2, version, ("complet",), avec_exemples=True)
+    soucis15 = []
+    n_plis = len({f["campagne"] for f in _normales(petit)})
+    attendues = len(mvs) * (1 + n_plis) + n_plis * (n_plis - 1) // 2
+    if len(emp) != attendues:
+        soucis15.append(f"{len(emp)} clés au lieu de {attendues}")
+    for mv in mvs:
+        e1 = etape1(petit, fige, "complet", 0, 2, mv)
+        for nom, sha in e1.empreintes.items():
+            if sha not in emp.values():
+                soucis15.append(f"{mv} {nom} absente")
+        tampon = io.BytesIO()
+        torch.save(finals[mv], tampon)
+        if hashlib.sha256(tampon.getvalue()).hexdigest() != e1.empreintes["modèle final"]:
+            soucis15.append(f"{mv} : le modèle final n'est pas celui de T3")
+    if len(set(emp.values())) != len(emp):
+        soucis15.append("deux modèles ont la même empreinte")
+    if any(len(v) != 64 or " " in v for v in emp.values()):
+        soucis15.append("une empreinte n'est pas un sha256")
+    resultats["T15 empreintes de tous les modèles"] = (
+        not soucis15, f"{len(emp)} empreintes (graine 0 : {len(mvs)} exemplaire(s) × (modèle final + {n_plis} plis) "
+                      f"+ {n_plis * (n_plis - 1) // 2} modèles « sans c ni c' »), toutes distinctes ; par exemple "
+                      f"« {sorted(emp)[0]} »" + (f" ; {len(soucis15)} soucis, dont {soucis15[0]}" if soucis15 else ""))
+
+    # T16 : les noms qu'attend decision_c (les quatre du GNN, puis les variantes), tous « GNN… ».
+    noms = [n for n, _, _ in methodes(fige, 2, version)]
+    import decision_c as dc
+    attendus = [n for r in dc.REGLAGES for n in (dc.GNN[r], dc.GNN_REGLE[r])]
+    ok16 = set(attendus) <= set(noms) and all(n.startswith("GNN") for n in noms) and len(set(noms)) == len(noms) \
+        and dc.GNN_SANS_ARETE in noms
+    resultats["T16 noms de decision_c"] = (ok16, f"{len(noms)} noms : {', '.join(noms[:4])}, puis "
+                                                 f"{len(noms) - 4} variantes ; attendus par decision_c présents "
+                                                 f"{set(attendus) <= set(noms)}")
+
     echecs = 0
     for nom, (ok, detail) in sorted(resultats.items(), key=lambda x: int(x[0].split()[0][1:])):
         print(f"{nom:<44} {'réussi' if ok else 'ÉCHEC'}  ({detail})")
@@ -1545,13 +1779,20 @@ def _reponses(t, fen: list[dict]) -> dict:
     return {f["id"]: t.repondre(f["donnees"]) for f in test}
 
 
+PROTOTYPES_SEULS = "GNN, étape 1 + prototypes (avant E-2)"
+
+
 def _entrees(fige: dict, variantes, epoques: int, version: str = VERSION) -> list[tuple[str, object]]:
+    """Les entrées du tableau : les deux « sans exemples » de decision_c (NOMS_DECISION),
+    l'étape 1 avec les prototypes du §5 (le réglage « avec exemples » d'avant l'écart E-2,
+    pour comparaison ; le vrai « avec exemples » est dans gnn_exemples.py), les variantes."""
     ve = {"epoques": epoques, "version": version}
-    out = [("GNN, avec exemples", lambda fen, g: GNN(fen, fige, graine=g, **ve)),
-           ("GNN, sans exemples", lambda fen, g: GNN(fen, fige, graine=g, reglage="sans exemples", **ve)),
-           ("GNN, budget de la règle", lambda fen, g: GNN(fen, fige, graine=g, budget="règle", **ve))]
+    out = [(NOMS_DECISION[0], lambda fen, g: GNN(fen, fige, graine=g, reglage="sans exemples", **ve)),
+           (NOMS_DECISION[1], lambda fen, g: GNN(fen, fige, graine=g, reglage="sans exemples", budget="règle", **ve)),
+           (PROTOTYPES_SEULS, lambda fen, g: GNN(fen, fige, graine=g, **ve))]
     for v in variantes:
-        out.append((f"GNN {v}", lambda fen, g, v=v: GNN(fen, fige, graine=g, variante=v, **ve)))
+        out.append((f"GNN {v}", lambda fen, g, v=v: GNN(fen, fige, graine=g, variante=v, reglage="sans exemples",
+                                                        **ve)))
     return out
 
 
@@ -1585,26 +1826,31 @@ def _source_choix(choix: dict, version: str) -> str:
 
 
 def _en_tete(t: GNN, variantes_infos: list) -> list[str]:
-    e1 = t.etape1
-    cal = e1.calage
-    tau = cal.tau(t.choix["bout"])
-    duree = [i["duree"] for i in e1.infos]
-    out = [f"# étape 1 version {e1.version} ({e1.variante}, graine {e1.graine}) : {e1.infos[0]['parametres']} paramètres, "
-           f"{e1.epoques} époques, {e1.infos[0]['fenetres']} normales d'apprentissage, "
-           f"{len(e1.campagnes)} plis ; empreinte du modèle final {e1.empreinte[:16]}",
-           f"#   durée d'un entraînement : modèle final {duree[0]:.1f} s, plis {min(duree[1:]):.1f}–"
-           f"{max(duree[1:]):.1f} s (un fil chacun) ; perte du modèle final {e1.infos[0]['pertes'][0]:.3f} → "
-           f"{e1.infos[0]['pertes'][-1]:.3f}",
-           f"#   post-traitement {nom_choix(t.choix)} ({_source_choix(t.choix, e1.version)}) ; "
-           f"κ : " + ", ".join(f"{r} {cal.kappa[r]:.2f}" for r in cal.notees)
-           + " ; τ : " + ", ".join(f"{k} {tau[k]:.2f}" for k in SORTES),
-           f"#   alarme au-dessus de {t.seuil_propre:.3f} (95e centile de {t.calage_propre[1]} scores tenus hors "
-           f"pli ; {t.calage_propre[0]} au-dessus)"]
-    if cal.par_identite:
-        idn = sum(len(v) for v in cal.ident_n.values())
-        ide = sum(len(v) for v in cal.ident_e.values())
-        out.append(f"#   calage par identité (temoin_noeud.identite, temoin_noeud.echelles) : {idn} identités de nœud "
-                   f"et {ide} de flèche ont leur normal ; les autres retombent sur le calage par sorte")
+    out = []
+    roles = [(t.etape1, t.choix, "alarme et classement")] if not t.combinee else \
+        [(t.etape1_alarme, t.choix_alarme, "alarme"), (t.etape1, t.choix, "classement")]
+    for e1, choix, role in roles:
+        cal = e1.calage
+        tau = cal.tau(choix["bout"])
+        duree = [i["duree"] for i in e1.infos]
+        source = _source_choix(choix, t.version) if choix == t.choix else \
+            f"le choix de {e1.version}, {_source_choix(choix, e1.version)}"
+        out += [f"# étape 1 ({role}) version {e1.version} ({e1.variante}, graine {e1.graine}) : "
+                f"{e1.infos[0]['parametres']} paramètres, {e1.epoques} époques, {e1.infos[0]['fenetres']} normales "
+                f"d'apprentissage, {len(e1.campagnes)} plis ; empreinte du modèle final {e1.empreinte[:16]}",
+                f"#   durée d'un entraînement : modèle final {duree[0]:.1f} s, plis {min(duree[1:]):.1f}–"
+                f"{max(duree[1:]):.1f} s (un fil chacun) ; perte du modèle final {e1.infos[0]['pertes'][0]:.3f} → "
+                f"{e1.infos[0]['pertes'][-1]:.3f}",
+                f"#   post-traitement {nom_choix(choix)} ({source}) ; "
+                f"κ : " + ", ".join(f"{r} {cal.kappa[r]:.2f}" for r in cal.notees)
+                + " ; τ : " + ", ".join(f"{k} {tau[k]:.2f}" for k in SORTES)]
+        if cal.par_identite:
+            idn = sum(len(v) for v in cal.ident_n.values())
+            ide = sum(len(v) for v in cal.ident_e.values())
+            out.append(f"#   calage par identité (temoin_noeud.identite, temoin_noeud.echelles) : {idn} identités de "
+                       f"nœud et {ide} de flèche ont leur normal ; les autres retombent sur le calage par sorte")
+    out.append(f"# alarme ({t.etape1_alarme.version}) au-dessus de {t.seuil_propre:.3f} (95e centile de "
+               f"{t.calage_propre[1]} scores tenus hors pli ; {t.calage_propre[0]} au-dessus)")
     n = len(t.tenus)
     s = [x for _, _, x in t.tenus]
     out.append("#   budgets mis à l'échelle (N = " + f"{n} au lieu de {MINUTES_BUDGET}) : "
@@ -1673,21 +1919,18 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques: int, sans_temoin
         fen = juge.validation(fen)
         print("# VALIDATION : coupure répétée dans l'apprentissage (juge.validation), vrai test jamais lu")
     print("# Le GNN — écrit par graphe_en/gnn.py, ne pas éditer à la main.")
-    cfg = VERSIONS[version]
-    print(f"# version {version} de l'étape 1 (écart E-1, §11) : "
-          f"{'masque' if cfg['masque'] else f'auto-encodeur sans masque, goulot {GOULOT}'}, "
-          f"{'asinh' if cfg['asinh'] else 'sans asinh'}, calage {'par identité' if cfg['identite'] else 'par sorte'}")
+    print(f"# version {version} de l'étape 1 (écarts E-1, §11, et E-5, §15) : {decrire(version)}")
     print(f"# graines 0 à {graines - 1} ; {epoques} époques ; variantes en plus du complet : "
           f"{', '.join(variantes) or 'aucune'} ; témoins {'NON recalculés' if sans_temoins else 'recalculés'}")
     duree = preparer(fen, fige, graines, ("complet",) + tuple(variantes), epoques, version)
-    n_entr = graines * (1 + len(variantes)) * (1 + len(_etape_campagnes(fen)))
+    n_entr = len(modeles_de(version)) * graines * (1 + len(variantes)) * (1 + len(_etape_campagnes(fen)))
     print(f"# {n_entr} entraînements en {duree:.0f} s de temps réel ({PROCESSUS} processus au plus, un fil chacun)")
     if tableau:
         detail: dict = {}
         n = _notes(fen, fige, graines, variantes, epoques, sans_temoins, detail, version)
-        t0 = detail["GNN, avec exemples"][0]
-        tb = detail["GNN, budget de la règle"][0]
-        infos = [f"#   GNN, budget de la règle : {tb.budget_b}/{len(tb.tenus)} → alarme au-dessus de {tb.seuil:.3f} "
+        t0 = detail[PROTOTYPES_SEULS][0]
+        tb = detail[NOMS_DECISION[1]][0]
+        infos = [f"#   {NOMS_DECISION[1]} : {tb.budget_b}/{len(tb.tenus)} → alarme au-dessus de {tb.seuil:.3f} "
                  f"({tb.calage_alarme[0]} scores tenus au-dessus)"]
         for v in variantes:
             tv = detail[f"GNN {v}"][0]
@@ -1704,15 +1947,16 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques: int, sans_temoin
         print("\n".join(temoins_module.tableau_de_bord(n)))
         print("\n== 2. fausses alertes au fil du temps (fenêtres normales du test ; médiane sur les graines)")
         print("\n".join(temoins_module.fil_du_temps(fen, n)))
-        print("\n== note détaillée du GNN, avec exemples, graine 0")
-        rep0 = {i: _propre(r) for i, r in detail["GNN, avec exemples"][1].items()}
-        print("\n".join(juge.noter(fen, rep0, "GNN, avec exemples, graine 0")[0]))
+        nom0 = NOMS_DECISION[0]
+        print(f"\n== note détaillée du {nom0}, graine 0")
+        rep0 = {i: _propre(r) for i, r in detail[nom0][1].items()}
+        print("\n".join(juge.noter(fen, rep0, f"{nom0}, graine 0")[0]))
         print("désigné en premier, par cause (fenêtres de panne du test)")
         print("\n".join(tn.premiers(fen, rep0)))
         if graines > 1:
             import temoin_tableau
-            print(f"\n# GNN, avec exemples, sur {graines} graines : chaque nombre de la note")
-            print("\n".join(temoin_tableau._resume_graines([c for c, _ in n["GNN, avec exemples"]])))
+            print(f"\n# {nom0}, sur {graines} graines : chaque nombre de la note")
+            print("\n".join(temoin_tableau._resume_graines([c for c, _ in n[nom0]])))
     if avec_repetition:
         print("\n== 3. répétition « panne jamais vue » (une cause connue retirée de l'apprentissage)")
         print("\n".join(repetition(fautifs_module.SERIES, campagnes, runs, fige, graines, variantes, epoques,
@@ -1761,7 +2005,7 @@ def main(argv: list[str]) -> int:
                 sans_temoins = True
             elif a == "--version":
                 version = args.pop(0)
-                if version not in VERSIONS:
+                if version not in TOUTES_VERSIONS:
                     raise ValueError
             elif a == "--variantes":
                 v = args.pop(0)
@@ -1778,7 +2022,7 @@ def main(argv: list[str]) -> int:
                 return 2
     except (IndexError, ValueError):
         print("option sans valeur ou valeur illisible (variantes : "
-              + ", ".join(v for v in VARIANTES if v != "complet") + " ; versions : " + ", ".join(VERSIONS) + ")",
+              + ", ".join(v for v in VARIANTES if v != "complet") + " ; versions : " + ", ".join(TOUTES_VERSIONS) + ")",
               file=sys.stderr)
         return 2
     campagnes, runs = campagnes.resolve(), runs.resolve()
