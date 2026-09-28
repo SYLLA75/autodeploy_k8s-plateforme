@@ -2043,3 +2043,27 @@ sélecteur), essai_d.py refuse s'il ne peut pas faire le contrôle « avant + 5d
   (workers2 ×4). Le retard retenu n'aura été essayé que sur workers2. À décider avec l'utilisateur
   après l'essai (la règle prime ; question : essai sur workers5 d'abord, ou non).
 - Essai `essai-reseau-b-300` lancé à 10:55:25 UTC (25:30, --a 5, 20 min, 300 ms, workers2:workers1).
+
+## 2026-09-28 — D.5/7, écart 4 : X = workers5 (écrit avant la campagne)
+
+- Essais `essai-reseau-b-300` (injection 11:01:06, retrait 11:10:09) et `essai-reseau-b-400`
+  (11:17:20 → 11:23:59) sur workers2:workers1 : tas 0 à la 5e minute de panne dans les deux → non
+  retenus. Les deux pilotes ont été coupés À LA MAIN sans leur clôture (erreur de manipulation :
+  Ctrl-C dans tmux tue aussi `tee`, puis `pkill -P` a tué le `tee -a` interne ; le piège d'arrêt
+  meurt alors en écrivant). Pannes retirées à la main (panne.sh retirer, 11:10 et 11:24) ; comptes
+  rendus reconstruits à la main depuis journaux/pannes.tsv (marqués RECONSTRUIT). Pour arrêter un
+  pilote : `kill -INT` au seul processus campagne.sh, jamais à ses enfants ni au tmux.
+- Cause (mesurée sur les deux séries ouvertes, saine-09 + saine-08, 170 fenêtres) : sur workers2,
+  la panne retarde les requêtes à la base de station (4,30/s), config (3,93/s) et order-other
+  (0,78/s), toutes sur le chemin de « réserver » (≈ 11 requêtes retardées par réservation ;
+  réserver p50 3,7 s pendant l'essai à 300 ms) : le dépôt baisse autant que la capacité perdue.
+  Sur workers5 (X possible selon la règle depuis la purge de 10:50 : ts-travel-service y est),
+  seules travel (2,74/s) et train (2,74/s) sont retardées vers la base : 5,5/s contre 9,0/s, et
+  ≈ 3 requêtes par réservation. La réplique (tvmfl) y ralentit de même (+5d).
+- Écart 4 : X = workers5 pour toutes les injections de D (la règle de D.1 donne les couples
+  workers2:workers1 et workers5:workers1 ; campagne.sh exige désormais que chaque cible soit UN des
+  couples de la règle, sans l'ordre tournant). Intensité 400 ms (l'échelle d'écart 3 plafonne à 400).
+- Pas d'essai séparé (demande de l'utilisateur : gagner une demi-heure) : la 1re injection de
+  jumeaux-01 sert d'essai, avec la même règle (tas > 10 à la 5e minute de panne) ; sinon arrêt de la
+  campagne (kill -INT au pilote) et décision avec l'utilisateur. essai_d.py (contrôle + 5d, nettement)
+  sera passé sur la campagne elle-même avant le scellé, en ne lisant que ce qu'il lit.

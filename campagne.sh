@@ -659,11 +659,20 @@ if [ "$PANNE" = "reseau" ]; then
         --injections "${#DEBUTS[@]}" 2>&1)
     rm -f "$f_pl" "$f_li"
     printf '%s\n' "$couples_lus" | sed 's/^/      /'
-    attendues=$(printf '%s\n' "$couples_lus" | sed -n 's/^cibles : //p')
+    # Écart 4 (journal, D.5) : chaque cible doit être UN des couples de la règle ;
+    # l'ordre tournant de D.1 n'est plus imposé (sur workers2, la panne ralentit
+    # « réserver » au point que le dépôt baisse autant que la capacité).
+    autorises=$(printf '%s\n' "$couples_lus" | sed -n 's/^couples : //p' | tr -d ' ')
     fournies=$(IFS=,; echo "${CIBLES[*]}")
-    [ -n "$attendues" ] && [ "$attendues" = "$fournies" ] \
-        || fail "Couples relus au départ : « ${attendues:-aucun} » ; cibles fournies : « $fournies ». La règle de D.1 les fixe : départ refusé."
-    noter_action "action: couples_verifies, cibles: \"$fournies\""
+    [ -n "$autorises" ] && [ "$autorises" != "AUCUN" ] \
+        || fail "Aucun couple selon la règle de D.1 sur le placement relu : départ refusé."
+    for c in "${CIBLES[@]}"; do
+        case ",$autorises," in
+            *",$c,"*) ;;
+            *) fail "Cible « $c » hors des couples de la règle de D.1 (« $autorises ») : départ refusé." ;;
+        esac
+    done
+    noter_action "action: couples_verifies, cibles: \"$fournies\", couples_de_la_regle: \"$autorises\""
 fi
 
 
