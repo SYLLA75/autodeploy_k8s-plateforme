@@ -14,6 +14,11 @@ essais (journal, D.3) :
   la réplique de X est nettement plus lente si sa médiane pendant la panne vaut
   au moins 1,5 fois la plus grande médiane des deux autres pendant la panne.
 
+Il vérifie que le moyen a agi comme prévu (écart 3, journal D.5) : pendant la
+panne, la médiane de la réplique de X doit valoir sa médiane d'avant + 5 × d, à
+10 % près (d lu dans le registre) ; sinon « MOYEN NON CONFORME » (un retard
+perdu ou doublé sur la réplique), arrêt.
+
 Il compte aussi, sans en lire aucune valeur, les fenêtres de panne où manque le
 nœud host X ou la réplique de X : une seule suffit à l'effondrement de D.1.
 
@@ -43,6 +48,7 @@ COLONNE = "process_time_p50"
 NETTEMENT = 1.5
 FILE = "food_delivery"
 PROCHE, ECART = 0.9, -0.1
+TOLERANCE = 0.10
 
 
 def file(d: dict) -> tuple[float | None, float | None]:
@@ -103,6 +109,7 @@ def verifier(argv: list[str]) -> int:
               f"{'registre lu' if p['registre'] else 'registre illisible'}")
         return 2
     x = p["registre"][5].split("@")[0]
+    d_ms = float(p["registre"][4])
 
     if not run.is_dir():
         print(f"REFUS  run introuvable : {run}")
@@ -173,6 +180,13 @@ def verifier(argv: list[str]) -> int:
               f"(lu : {len(autres)} autres{'' if rep_x in pendant else f', aucune valeur pour {rep_x}'})")
         return 2
     mx = median(pendant[rep_x])
+    if avant.get(rep_x):
+        attendu = median(avant[rep_x]) + 5 * d_ms
+        print(f"  réplique de {x} : {mx:.0f} ms pendant, attendu {attendu:.0f} ms (avant + 5 × {d_ms:.0f})")
+        if abs(mx - attendu) > TOLERANCE * attendu:
+            print("MOYEN NON CONFORME  la réplique de X ne suit pas avant + 5 × d à 10 % près — arrêt, "
+                  "décision avec l'utilisateur")
+            return 1
     mo = max(median(pendant[n]) for n in autres)
     rapport = mx / mo if mo > 0 else float("inf")
     if rapport >= NETTEMENT:

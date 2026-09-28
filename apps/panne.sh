@@ -39,16 +39,18 @@
 #                réplique) est ralenti, sans perte ; en même temps, une machine
 #                leurre Y reçoit le voisin bruyant de la cause hote (même règle
 #                de demande, stress sur tous ses cœurs)
-#                → Chaos Mesh NetworkChaos sur TOUS les pods de l'espace
-#                  applicatif placés sur X (sélecteur nodes) : retard sur ce que
-#                  chacun envoie ; + pod voisin-leurre et StressChaos
+#                → Chaos Mesh : NetworkChaos panne-reseau-replique, retard sur
+#                  tout ce qu'envoie la réplique de X, et NetworkChaos
+#                  panne-reseau, retard sur ce que les autres pods de l'espace
+#                  applicatif sur X envoient à la base (écart 3, journal D.5 :
+#                  retarder tout ce qu'envoient ces pods freinait les parcours
+#                  et la file ne débordait pas) ; + pod voisin-leurre et StressChaos
 #                  panne-leurre sur Y. Une seule ligne de registre, cible
 #                  « X@leurre:Y » ; les deux confirmés dans les mêmes 60 s, sinon
 #                  tout est retiré et l'injection est NON_CONFIRMEE.
 #                  Pas la carte de la machine elle-même : Chaos Mesh refuse un pod
 #                  au réseau de l'hôte (« dangerous »), et poser tc sur la carte
-#                  par le démon a été refusé (journal, D.2). Différence : le
-#                  trafic entre deux pods de X est retardé aussi.
+#                  par le démon a été refusé (journal, D.2).
 #
 #  POURQUOI SIGSTOP ET PAS CHAOS MESH POUR LE BLOCAGE
 #
@@ -327,10 +329,16 @@ pods_de_la_machine() {   # <nœud> → les pods en marche de l'espace applicatif
         -o custom-columns=:metadata.name 2>/dev/null | grep . | sort
 }
 
-retards_reseau() {   # « pod retard » pour chaque pod qui porte le retard de panne-reseau
-    kubectl get podnetworkchaos -n "$NS" \
-        -o jsonpath="{range .items[*]}{.metadata.name}{' '}{.spec.tcs[?(@.source==\"$NS/panne-reseau\")].delay.latency}{'\n'}{end}" \
-        2>/dev/null | awk 'NF >= 2 {print $1, $2}' | sort
+# « pod retard objet » pour chaque pod qui porte un retard de la panne reseau :
+# panne-reseau-replique (la réplique de X, sans cible) ou panne-reseau (les
+# autres pods de X, vers la base).
+retards_reseau() {
+    local o
+    for o in panne-reseau-replique panne-reseau; do
+        kubectl get podnetworkchaos -n "$NS" \
+            -o jsonpath="{range .items[*]}{.metadata.name}{' '}{.spec.tcs[?(@.source==\"$NS/$o\")].delay.latency}{'\n'}{end}" \
+            2>/dev/null | awk -v o="$o" 'NF >= 2 {print $1, $2, o}'
+    done | sort
 }
 
 # Paquets jetés (files de sortie des pods) et segments TCP retransmis, sommés sur
@@ -833,7 +841,7 @@ EOF
 defaire_reseau() {
     local r=0
     kubectl delete stresschaos panne-leurre -n "$VOISIN_NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 || r=1
-    kubectl delete networkchaos panne-reseau -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 || r=1
+    kubectl delete networkchaos panne-reseau-replique panne-reseau -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 || r=1
     kubectl delete pod voisin-leurre -n "$VOISIN_NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 || r=1
     return $r
 }
@@ -870,12 +878,14 @@ injecter_reseau() {
     rep_x=$(repliques | awk -F'\t' -v h="$x" '$2==h {print $1}' | paste -sd, -)
     rep_y=$(repliques | awk -F'\t' -v h="$y" '$2==h {print $1}' | paste -sd, -)
     n_x=$(printf '%s\n' "$sur_x" | wc -l)
-    [ -n "$rep_x" ] || warn "aucune réplique de $CONSO sur « $x »"
+    case "$rep_x" in ''|*,*) fail "il faut exactement une réplique de $CONSO sur « $x » (lu : ${rep_x:-aucune})" ;; esac
     [ -z "$rep_y" ] || warn "le leurre « $y » porte une réplique ($rep_y)"
+    local ips_base; ips_base=$(ips_devant_mysql)
+    [ -n "$ips_base" ] || fail "adresses de service devant la base illisibles"
 
-    say "cause  : reseau — les $n_x pods de $NS sur « $x » envoient tout avec $intensite ms de retard, pendant $duree min (répliques : ${rep_x:-aucune})"
+    say "cause  : reseau — la réplique $rep_x (sur « $x ») envoie tout avec $intensite ms de retard ; les $((n_x - 1)) autres pods de $NS sur « $x » envoient à la base avec $intensite ms de retard ; pendant $duree min"
     say "         leurre : un voisin occupe les $coeurs cœurs de « $y » en en réclamant ${demande_m}m"
-    say "outil  : Chaos Mesh NetworkChaos $NS/panne-reseau (nodes: $x) + pod $VOISIN_NS/voisin-leurre + StressChaos $VOISIN_NS/panne-leurre"
+    say "outil  : Chaos Mesh NetworkChaos $NS/panne-reseau-replique (la réplique de $x, tout) + $NS/panne-reseau (les autres pods de $x, vers la base) + pod $VOISIN_NS/voisin-leurre + StressChaos $VOISIN_NS/panne-leurre"
     local demande registre_cible="$x@leurre:$y"; demande=$(maintenant)
     # Un objet refusé : tout retirer, une ligne au registre, sortir en échec.
     refus_reseau() {
@@ -921,8 +931,33 @@ EOF
     demande=$(maintenant)
     ecrire_etat CAUSE=reseau OUTIL=chaos-mesh "CIBLE=$registre_cible" "HOTE=$x" "LEURRE=$y" \
                 "INTENSITE=$intensite" "DEBUT=$demande" "DUREE=$duree"
-    # Les deux objets partent ensemble ; ils doivent être confirmés dans les mêmes 60 s.
+    # Les trois objets partent ensemble ; ils doivent être confirmés dans les mêmes 60 s.
+    # La réplique de X : tout ce qu'elle envoie (sans cible : ce retard s'ajoute à
+    # son réglage de 140 ms vers la base, comme pour M0). Les autres pods de X :
+    # vers la base seulement (avec cible ; jamais sur la réplique, où deux règles à
+    # cible sur les mêmes adresses ne s'additionnent pas : une seule s'appliquerait).
     kubectl apply -f - >/dev/null <<EOF || refus_reseau "Chaos Mesh a refusé un objet — voir ci-dessus."
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: panne-reseau-replique
+  namespace: $NS
+  labels: { panne: reseau }
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces: [ "$NS" ]
+    nodes: [ "$x" ]
+    labelSelectors: { app: "$CONSO" }
+    podPhaseSelectors: [ "Running" ]
+  direction: to
+  delay:
+    latency: "${intensite}ms"
+    correlation: "0"
+    jitter: "0ms"
+  duration: "${duree}m"
+---
 apiVersion: chaos-mesh.org/v1alpha1
 kind: NetworkChaos
 metadata:
@@ -935,8 +970,17 @@ spec:
   selector:
     namespaces: [ "$NS" ]
     nodes: [ "$x" ]
+    expressionSelectors:
+      - { key: app, operator: NotIn, values: [ "$CONSO", "${MYSQL_LABEL#*=}" ] }
     podPhaseSelectors: [ "Running" ]
   direction: to
+  target:
+    mode: all
+    selector:
+      namespaces: [ "$NS" ]
+      labelSelectors: { ${MYSQL_LABEL%%=*}: "${MYSQL_LABEL#*=}" }
+  externalTargets:
+$(for ip in $ips_base; do echo "    - \"$ip\""; done)
   delay:
     latency: "${intensite}ms"
     correlation: "0"
@@ -960,20 +1004,23 @@ spec:
       load: 100
   duration: "${duree}m"
 EOF
-    local s1="" s2=""; reste=60
+    local s0="" s1="" s2=""; reste=60
     while [ "$reste" -gt 0 ]; do
+        s0=$(kubectl get networkchaos panne-reseau-replique -n "$NS" -o jsonpath='{.status.conditions[?(@.type=="AllInjected")].status}' 2>/dev/null)
         s1=$(kubectl get networkchaos panne-reseau -n "$NS" -o jsonpath='{.status.conditions[?(@.type=="AllInjected")].status}' 2>/dev/null)
         s2=$(kubectl get stresschaos panne-leurre -n "$VOISIN_NS" -o jsonpath='{.status.conditions[?(@.type=="AllInjected")].status}' 2>/dev/null)
-        [ "$s1" = "True" ] && [ "$s2" = "True" ] && break
+        [ "$s0" = "True" ] && [ "$s1" = "True" ] && [ "$s2" = "True" ] && break
         sleep 3; reste=$((reste - 3))
     done
-    # Ce que Chaos Mesh a vraiment posé : chaque pod de X au retard demandé, aucun
-    # pod d'une autre machine (relu une fois après 5 s si un pod manque).
-    local poses manque="" fuite="" essai p
+    # Ce que Chaos Mesh a vraiment posé : la réplique de X par panne-reseau-replique,
+    # chaque autre pod de X par panne-reseau, au retard demandé et une seule fois ;
+    # aucun pod d'une autre machine (relu une fois après 5 s si un pod manque).
+    local poses manque="" fuite="" essai p o
     for essai in 1 2; do
         poses=$(retards_reseau); manque=""; fuite=""
         for p in $sur_x; do
-            printf '%s\n' "$poses" | grep -qx "$p ${intensite}ms" || manque="$manque $p"
+            o=panne-reseau; [ "$p" = "$rep_x" ] && o=panne-reseau-replique
+            [ "$(printf '%s\n' "$poses" | awk -v p="$p" '$1 == p' )" = "$p ${intensite}ms $o" ] || manque="$manque $p"
         done
         for p in $(printf '%s\n' "$poses" | cut -d' ' -f1); do
             printf '%s\n' "$sur_x" | grep -qx "$p" || fuite="$fuite $p"
@@ -981,14 +1028,14 @@ EOF
         [ -n "$manque" ] && [ "$essai" = "1" ] && { sleep 5; continue; }
         break
     done
-    if [ "$s1" = "True" ] && [ "$s2" = "True" ] && [ -z "$manque" ] && [ -z "$fuite" ]; then
+    if [ "$s0" = "True" ] && [ "$s1" = "True" ] && [ "$s2" = "True" ] && [ -z "$manque" ] && [ -z "$fuite" ]; then
         consigner "$demande" "$(maintenant)" injection reseau "$intensite" "$registre_cible" chaos-mesh/networkchaos+stresschaos confirmee
-        ok "injectée — $intensite ms sur ce qu'envoient les $n_x pods de « $x » ; leurre sur « $y » ; expire dans $duree min"
+        ok "injectée — $intensite ms : tout ce qu'envoie $rep_x, et ce que les $((n_x - 1)) autres pods de « $x » envoient à la base ; leurre sur « $y » ; expire dans $duree min"
         return 0
     fi
     local retire="tout est retiré"; defaire_reseau_dit || retire="le retrait a échoué en partie"
     consigner "$demande" "" injection reseau "$intensite" "$registre_cible" chaos-mesh/networkchaos+stresschaos NON_CONFIRMEE
-    warn "pas confirmée en 60 s (réseau : ${s1:-?}, leurre : ${s2:-?}${manque:+, pods sans le retard :$manque}${fuite:+, pods hors de $x retardés :$fuite}) : $retire"
+    warn "pas confirmée en 60 s (réplique : ${s0:-?}, autres pods : ${s1:-?}, leurre : ${s2:-?}${manque:+, pods sans le retard :$manque}${fuite:+, pods hors de $x retardés :$fuite}) : $retire"
     return 1
 }
 
@@ -1049,9 +1096,10 @@ nettoyer_residus() {
         trouve=1
     fi
     if kubectl get networkchaos panne-reseau -n "$NS" >/dev/null 2>&1 \
+            || kubectl get networkchaos panne-reseau-replique -n "$NS" >/dev/null 2>&1 \
             || kubectl get stresschaos panne-leurre -n "$VOISIN_NS" >/dev/null 2>&1 \
             || kubectl get pod voisin-leurre -n "$VOISIN_NS" >/dev/null 2>&1; then
-        defaire_reseau && say "panne-reseau, panne-leurre, voisin-leurre supprimés" || warn "un objet de « reseau » résiste"
+        defaire_reseau && say "panne-reseau(-replique), panne-leurre, voisin-leurre supprimés" || warn "un objet de « reseau » résiste"
         trouve=1
     fi
     local pod
@@ -1191,6 +1239,7 @@ etat_app() {
     kubectl get stresschaos panne-hote -n "$VOISIN_NS" >/dev/null 2>&1 && { warn "reste : stresschaos/panne-hote"; residus=1; }
     kubectl get pod voisin-bruyant -n "$VOISIN_NS" >/dev/null 2>&1 && { warn "reste : pod voisin-bruyant"; residus=1; }
     kubectl get networkchaos panne-reseau -n "$NS" >/dev/null 2>&1 && { warn "reste : networkchaos/panne-reseau"; residus=1; }
+    kubectl get networkchaos panne-reseau-replique -n "$NS" >/dev/null 2>&1 && { warn "reste : networkchaos/panne-reseau-replique"; residus=1; }
     kubectl get stresschaos panne-leurre -n "$VOISIN_NS" >/dev/null 2>&1 && { warn "reste : stresschaos/panne-leurre"; residus=1; }
     kubectl get pod voisin-leurre -n "$VOISIN_NS" >/dev/null 2>&1 && { warn "reste : pod voisin-leurre"; residus=1; }
     [ -z "$(retards_reseau)" ] || { warn "reste : des pods portent encore un retard de panne-reseau"; residus=1; }

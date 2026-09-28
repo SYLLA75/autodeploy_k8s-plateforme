@@ -262,6 +262,11 @@ reprennent la perspective (19 et 20 de la version allégée, 16 de la plénière
     Locust) et deux répliques absorbent seules 2,83 messages/s. Arrêt selon la règle écrite ; la
     suite de D est à décider. À dire au rapport quelle que soit la suite : une panne réseau d'une
     seule machine, à cette charge, est absorbée par la file (fait mesuré, pas un échec du GNN).
+27q. **D, écart 3 : le moyen corrigé** (journal, 28 sept.) : la réplique de X retardée sur tout ce
+    qu'elle envoie, les autres pods de X seulement vers la base ; pourquoi (M0 freinait les parcours
+    7 fois plus que la réplique) ; le piège de Chaos Mesh (deux règles à cible ne s'additionnent pas)
+    ; 4 injections. À dire : « le chemin de X vers les données », pas « toute la carte ». Code à
+    porter : panne.sh (panne-reseau-replique + panne-reseau), essai_d.py (contrôle avant + 5d).
 
 ### Limites à écrire honnêtement
 27. **Dérive** : toute méthode qui apprend le « normal » se trompe si le normal

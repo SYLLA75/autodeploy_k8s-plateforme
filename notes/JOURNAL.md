@@ -1955,3 +1955,61 @@ base des répliques), Locust à 25 voyageurs. Les quatre essais : `campagnes/ess
    le leurre coûte au dépôt. Tout cela serait écrit et relu avant, comme D.1.
 2. Abandonner D : le GNN n'est alors jugé que sur C (l'axe (d) vaut « égal »), et le rapport dit
    pourquoi D n'a pas pu déborder.
+
+## 2026-09-28 — D.5/7, suite : écart 3, le moyen corrigé (écrit avant tout nouvel essai)
+
+**Décidé avec l'utilisateur** (28 sept., matin : « VAS Y » sur la recommandation ci-dessous, avec 4
+injections ; juger le GNN sur C seul est exclu). Les essais de M0 restent sous scellé ; ils n'ont servi
+que par leurs lectures permises (dépôt, parcours Locust, réplique).
+
+**Pourquoi.** Sous M0 (retard de tout ce qu'envoient les 10 pods de X), la chaîne « réserver » prenait
+28 à 40 d de plus, la réplique 5 d : les parcours ralentissaient environ 7 fois plus que la réplique,
+et le dépôt baissait avant que la file déborde. ts-preserve-service, sur X, fait environ 7,5 appels
+sortants par réservation, chacun retardé.
+
+**L'étude** (workflow, 3 agents indépendants, une synthèse, un contradicteur ; calculs dans le
+scratchpad hors dépôt). Données lues : fenêtres normales d'apprentissage des deux séries, code, code
+source de Chaos Mesh v2.8.4. À dire : un agent a aussi lu les fenêtres de PANNE hote-01 et hote-02 de
+l'apprentissage (ni le test, ni C, ni D) pour le leurre ; inutile, car M0 à 75 ms montre déjà que le
+leurre ne touche pas le dépôt (3,34 → 3,35).
+
+**Le moyen corrigé (M4).** Leurre inchangé. Deux objets réseau sur X :
+- `panne-reseau-replique` : la seule réplique de X (sélecteur nodes + app), tout ce qu'elle envoie,
+  sans cible. Sans cible, ce retard s'ajoute à son réglage de 140 ms (règle à la racine, puis le
+  prio et la bande filtrée du réglage : la composition de M0, mesurée à 706 + 5d aux 4 crans) ;
+- `panne-reseau` : les autres pods de train-ticket sur X (app ≠ la réplique, ≠ la base), vers la base
+  seulement (même cible que le réglage : pods de la base + adresses de service devant elle).
+- Pourquoi pas une seule règle « X vers la base » sur tous les pods : sur la réplique, deux règles à
+  cible sur les mêmes adresses ne s'additionnent pas (chaque règle à cible a sa bande ; le paquet ne
+  prend qu'une bande, tc_server.go) : elle aurait 140 ms OU d.
+- Confirmation : les trois objets AllInjected dans les mêmes 60 s ; la réplique de X porte
+  panne-reseau-replique à d ms (et lui seul), chaque autre pod de X porte panne-reseau à d ms (et lui
+  seul), aucun pod hors de X n'en porte ; sinon tout est retiré, NON_CONFIRMEE.
+
+**Ce que ça change à la signature de D.1.** Plus lents : la réplique de X (+5d par message, et
+l'accusé de réception à rabbitmq retardé : capacité probablement 1/(0,706 + 6d)) ; les flèches
+queries de station, config et order-other (+d par requête : les 3 services de X qui interrogent la
+base, actifs dans 249/249 fenêtres normales) ; preserve par ricochet. Inchangés : les flèches calls
+qui sortent de X, le trafic entre pods de X (sauf depuis la réplique), les nombres de la machine X,
+et les appelants de la base hors de X (ce qui sépare D de C, où tous les appelants ralentissent). Le
+banc de pannes fabriquées de E prendra cette signature. Le rapport dira : « le chemin de X vers les
+données est lent » (la réplique : tout ce qu'elle envoie), pas « toute la carte de X ».
+
+**Prédiction** (estimée, modèle du dépôt en boucle fermée calé sur M0) : à 300 ms, la chaîne
+« réserver » resterait sous les 5 s du rythme ; marge dépôt − capacité de +0,07 à +0,19 message/s,
+tas de 20 à 55 à la 5e minute ; une injection compte avec une probabilité d'environ 0,75 (0,56 si
+la capacité ne perd que 5d). Mince : c'est pourquoi 4 injections.
+
+**Échelle et arrêt.** 300 ms ; retenu s'il déborde selon D.1 (tas > 10 dès la 5e minute de panne,
+en hausse au retrait) et passe essai_d.py. S'il tient sans déborder : un seul autre essai, 400 ms.
+400 ms sans débordement, un effondrement, ou un échec d'essai_d.py : arrêt, décision avec
+l'utilisateur (repli étudié : sortir ts-station-service de X, un choix de placement qui lui
+revient). 500 ms exclu d'avance (Hikari vérifie une connexion inactive depuis plus de 0,5 s : un
+échange de plus ; sondes du kubelet non éprouvées au-delà de 300 ms). essai_d.py vérifie en plus,
+avant le verdict : la réplique de X pendant la panne vaut sa médiane d'avant + 5 × d à 10 % près
+(sinon « MOYEN NON CONFORME » : un retard perdu ou doublé sur la réplique ; à 300 ms, les pièges
+seraient 706, 1 506 ou 3 006 ms au lieu de 2 206).
+
+**Campagne.** `jumeaux-01 --profil 25:180 --panne reseau --a 5,50,95,140 --duree 20 --intensite
+<retenue> --cible workers2:workers1 ×4`. Les règles de décision de D sont inchangées (au moins 2
+injections qui comptent). Essais nommés `essai-reseau-b-<d>`.
