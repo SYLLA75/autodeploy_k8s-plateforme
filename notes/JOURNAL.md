@@ -2150,3 +2150,25 @@ passe devant la réplique gelée). Relecture de v2/v3 : un défaut (empreinte no
 ~/gnn-dev sur vms0, contre la consigne. Empreintes graine 0 (sha256 §8) : v1 cc0f6bf7e4ddfc1e, v2 600f8adcd51ad88f,
 v3 a3fdb4cd9b9ca29b. Sorties : campagnes/gnn-validation{,-v2,-v3}.txt, gnn-banc-validation{,-v2,-v3}.txt.
 Suite : la couche « avec exemples » (§12) posée sur v2 ; branchement dans decision_c ; relecture finale ; gnn-fige.
+
+## 2026-09-28 — E.4 : decision_c.py étendu au GNN et à D (écrit avant gnn-fige)
+
+Code (agents) puis deux relectures (règles écrites avant ; justesse et scellé), 16 constats, 13 confirmés et
+corrigés. Non-régression : `--garde` sans GNN rend `campagnes/decision-garde.txt` octet pour octet ; extension à D
+éprouvée sur des campagnes FACTICES tirées des séries (50/50 vérifications ; C et D jamais lues). Ce que le code
+applique désormais, écrit ici AVANT le gel :
+- quatre entrées GNN : « GNN, sans exemples », « GNN, avec exemples », chacune avec « …, budget de la règle » ;
+  chaque réglage n'est jugé que contre les versions de la règle du MÊME réglage (E-2) ; face à une version de la
+  règle, TROUVE, F et minutes du GNN se lisent sur son entrée « budget de la règle », sans adversaire (ligne 1 de
+  l'axe (d), décision 3) sur son seuil propre ; « GNN sans aucune arête » entre dans la décision 1 et la ligne 0 ;
+- axe (d) compté dans la décision 2 (J 1257) ; « victoire obtenue par le seul axe (d) » signalée dès qu'elle vaut
+  contre au moins une version de la règle (J 1564, 1713) ;
+- `--ouvrir <C> --jumeaux <D>` : C et D dans la même lecture, une seule fois (refus si un fichier de décision existe) ;
+  refus avant toute lecture si moins de 2 injections confirmées de la bonne cause ; graines = 5 imposées ; refus si
+  temoin-machine-fige n'est pas antérieur au déroulé de D (J 1664-1665) ;
+- empreintes : `--empreintes` écrit `graphe_en/gnn-empreintes.txt`, commité avec gnn-fige ; `--ouvrir` les recalcule
+  et refuse au moindre écart ;
+- NotReady : campagne.sh ne le note pas ; deux signes INDIRECTS le remplacent (machine absente du graphe ou sans
+  mesure pendant la panne ; machine « <unknown> » à kubectl top lors d'un témoin) — un NotReady où les mesures
+  continuent ne serait pas vu : à dire.
+Reste pour gnn.py : `methodes` doit rendre les quatre noms et `empreintes(fen, fige, graines)` exister.
