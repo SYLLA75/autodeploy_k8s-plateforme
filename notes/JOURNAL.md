@@ -2017,3 +2017,29 @@ Relecture de l'écart 3 (deux agents, constats contre-vérifiés) : aucun défau
 commentaires restés sur M0, deux refus de l'injection repris dans `verifier` (une seule réplique sur X,
 adresses devant la base lisibles), un pod de la base sur X n'attend aucun retard (il est exclu du
 sélecteur), essai_d.py refuse s'il ne peut pas faire le contrôle « avant + 5d ».
+
+## 2026-09-28 — D.5/7 : panne du site avant l'essai, purge, nouveau placement
+
+- **Panne du site (hors expérience).** Le 28 à 09:55 UTC, « chercher un train » s'est mis à échouer
+  (HTTP 500, 12 %) et les débits de tous les parcours sont tombés presque à 0 : ts-travel-service
+  n'obtenait plus de connexion de son pool (« HikariPool-1 - Connection is not available, request
+  timed out after 30000ms », en boucle ; aucune erreur chez basic, seat, station, config, route,
+  train, price ; base 3/3, aucun objet Chaos Mesh hors du réglage de base). Aucune panne injectée
+  depuis 03:23 UTC. Cause non prouvée (diagnostic arrêté) ; la plus probable : l'accumulation des
+  commandes depuis la purge de 00:41 (≈ 9 h 15), déjà connue comme dérive. Leçon : entre deux purges,
+  environ 9 h de charge à 25 voyageurs ; l'essai (≈ 35 min) et la campagne (≈ 3 h) y tiennent.
+- **Purge avec redémarrage** (donnees.sh purger --redemarrer), lancée par l'utilisateur vers 10:50 UTC
+  (refusée par le classifieur de mon côté) ; 268 lignes restantes ; compteurs de Locust remis à zéro à
+  10:54:23 ; bilan à 10:55 : tous les parcours passent, réserver compris. Pas d'attente de 30 min
+  (décision de l'utilisateur ; les minutes d'avant l'injection de l'essai servent de référence).
+  vms0 mis à jour à f5a6570 avant (copies non suivies des 4 essais, identiques aux fichiers commités,
+  déplacées dans ~/journaux-hors-campagne/copies-avant-pull-20260928/).
+- **Nouveau placement** après la purge : ts-order-service sur workers0, ts-seat-service sur workers4,
+  ts-travel-service sur workers5. La règle de D.1 (couples_d.py) donne désormais DEUX couples :
+  workers2:workers1 et workers5:workers1 (workers5 : réplique tvmfl + ts-train-service et
+  ts-travel-service actifs 249/249). Un essai à une injection prend le premier (workers2:workers1,
+  vérifié au départ). **Conséquence pour D.6** : avec 4 injections, la règle écrite fait tourner les
+  cibles (workers2, workers5, workers2, workers5) et campagne.sh refusera la commande de l'écart 3
+  (workers2 ×4). Le retard retenu n'aura été essayé que sur workers2. À décider avec l'utilisateur
+  après l'essai (la règle prime ; question : essai sur workers5 d'abord, ou non).
+- Essai `essai-reseau-b-300` lancé à 10:55:25 UTC (25:30, --a 5, 20 min, 300 ms, workers2:workers1).
