@@ -2102,3 +2102,6 @@ T1–T7 (§8). Aucun hyperparamètre ne sera cherché ; un seul essai de rechang
 - **Leçon pour le banc** (à coder dans campagne.sh après la campagne, jamais pendant) : au départ et à chaque
   veille, comparer le débit RÉEL de Locust à voyageurs / rythme (refus sous 80 %) ; le compte de voyageurs ne
   suffit pas. Et donner un délai d'abandon aux requêtes de Locust (changerait la charge : à décider hors D).
+- **1re injection de jumeaux-02 (12:44:54, workers5, 400 ms) : RETENUE.** Tas 2 → 15 dès la 1re minute, puis 30,
+  39, 53, 66 à la 5e minute (≈ +13/min, soit dépôt − retrait ≈ +0,2 message/s) ; veille à 12:50 : parcours ok,
+  leader ok. La campagne continue (lecture limitée au tas, au registre et aux veilles, scellé tenu).
