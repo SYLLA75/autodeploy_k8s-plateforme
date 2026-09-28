@@ -596,3 +596,22 @@ Même recette que `temoin_noeud` « avec exemples », mais sur ce que voit le GN
 **Comparaison.** Le GNN « avec exemples » est comparé aux témoins « avec exemples » (même information), le GNN « sans
 exemples » aux témoins « sans exemples ». Les décisions de C et D (J 1244-1257) restent écrites comme avant ; sur C et D,
 la cause étant nouvelle, c'est le repli (étape 1) qui désigne, pour les deux réglages.
+
+---
+
+## 13. Écart E-3 (28 sept., écrit AVANT tout nouveau calcul) : un choix B/H/V ÉQUILIBRÉ entre les familles du banc
+
+**Constat.** §3.5 (critère 3 : le plus de cas du banc au rang 1, TOUTES familles additionnées) a retenu pour v2
+B2/H0/V1, qui trouve la réplique fabriquée mais presque jamais la base fabriquée (« entrant dans tsdb-mysql-0 » : 0 à
+1/128) ni la machine fabriquée sur workers5 (0 à 2/128). Le banc existe pour éprouver ces choix sur les pannes de type
+C et D (J 1301-1311) ; la somme laissait la famille la plus nombreuse (réplique) décider. Défaut de la spec écrite ce
+jour, pas du journal. Aucune donnée de C ni de D n'a été lue.
+
+**Nouvelle règle, pour chaque version, parmi les combinaisons dont G_val tient pour les 5 graines :**
+- familles (médiane des graines, part au rang 1) : **F_C** = « entrant dans tsdb-mysql-0 », d ∈ {75, 150, 300} ;
+  **F_D** = cas M et M+Y, X ∈ {workers0, workers2, workers5}, d ∈ {75, 150, 300} ; **F_R** = cas R et « sortant »
+  (la réplique) ; (Y, « entrant » ts-order-service et 400 ms : rapportés, hors critère) ;
+- on retient le plus grand **min(F_C, F_D, F_R)** ; à 0,05 près, le plus grand top-1 de validation ; puis le plus simple.
+**Choix de la version (remplace la règle de §11) :** (1) G_val ; (2) détection au budget de la règle ; (3) le plus
+grand min(F_C, F_D, F_R) de la version (à 0,05 près) ; (4) top-1 de validation (à ±5) ; (5) la plus simple.
+**Arrêt :** si aucune version n'atteint min(F_C, F_D, F_R) ≥ 0,5, on ne fige pas : décision avec l'utilisateur.

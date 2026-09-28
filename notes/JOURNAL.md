@@ -2180,3 +2180,21 @@ Reste pour gnn.py : `methodes` doit rendre les quatre noms et `empreintes(fen, f
   que le graphe de la minute ne voit pas une flèche qui manque). La voie apprise est le GNN avec exemples (§12). Au
   rapport, dire aussi que B/H/V est un post-traitement écrit à la main, général (non taillé pour une cause), choisi
   sur le banc, et que la variante « sans aucune arête » mesure la part du modèle appris.
+
+## 2026-09-28 — E, écart E-3 (choix équilibré, GNN_SPEC.md §13) et D.6/7 : fin de jumeaux-02
+
+- **E-3**, écrit avant tout recalcul : le choix B/H/V par la somme des cas du banc donnait un GNN qui rate la base
+  et la machine fabriquées (C et D). Nouvelle règle : le plus grand minimum des familles C, D et réplique ; arrêt si
+  aucune version n'atteint 0,5. Découvert à la lecture des colonnes du banc, que je n'avais pas lues avant d'annoncer
+  « v2 retenue » (faute de ma part, dite à l'utilisateur).
+- **jumeaux-02 terminée** (15:39 UTC) : 4 injections confirmées sur workers5:workers1 à 400 ms, 4 retraits ok, toutes
+  les veilles « parcours ok, leader ok ». Tas pendant les injections : 269, 235, 168, 155 au retrait (montée ≈ 13, puis
+  ≈ 8 messages/min des injections 2 à 4).
+- **Charge perdue à la fin** (lectures permises : tas, Locust) : à 15:20:38, juste après le 4e retrait (15:20:14),
+  la file passe de 155 à 0 en une minute puis reste à 0 message et 0 non acquitté ; Locust à 15:45 : 25 voyageurs,
+  0,2 requête/s. Les voyageurs se sont de nouveau bloqués (requêtes sans délai d'abandon). Hypothèse : un retrait de
+  panne coupe des connexions en vol et fige des voyageurs ; la baisse de la montée après la 1re injection (13 → 8/min)
+  laisse penser que des voyageurs se sont figés à chaque retrait. **Décision, avant toute lecture de D** : le graphe
+  de jumeaux-02 est construit jusqu'à 15:20 (au lieu de 15:37) ; les minutes sans charge après le dernier retrait
+  n'entrent pas dans D. Le rapport dira que la charge de D baisse au fil des injections. Pour tout banc futur : délai
+  d'abandon des requêtes de Locust et contrôle du débit réel (déjà noté).
