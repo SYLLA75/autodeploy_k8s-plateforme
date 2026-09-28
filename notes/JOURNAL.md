@@ -1711,3 +1711,35 @@ donne l'axe :
 3. une version de la règle TROUVE et pas le GNN → perdu ;
 4. personne ne trouve → égal.
 Le rapport ne présentera pas une victoire sur C obtenue par l'axe (d) comme indépendante de D.
+
+## 2026-09-28 — D.2/7 : lectures et mesure sur le cluster
+
+Accord de l'utilisateur pour cette nuit seulement (28 sept., vers 00:20 UTC ; il dort, veut D finie
+au réveil) : la mesure ci-dessous, la purge avec redémarrage des 3 services habituels, les essais de
+D.5, le lancement de jumeaux-01, et le redémarrage d'un service bloqué seulement s'il empêche
+« réserver ». Chaque geste est noté ici. Toute règle écrite « décision avec l'utilisateur » arrête
+tout jusqu'à son réveil.
+
+**Lectures (00:15–00:25 UTC, rien modifié).**
+- Toutes les machines de travail : carte `enp6s18`, file racine fq_codel (défaut du noyau), Calico
+  en vxlan (le trafic entre machines sort par enp6s18), kube-proxy en IPVS.
+- Chaos Mesh 2.8.4 : NetworkChaos a un champ `device` ; aucun filtre d'espace de noms.
+- Débit de sortie de workers2 en fin de campagne : environ 170 paquets/s ; à 300 ms, environ 50
+  paquets dans la file du netem, loin de sa limite par défaut (1 000) : rien ne devrait être jeté.
+- Base : MySQL 5.7.34, semi-synchrone AFTER_SYNC, attente d'UNE suiveuse (wait_for_slave_count = 1),
+  2 suiveuses branchées, attente moyenne par validation 0,54 ms depuis le départ ; délai d'abandon
+  infini.
+- Placement (après base-01) : répliques sur workers0, workers2, workers5 ; leader tsdb-mysql-0 sur
+  workers4 ; suiveuses tsdb-mysql-1 sur workers5, tsdb-mysql-2 sur workers3 ; rabbitmq, passerelle,
+  ts-order-service sur workers3 ; producteur ts-food-service sur workers0. workers2 porte aussi
+  nacos-0, un coredns et dns-autoscaler (le cache DNS local de chaque machine les amortit).
+
+**La mesure de la suiveuse, règle écrite avant de mesurer.** Trois relevés de 3 min des compteurs
+Rpl_semi_sync_master_tx_wait_time et tx_waits du leader : avant, pendant un retard de 300 ms (le
+plus haut cran de l'échelle) sur TOUT ce que sort tsdb-mysql-1 (NetworkChaos sur ce pod, 4 min), et
+après. Attente moyenne par validation = Δtemps / Δvalidations. La suiveuse retardée « ne change pas
+le temps de validation » si l'attente pendant reste sous 2 × celle d'avant + 1 ms, ET si le leader
+reste tsdb-mysql-0. Alors workers5 n'est pas exclue par sa suiveuse ; sinon elle l'est. Le mécanisme
+de D est aussi essayé, à blanc : un NetworkChaos de 1 ms, 60 s, sur la carte enp6s18 de workers1
+(sans réplique) par le pod node-exporter de cette machine (réseau de l'hôte), relu dans l'espace
+réseau de l'hôte, puis retiré (la file racine doit revenir à fq_codel).
