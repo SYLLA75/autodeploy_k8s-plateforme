@@ -2223,3 +2223,12 @@ Recalcul E-3 (5 graines, 150 époques) confirmé par un recompte indépendant : 
 0,000 (v2), 0,020 (v3) : pas de gel (règle d'arrêt de §13). v1 trouve la base et la machine fabriquées mais ne sonne
 pas ; v2/v3 sonnent mais ratent base et machine (et accusent le leurre). Décision de l'utilisateur : GNN combiné
 (GNN_SPEC.md §15, écrit avant calcul) : alarme de l'exemplaire v2, fautif de l'exemplaire v1 (B5/H2/V0).
+
+## 2026-09-28 — D.7/7 : jumeaux-02 enregistrée, graphe figé conforme, SCELLÉE
+
+Graphe (code figé, échelle de saine-09) : 12:42 → 15:20 UTC (écart de fin, voir plus haut), 158 fenêtres, 0 erreur,
+run `runs/20260928-174321` sur vms0 ; gel.py : CONFORME ; fautifs.py : tous les fautifs établis
+(`campagnes/fautifs-jumeaux-02.txt`) ; lecture.txt écrit sans être affiché. Dossiers commités : jumeaux-02 (retenue),
+jumeaux-01 (ÉCARTÉE : charge fausse, Locust figé), essai-reseau-b-300 et b-400 (comptes rendus RECONSTRUITS, charge
+fausse). Scellé : ni témoin ni GNN ne lisent jumeaux-02 avant gnn-fige ; ouverture unique par
+`decision_c.py --ouvrir base-01 --jumeaux jumeaux-02`.

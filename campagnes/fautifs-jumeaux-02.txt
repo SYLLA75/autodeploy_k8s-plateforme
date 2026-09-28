@@ -1,0 +1,15 @@
+# Fautif de chaque injection — écrit par graphe_en/fautifs.py, ne pas éditer à la main.
+# Règles fixées le 26 sept. 2026, avant tout calcul des témoins (voir fautifs.py).
+# vu : fenêtres entièrement dans l'injection où chaque fautif est un nœud du graphe figé.
+
+jumeaux-02   graphe figé : runs/20260928-174321
+  1  12:44:50 → 13:05:19  reseau   host : workers5
+       registre : workers5@leurre:workers1 ; vu 20 sur 20 fenêtres
+  2  13:29:50 → 13:50:12  reseau   host : workers5
+       registre : workers5@leurre:workers1 ; vu 20 sur 20 fenêtres
+  3  14:14:50 → 14:35:12  reseau   host : workers5
+       registre : workers5@leurre:workers1 ; vu 20 sur 20 fenêtres
+  4  14:59:50 → 15:20:14  reseau   host : workers5
+       registre : workers5@leurre:workers1 ; vu 20 sur 20 fenêtres
+
+TOUS LES FAUTIFS SONT ÉTABLIS

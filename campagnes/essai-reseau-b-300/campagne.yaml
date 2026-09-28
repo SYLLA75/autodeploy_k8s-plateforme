@@ -1,0 +1,21 @@
+# RECONSTRUIT À LA MAIN le 28 sept. 2026 : le pilote a été coupé sans sa clôture (journal, D.5).
+# Seulement ce qu'il faut à d5-verif.sh / essai_d.py ; instants lus dans journaux/pannes.tsv du master.
+campagne: essai-reseau-b-300
+type: panne
+comptes:
+  injections_confirmees: 1
+  injections_non_confirmees: 0
+
+plage_exploitable:
+  date: 2026-09-28
+  from: "10:57"
+  to:   "11:10"
+
+deroule:
+  - { instant: 2026-09-28T11:01:06Z, action: injection, cause: reseau, resultat: confirme, cible: workers2:workers1 }
+  - { instant: 2026-09-28T11:10:09Z, action: retrait, cause: reseau, resultat: ok }
+
+pannes_mesurees: |
+  # instant_demande	instant_effectif	action	cause	intensite	cible	outil	resultat
+  2026-09-28T11:01:02Z	2026-09-28T11:01:06Z	injection	reseau	300	workers2@leurre:workers1	chaos-mesh/networkchaos+stresschaos	confirmee
+  2026-09-28T11:10:09Z	2026-09-28T11:10:50Z	retrait	reseau	300	workers2@leurre:workers1	chaos-mesh	ok
