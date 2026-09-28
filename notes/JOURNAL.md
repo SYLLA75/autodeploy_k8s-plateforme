@@ -2172,3 +2172,11 @@ applique désormais, écrit ici AVANT le gel :
   mesure pendant la panne ; machine « <unknown> » à kubectl top lors d'un témoin) — un NotReady où les mesures
   continuent ne serait pas vu : à dire.
 Reste pour gnn.py : `methodes` doit rendre les quatre noms et `empreintes(fen, fige, graines)` exister.
+- **Blocage et GNN sans exemples : décision de l'utilisateur (28 sept.), pas de correction écrite à la main.**
+  Cause connue (risque 1 de la spec) : la réplique gelée ne produit plus de chiffres et sa flèche `consumes` disparaît
+  du graphe de la minute ; la file, victime, crie le plus fort et le GNN ne peut pas remonter une flèche absente. Une
+  règle « réplique muette » écrite pour ce cas serait taillée pour une cause connue : on sortirait du cadre (ce ne
+  serait plus le GNN qui apprend). Le blocage reste une LIMITE du GNN sans exemples, à écrire (un modèle qui ne voit
+  que le graphe de la minute ne voit pas une flèche qui manque). La voie apprise est le GNN avec exemples (§12). Au
+  rapport, dire aussi que B/H/V est un post-traitement écrit à la main, général (non taillé pour une cause), choisi
+  sur le banc, et que la variante « sans aucune arête » mesure la part du modèle appris.
