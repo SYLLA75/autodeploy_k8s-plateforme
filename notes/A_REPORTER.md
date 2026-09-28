@@ -285,3 +285,12 @@ reprennent la perspective (19 et 20 de la version allégée, 16 de la plénière
     si le score par nœud échoue sur C, ce sera d'abord parce que la base ne bouge
     presque pas dans ce qu'on mesure, pas forcément par nature ; le tableau, lui, ne
     désigne jamais le fautif d'une cause jamais vue, quelle que soit l'instrumentation.
+31. **Autre environnement** (question du 28 sept.) : ce qui se transporte = collecte, graphe,
+    modèle (règles par type de nœud et de flèche, pas par nom). Ce qui change = le normal
+    (réapprendre l'étape 1 sur une période sans panne, sans étiquettes) ; les prototypes de
+    l'étape 2 servent encore si les mesures sont des écarts au normal de chaque nœud, sinon
+    « inconnue » puis un prototype ajouté avec quelques exemples. Campagne : inutile pour
+    déployer, nécessaire (petite) pour CHIFFRER le résultat là-bas. **Contrainte pour E** :
+    jamais l'identité d'un pod ou d'une machine en entrée du GNN (comme le tableau équitable
+    de B.3), mesures exprimées en écart au normal du nœud ; un composant d'une sorte absente
+    ici (Kafka, cache) demande un type de plus et un réapprentissage de cette partie.
