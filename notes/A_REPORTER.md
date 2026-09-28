@@ -257,6 +257,11 @@ reprennent la perspective (19 et 20 de la version allégée, 16 de la plénière
     corrigée (1 400 m réclamés au moins, et non 2 100 m libres : prémisse fausse). Code à porter :
     panne.sh (cause reseau, sous-commande libres), campagne.sh (--panne reseau, contrôle des couples),
     couples_d.py, essai_d.py. La mesure de la suiveuse (535 → 596 µs) va au rapport.
+27p. **D.5 : quatre essais, aucun débordement** (journal, 28 sept.) : la réplique de X ralentit
+    exactement de 5 × d par message, mais le dépôt baisse avec d (« réserver » dépasse le rythme de
+    Locust) et deux répliques absorbent seules 2,83 messages/s. Arrêt selon la règle écrite ; la
+    suite de D est à décider. À dire au rapport quelle que soit la suite : une panne réseau d'une
+    seule machine, à cette charge, est absorbée par la file (fait mesuré, pas un échec du GNN).
 
 ### Limites à écrire honnêtement
 27. **Dérive** : toute méthode qui apprend le « normal » se trompe si le normal

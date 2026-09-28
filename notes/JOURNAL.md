@@ -1918,3 +1918,40 @@ rythme de Locust : preserve et station sont sur workers2). Les deux autres répl
 2 × 1,416 = 2,83 messages/s ; à 300 ms la réplique de X en traite 1/2,206 = 0,45, soit 3,29 en tout.
 Si le dépôt tombe sous environ 3,2/s, la file ne débordera pas : ce sera « 300 ms sans débordement »,
 donc arrêt et décision avec l'utilisateur.
+
+**D.5/7, essai 4 : 300 ms** — lancé 02:57:06 UTC ; injection confirmée 03:02:44 → retrait 03:23:12 ;
+3 veilles « parcours ok » (file 0 aux trois), leader inchangé, aucun redémarrage ; Locust sans échec
+(p50 : chercher 2,5 s, réserver 9,8 s, repas 10 ms) ; jetés sur workers2 : 0 (10 pods encore
+retardés), retransmissions +43 pendant la panne ; tas entre 0 et 4 pendant la panne. essai_d.py
+(`runs/20260928-052746`) : réplique de workers2 706 → 2 206 ms (0,706 + 5 × 0,3), 3,12 fois ; aucune
+fenêtre sans X ni sans sa réplique ; dépôt 3,50 → 2,48/s (71 %), dépôt − retrait +0,00.
+
+**Décision selon la règle : « 300 ms sans débordement » → arrêt, décision avec l'utilisateur.**
+jumeaux-01 n'est PAS lancée. Cluster laissé propre (aucune panne, aucun reste ; seul le réglage de
+base des répliques), Locust à 25 voyageurs. Les quatre essais : `campagnes/essai-reseau-{75,150,200,300}/`
+(sous le scellé de D : jamais lus par un témoin ni par le GNN).
+
+**Ce que montrent les essais (lu seulement comme D.1 le permet).**
+- Le moyen fait exactement ce qui était calculé : la réplique de X prend 5 × d de plus par message
+  (706 → 1 081, 1 456, 1 706, 2 206 ms), les deux autres ne bougent pas, rien n'est jeté, aucune
+  erreur, pose et retrait sans accroc.
+- La file ne déborde jamais, parce que le dépôt baisse avec d (3,34 → 3,35 ; 3,37 → 3,17 ; 3,31 →
+  3,04 ; 3,50 → 2,48/s) : « réserver » passe de 0,23 s au repos à 2,3 ; 4,5 ; 6,1 ; 9,8 s, au-delà des
+  5 s du rythme de Locust. Les deux autres répliques absorbent seules 2 × 1,416 = 2,83 messages/s ;
+  il faudrait un dépôt au-dessus de 2,83 + 1/(0,706 + 5d), qui recule quand d monte.
+- Deux causes possibles de la chute du dépôt, non séparables sans lire davantage : les services de X
+  sur les parcours (preserve et station, sur workers2), et le leurre lui-même (workers1 porte
+  ts-security-service et ts-seat-service, sur « réserver » ; son stress occupe les 4 cœurs). Si le
+  leurre ralentit « réserver », il ne « crie » plus « sans rien causer ».
+- Prédit avant l'essai 4 (« si le dépôt tombe sous environ 3,2/s, la file ne débordera pas ») : vérifié.
+
+**Pour la décision (à prendre avec l'utilisateur, rien n'est lancé).**
+1. Un essai de diagnostic, puis un moyen corrigé : retarder seulement ce que X envoie vers la base
+   (workers4) et la file (workers3), pas vers les autres services. La réplique ralentit pareil (ses 5
+   échanges vont à la base et à la file), les autres pods de X qui interrogent la base aussi (la
+   signature « machine » reste), mais les appels des parcours entre services ne sont plus retardés :
+   le dépôt devrait tenir. À 300 ms le débordement serait juste (3,28 absorbés contre environ 3,35
+   déposés) : l'échelle devrait aller au-delà (400, 500 ms), et un essai « leurre seul » dirait ce que
+   le leurre coûte au dépôt. Tout cela serait écrit et relu avant, comme D.1.
+2. Abandonner D : le GNN n'est alors jugé que sur C (l'axe (d) vaut « égal »), et le rapport dit
+   pourquoi D n'a pas pu déborder.
