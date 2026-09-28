@@ -2124,3 +2124,29 @@ de choix entre les trois sont écrites AVANT de les calculer ; toutes seront rap
   réglage (sans contre sans, avec contre avec). Risque dit à l'utilisateur : « avec exemples » peut prendre C ou D
   pour une cause connue (C pour une lenteur, D pour une réplique lente) et accuser le mauvais nœud ; c'est un
   résultat à montrer, pas à corriger après coup.
+
+## 2026-09-28 — E.3 : v1, v2, v3 calculées sur la validation ; la règle du §11 retient **v2** (B2/H0/V1)
+
+Validation seule (juge.validation), 5 graines, 150 époques, chaque version avec le CHOIX B/H/V de SON banc (§3.5) :
+v1 B5/H1/V1, v2 B2/H0/V1, v3 B2/H0/V1. Médianes des graines [min–max] :
+
+| | v1 | v2 | v3 | témoin 2 sans ex. | a priori |
+|---|---|---|---|---|---|
+| détection, seuil propre | 1/153 | 153/153 | 153/153 | 151/153 | 0 |
+| fausses alertes non vues, seuil propre | 1/102 | 7/102 [5–10] | 12/102 | 7/102 | 0 |
+| détection au budget de la règle | 9/153 | 153/153 | 153/153 | | |
+| fausses alertes non vues, budget de la règle | 1/102 | 16/102 [15–19] | 19/102 | | |
+| top-1 causes apprises | 38/115 | 76/115 [41–77] | 70/115 [39–73] | 40/115 | 57/115 |
+| top-1 blocage / hôte / lenteur | 0 / 38 / 0 | 0 / 39 / 37 | 0 / 39 / 31 | 1 / 39 / 0 | 19 / 0 / 38 |
+| injections détectées / cause / top-1 | 0/8, 0/8, 2/6 | 8/8, 8/8, 4/6 | 8/8, 8/8, 4/6 | | |
+
+Règle du §11 dans l'ordre : (1) G_val tient pour les trois ; (2) détection au budget de la règle : v1 écartée
+(9/153), v2 = v3 = 153/153 ; (3) top-1 : v2 76 contre v3 70, écart 6 > 5 → **v2 retenue**. Fragilités à dire :
+l'écart ne dépasse la marge que d'une fenêtre ; le top-1 varie beaucoup d'une graine à l'autre (41–77) ; au budget
+de la règle, les fausses alertes non vues (16/102) dépassent ce que promettent les scores tenus (≈ 8/102 : l'échelle
+du modèle final n'est pas celle des plis, risque 5 de la spec) ; le blocage n'est jamais désigné (la file, victime,
+passe devant la réplique gelée). Relecture de v2/v3 : un défaut (empreinte non conforme au §8 en v2/v3), corrigé
+(T13 ajouté), sans effet sur le choix. À signaler : un agent a lancé une fois `git status` (lecture seule) dans
+~/gnn-dev sur vms0, contre la consigne. Empreintes graine 0 (sha256 §8) : v1 cc0f6bf7e4ddfc1e, v2 600f8adcd51ad88f,
+v3 a3fdb4cd9b9ca29b. Sorties : campagnes/gnn-validation{,-v2,-v3}.txt, gnn-banc-validation{,-v2,-v3}.txt.
+Suite : la couche « avec exemples » (§12) posée sur v2 ; branchement dans decision_c ; relecture finale ; gnn-fige.
