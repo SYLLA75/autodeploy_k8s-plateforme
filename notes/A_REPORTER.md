@@ -244,7 +244,8 @@ reprennent la perspective (19 et 20 de la version allégée, 16 de la plénière
     par principe (effet sur D inconnu ; compté dans versions-vues-sur-test/LISEZMOI.md). La phrase de 27l
     (« aucun témoin figé n'a de principe au niveau de la machine ») est remplacée : sur D, le GNN
     est comparé à une règle qui a ce principe. Code à porter : temoin_machine.py,
-    decision_c.methodes(machine=True) et le contrôle git renforcé.
+    decision_c.methodes(machine=True) et le contrôle git renforcé. Étiquette `temoin-machine-fige` posée sur
+    le commit 818d11f (28 sept., avant D.2 et pendant C.6, sans rien lire de C).
 27n. **Deux défauts de decision_c.py (C.0) trouvés et réparés avant toute ouverture** : le contrôle
     git était aveugle (lancé depuis graphe_en/ avec des chemins « graphe_en/… »), et l'axe (c) ne
     pouvait jamais valoir « perdu ». À dire : réparés le 28 sept., avant l'étiquette gnn-fige, sans
