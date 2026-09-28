@@ -2105,3 +2105,10 @@ T1–T7 (§8). Aucun hyperparamètre ne sera cherché ; un seul essai de rechang
 - **1re injection de jumeaux-02 (12:44:54, workers5, 400 ms) : RETENUE.** Tas 2 → 15 dès la 1re minute, puis 30,
   39, 53, 66 à la 5e minute (≈ +13/min, soit dépôt − retrait ≈ +0,2 message/s) ; veille à 12:50 : parcours ok,
   leader ok. La campagne continue (lecture limitée au tas, au registre et aux veilles, scellé tenu).
+
+## 2026-09-28 — E.2 : gnn.py v1 écrit, relu, faible en détection ; écart E-1 (trois versions) écrit avant calcul
+
+gnn.py et gnn_banc.py écrits (agents), --verifier T1–T11 passent, deux relectures : 7 constats, 3 confirmés et
+corrigés (remontée H2 coupée dans les variantes ; empreinte du modèle selon §8 ; égalité en tête comptée CONTRE le
+GNN dans G_val). Validation v1 (graine 0) : détection 4/153 — voir GNN_SPEC.md §11 : les versions v2 et v3 et la règle
+de choix entre les trois sont écrites AVANT de les calculer ; toutes seront rapportées.

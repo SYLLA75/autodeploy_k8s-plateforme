@@ -536,3 +536,35 @@ ssh vms0 ; cd ~/autodeploy_k8s-plateforme && git pull && cd graphe_en
 7. **Contradiction à écrire** : etat.txt justifie le GNN par la cause « machine saturée » ; les mesures du rapport
    montrent qu'elle n'atteint pas la file et que le tableau plat la trouve (R:607-617). Le terrain du GNN est C
    (propagation vers la base) et D (réseau d'une machine), comme au plan.
+
+---
+
+## 11. Écart E-1 (28 sept., écrit AVANT tout calcul des versions 2 et 3) : trois versions de l'étape 1
+
+**Constat sur la validation (version 1 = §1–§6, graine 0, 60 et 150 époques ; `--sans-temoins`).** Détection 4/153
+fenêtres de panne (le score par nœud sans exemples, même idée sans graphe : 151/153) ; top-1 37/115 (témoin : 40/115) ;
+lenteur : tsdb-mysql-0 premier 19 fois sur 38. Causes diagnostiquées par l'agent (sans regarder le test) : (1) le
+calage des écarts PAR SORTE laisse quelques nœuds naturellement bruyants (tcp_retrans_ratio du master et de workers1,
+memory_pressure de workers6, cpu_throttle_ratio, memory_slope) fixer la queue des scores normaux, donc le seuil ;
+(2) asinh appliqué après une échelle déjà logarithmique écrase le signal (lenteur : résidu du p99 de la réplique 0,39) ;
+(3) hypothèse : la reconstruction d'un nœud masqué à partir de ses voisins « explique » une anomalie qui touche tout
+un voisinage (file + répliques + base).
+
+**Écart à §9 (« un seul essai de rechange ») : trois versions, fixées ici avant tout calcul, toutes rapportées.**
+- **v1** : la spec telle quelle (masque, calage par sorte, asinh).
+- **v2** : masque gardé ; PAS d'asinh ; calage des résidus PAR IDENTITÉ, comme le témoin 2 (`temoin_noeud.identite` :
+  pod ramené à son service, répliques regroupées ; StatefulSet, file, machine par leur nom), médiane et échelle
+  robustes par (identité, colonne) sur les résidus tenus hors pli, avec le plancher par sorte du témoin 2 ; une
+  identité sans normal retombe sur le calage par sorte. L'identité ne sert qu'à caler la SORTIE (comme le témoin 2),
+  jamais en entrée du modèle (AR 31 tenu : le modèle ne voit aucun nom ; en production, ce calage se refait sur
+  des minutes normales, sans étiquettes).
+- **v3** : v2, mais l'étape 1 est l'auto-encodeur du rapport (R:828-829, etat.txt E:61) : SANS masque, goulot de
+  dimension 8 en sortie de l'encodeur (les décodeurs ne lisent que le plongement final), une seule passe par fenêtre.
+- Chaque version passe le banc (§7) qui fixe SON propre CHOIX B/H/V selon §3.5.
+
+**Règle de choix entre v1, v2, v3 (validation seule, graine 0 à 4, 150 époques), dans l'ordre :**
+1. G_val tient pour les 5 graines (avec le CHOIX de la version) ;
+2. la plus grande détection (fenêtres de panne) au budget de la règle (21/249 mis à l'échelle), médiane des graines ;
+3. à ±5 fenêtres près, le plus grand top-1 sans alarme (causes apprises), médiane des graines ;
+4. à égalité, la plus simple : v1 < v2 < v3.
+Si aucune ne passe 1 : v2 avec B1/H0/V0 serait inacceptable → arrêt, décision avec l'utilisateur.
