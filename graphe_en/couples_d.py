@@ -24,8 +24,9 @@ NORMALES d'APPRENTISSAGE des deux séries (jamais le test, jamais C ni D).
      lexicographique ; l'injection k prend le couple (k − 1) mod n.
 
 Options :
-  --placement <f>   « pod machine … » par ligne (la sortie de lire_placement de
-                    campagne.sh, ou le bloc placement de campagne.yaml)
+  --placement <f>   « pod machine phase … » par ligne (la sortie de lire_placement
+                    de campagne.sh, ou le bloc placement de campagne.yaml) ; seuls
+                    les pods Running, pas en arrêt, comptent
   --libres <f>      « machine millicœurs_libres » par ligne (panne.sh libres)
   --injections <n>  écrit aussi la cible de chaque injection (« X:Y »)
   --campaigns <d>   le dossier des dossiers de campagne (défaut ../campagnes)
@@ -61,11 +62,13 @@ APPELS = ("calls", "queries")
 
 
 def lire_placement(chemin: Path) -> dict[str, str]:
-    """{pod : machine}, depuis « pod machine … » (les lignes sans deux mots sont ignorées)."""
+    """{pod : machine} des pods EN MARCHE, depuis « pod machine phase … » : un pod en
+    attente (machine « <none> ») ou en arrêt (« en_arret=… ») n'est placé nulle part."""
     out = {}
     for ligne in chemin.read_text().splitlines():
         mots = ligne.split()
-        if len(mots) >= 2 and not ligne.lstrip().startswith("#") and not mots[0].endswith(":"):
+        if (len(mots) >= 3 and not ligne.lstrip().startswith("#") and not mots[0].endswith(":")
+                and mots[2] == "Running" and not any(m.startswith("en_arret=") for m in mots)):
             out[mots[0]] = mots[1]
     return out
 

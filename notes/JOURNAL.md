@@ -1826,3 +1826,37 @@ panne vaut au moins 1,5 fois la plus grande des deux autres (calcul : 0,706 s + 
 dès 75 ms environ). Sinon : arrêt, décision avec l'utilisateur. Le reste de chaque essai est lu comme
 en D.1 : tas relevé chaque minute, dépôt, temps des parcours Locust, paquets jetés et retransmissions
 de X, veilles.
+
+**D.4/7, la préparation du cluster (accord de la nuit).** Avant la purge (00:41 UTC) : Locust à 25
+voyageurs, tous les parcours passent, aucune panne en cours ni reste. `donnees.sh purger
+--redemarrer` de 00:41:31 à 00:45:45 UTC : 70 945 lignes purgées, ts-order-service, ts-seat-service
+et ts-travel-service redémarrés. Relecture du code de D par trois agents en parallèle (constats
+contre-vérifiés un par un, voir plus bas).
+Contrôle à 00:47 UTC (`loadgen.sh bilan`) : tous les parcours passent, « réserver » à 0,7/s (3 échecs
+500 pendant les redémarrages, 56 sur « chercher ») ; rien n'est bloqué, aucun redémarrage de plus.
+Placement après la purge : ts-order-service passé de workers3 à workers5, ts-seat-service sur
+workers1, ts-travel-service sur workers3 ; répliques inchangées (workers0, workers2, workers5) ;
+workers1 : 1 625 m libres (le leurre réclamerait 1 500 m). Attente de 30 min à 25 voyageurs.
+
+**D.4/7, la relecture** (trois agents, un par partie, chaque constat contre-vérifié par un quatrième
+qui cherchait à le réfuter) : 15 constats, 10 confirmés, tous corrigés avant tout essai :
+- le retrait de « reseau » s'arrêtait au premier objet qui résistait (le leurre pouvait rester) : il
+  tente désormais les trois, le leurre d'abord, et dit s'il a échoué ;
+- les paquets jetés se lisent dans la file du netem de chaque pod, que Chaos Mesh refait au retrait :
+  le témoin « après » voyait donc toujours 0. Le compte de X est relevé juste AVANT le retrait et gardé
+  avec les témoins (« relevé avant le retrait ») ; c'est là que se lit « jetés = 0 » ;
+- essai_d.py compte aussi les fenêtres de panne sans le nœud host X ou sans la réplique de X (des
+  comptes, aucune valeur) : une seule → effondrement, arrêt (D.1) ; une lecture impossible rend 2 ;
+- l'instant de l'injection est pris à la pose des deux objets de Chaos Mesh (et non avant l'attente
+  du pod leurre, jusqu'à 90 s) : la ligne du registre reste à moins de 120 s du déroulé, comme
+  fautifs.py l'exige ;
+- un objet refusé par Kubernetes laisse maintenant une ligne NON_CONFIRMEE au registre ;
+- couples_d.py ne compte que les pods en marche (ni en attente, ni en arrêt) ;
+- `--intensite` d'au moins 1 ms exigée dès le départ de campagne.sh ;
+- le relevé réseau des pods ne lance plus qu'une recherche par pod (il retardait le témoin « avant »,
+  donc la pose) ;
+- `verifier reseau` exige aussi le réglage de base des répliques (140 ms, posé sur chacune), comme
+  `verifier base` (constat jugé non bloquant, ajouté quand même : le calcul de D.1 en dépend).
+Écartés à la contre-vérification : Y « sans réplique » (écrit en D.1), les restes d'objets au départ
+(déjà refusés par l'état et le nettoyage), une lecture ratée comptée 0 (le nombre de pods lus est
+affiché), le retrait lu dans les objets de Chaos Mesh (même lecture que pour la base).

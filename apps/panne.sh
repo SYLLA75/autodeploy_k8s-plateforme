@@ -335,7 +335,10 @@ retards_reseau() {   # « pod retard » pour chaque pod qui porte le retard de p
 
 # Paquets jetés (files de sortie des pods) et segments TCP retransmis, sommés sur
 # les pods d'une machine, lus par le démon de la machine dans l'espace réseau de
-# chaque pod (compteurs depuis le démarrage du pod). Rien n'est modifié.
+# chaque pod. Rien n'est modifié. Les jetés sont comptés depuis la dernière pose
+# d'une file par Chaos Mesh (il refait la file de chaque pod à la pose et au
+# retrait : le compte d'une panne se lit donc juste AVANT son retrait) ; les
+# retransmissions, depuis le démarrage du pod.
 reseau_de_la_machine() {   # <nœud> → « jetes=… retrans=… pods=… »
     local d cids; d=$(demon_du_noeud "$1"); [ -n "$d" ] || return 1
     cids=$(kubectl get pods -n "$NS" --field-selector="spec.nodeName=$1,status.phase=Running" \
@@ -345,14 +348,12 @@ reseau_de_la_machine() {   # <nœud> → « jetes=… retrans=… pods=… »
     kubectl exec -n "$CHAOS_NS" "$d" -- sh -c '
 j=0; r=0; n=0
 for cid in "$@"; do
-    for p in /proc/[0-9]*; do
-        grep -qs "$cid" "$p/cgroup" || continue
-        pid=${p#/proc/}
-        x=$(nsenter -t "$pid" -n tc -s qdisc show dev eth0 2>/dev/null | sed -n "s/.*dropped \([0-9]*\).*/\1/p" | awk "{s += \$1} END {print s + 0}")
-        y=$(awk "/^Tcp:/ {k++; if (k == 1) {for (i = 1; i <= NF; i++) if (\$i == \"RetransSegs\") c = i} else print \$c}" "$p/net/snmp" 2>/dev/null)
-        j=$((j + ${x:-0})); r=$((r + ${y:-0})); n=$((n + 1))
-        break
-    done
+    f=$(grep -ls "$cid" /proc/[0-9]*/cgroup 2>/dev/null | head -1)
+    [ -n "$f" ] || continue
+    pid=${f#/proc/}; pid=${pid%/cgroup}
+    x=$(nsenter -t "$pid" -n tc -s qdisc show dev eth0 2>/dev/null | sed -n "s/.*dropped \([0-9]*\).*/\1/p" | awk "{s += \$1} END {print s + 0}")
+    y=$(awk "/^Tcp:/ {k++; if (k == 1) {for (i = 1; i <= NF; i++) if (\$i == \"RetransSegs\") c = i} else print \$c}" "/proc/$pid/net/snmp" 2>/dev/null)
+    j=$((j + ${x:-0})); r=$((r + ${y:-0})); n=$((n + 1))
 done
 echo "jetes=$j retrans=$r pods=$n"' sh $cids 2>/dev/null
 }
@@ -365,6 +366,26 @@ lire_couple() {   # « X:Y » → COUPLE_X, COUPLE_Y ; 1 si mal formé
 # ------------------------------------------------------------------------------
 # verifier — les préalables d'une cause, sans rien toucher
 # ------------------------------------------------------------------------------
+# Sans le réglage de base, à sa valeur et posé sur chaque réplique, la campagne
+# ne serait pas comparable aux autres (causes base et reseau).
+verifier_reglage() {
+    local reglage r pose manquantes=""
+    reglage=$(kubectl get networkchaos "$REGLAGE" -n "$NS" -o jsonpath='{.spec.delay.latency}' 2>/dev/null)
+    if [ -z "$reglage" ]; then
+        warn "réglage de base $REGLAGE absent — consommateur.sh dimensionner"; return 1
+    elif [ "$reglage" != "$REGLAGE_ATTENDU" ]; then
+        warn "réglage de base à $reglage, pas $REGLAGE_ATTENDU (PANNE_REGLAGE_ATTENDU) : campagne non comparable"; return 1
+    fi
+    for r in $(repliques | cut -f1); do
+        pose=$(reglage_pose "$r")
+        [ "$pose" = "$reglage" ] || manquantes="$manquantes $r(${pose:-rien})"
+    done
+    if [ -n "$manquantes" ]; then
+        warn "réglage de base pas posé sur :$manquantes — consommateur.sh dimensionner"; return 1
+    fi
+    say "réglage de base des répliques : $reglage, posé sur chacune (sur leur sortie ; la panne s'y ajoute)"
+}
+
 verifier_app() {
     local cause="${1:-}" problemes=0 cibles=()
     [ $# -gt 0 ] && shift
@@ -412,7 +433,7 @@ verifier_app() {
             done ;;
         base)
             chaos_pret || { warn "Chaos Mesh absent ou sans contrôleur — chaos.sh install"; problemes=1; }
-            local phase noeud vu reglage
+            local phase noeud vu
             phase=$(kubectl get pod "$BASE_POD" -n "$NS" -o jsonpath='{.status.phase}' 2>/dev/null)
             [ "$phase" = "Running" ] || { warn "$BASE_POD : ${phase:-introuvable}, pas en marche"; problemes=1; }
             if vu=$(base_leader); then
@@ -426,32 +447,15 @@ verifier_app() {
             else
                 warn "pas de démon Chaos Mesh sur le nœud de $BASE_POD (${noeud:-?}) — chaos.sh status"; problemes=1
             fi
-            # Sans le réglage de base, à sa valeur et posé sur chaque réplique, la
-            # campagne ne serait pas comparable aux autres.
-            reglage=$(kubectl get networkchaos "$REGLAGE" -n "$NS" -o jsonpath='{.spec.delay.latency}' 2>/dev/null)
-            if [ -z "$reglage" ]; then
-                warn "réglage de base $REGLAGE absent — consommateur.sh dimensionner"; problemes=1
-            elif [ "$reglage" != "$REGLAGE_ATTENDU" ]; then
-                warn "réglage de base à $reglage, pas $REGLAGE_ATTENDU (PANNE_REGLAGE_ATTENDU) : campagne non comparable"; problemes=1
-            else
-                local r pose manquantes=""
-                for r in $(repliques | cut -f1); do
-                    pose=$(reglage_pose "$r")
-                    [ "$pose" = "$reglage" ] || manquantes="$manquantes $r(${pose:-rien})"
-                done
-                if [ -n "$manquantes" ]; then
-                    warn "réglage de base pas posé sur :$manquantes — consommateur.sh dimensionner"; problemes=1
-                else
-                    say "réglage de base des répliques : $reglage, posé sur chacune (sur leur sortie ; la panne s'y ajoute)"
-                fi
-            fi ;;
+            verifier_reglage || problemes=1 ;;
         reseau)
             chaos_pret || { warn "Chaos Mesh absent ou sans contrôleur — chaos.sh install"; problemes=1; }
             [ "$n" -gt 0 ] || { warn "aucune réplique de $CONSO en marche dans $NS"; problemes=1; }
             local vu
             if vu=$(base_leader); then say "$BASE_POD est le leader ($vu)"
             else warn "$BASE_POD n'est pas le leader ($vu)"; problemes=1; fi
-            [ "${#cibles[@]}" -gt 0 ] || { warn "« reseau » exige --cible X:Y (graphe_en/couples_d.py)"; problemes=1; } ;;
+            [ "${#cibles[@]}" -gt 0 ] || { warn "« reseau » exige --cible X:Y (graphe_en/couples_d.py)"; problemes=1; }
+            verifier_reglage || problemes=1 ;;
     esac
     [ "${#cibles[@]}" -eq 0 ] || verifier_cibles "$cause" "${cibles[@]}" || problemes=1
     [ "$problemes" = "0" ] && { ok "prêt pour « $cause »"; return 0; }
@@ -821,10 +825,17 @@ EOF
 }
 
 # Le leurre et le réseau, défaits ensemble (échec, retrait, restes).
-defaire_reseau() {
-    kubectl delete networkchaos panne-reseau -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 || return 1
-    kubectl delete stresschaos panne-leurre -n "$VOISIN_NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 || return 1
-    kubectl delete pod voisin-leurre -n "$VOISIN_NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 || return 1
+defaire_reseau() {   # tente les trois retraits (le leurre d'abord), 1 si l'un a échoué
+    local r=0
+    kubectl delete stresschaos panne-leurre -n "$VOISIN_NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 || r=1
+    kubectl delete pod voisin-leurre -n "$VOISIN_NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 || r=1
+    kubectl delete networkchaos panne-reseau -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 || r=1
+    return $r
+}
+defaire_reseau_dit() {   # la même, avec ce qu'on peut en dire à l'écran
+    defaire_reseau && return 0
+    warn "un objet de la panne résiste au retrait — $0 etat ; chaos.sh status"
+    return 1
 }
 
 # Le réseau de X : un retard sur ce qu'envoie CHAQUE pod de l'espace applicatif
@@ -861,10 +872,16 @@ injecter_reseau() {
     say "         leurre : un voisin occupe les $coeurs cœurs de « $y » en en réclamant ${demande_m}m"
     say "outil  : Chaos Mesh NetworkChaos $NS/panne-reseau (nodes: $x) + pod $VOISIN_NS/voisin-leurre + StressChaos $VOISIN_NS/panne-leurre"
     local demande registre_cible="$x@leurre:$y"; demande=$(maintenant)
+    # Un objet refusé : tout retirer, une ligne au registre, sortir en échec.
+    refus_reseau() {
+        defaire_reseau_dit
+        consigner "$demande" "" injection reseau "$intensite" "$registre_cible" chaos-mesh/networkchaos+stresschaos NON_CONFIRMEE
+        fail "$1"
+    }
     ecrire_etat CAUSE=reseau OUTIL=chaos-mesh "CIBLE=$registre_cible" "HOTE=$x" "LEURRE=$y" \
                 "INTENSITE=$intensite" "DEBUT=$demande" "DUREE=$duree"
     kubectl create namespace "$VOISIN_NS" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-    kubectl apply -f - >/dev/null <<EOF || { defaire_reseau; fail "Le pod voisin-leurre a été refusé — voir ci-dessus."; }
+    kubectl apply -f - >/dev/null <<EOF || refus_reseau "Le pod voisin-leurre a été refusé — voir ci-dessus."
 apiVersion: v1
 kind: Pod
 metadata:
@@ -888,13 +905,19 @@ EOF
         sleep 3; reste=$((reste - 3))
     done
     if [ "$phase" != "Running" ]; then
-        defaire_reseau
+        defaire_reseau_dit
         consigner "$demande" "" injection reseau "$intensite" "$registre_cible" chaos-mesh/networkchaos+stresschaos NON_CONFIRMEE
-        warn "le voisin-leurre n'a pas démarré sur « $y » (phase : ${phase:-absent}) : tout est retiré"
+        warn "le voisin-leurre n'a pas démarré sur « $y » (phase : ${phase:-absent}) : injection abandonnée"
         return 1
     fi
+    # L'instant de la panne est la pose des deux objets (le pod leurre attendait
+    # sans rien faire) : la ligne du registre reste ainsi à moins de 120 s du
+    # déroulé (fautifs.injections), même si le leurre a mis 90 s à démarrer.
+    demande=$(maintenant)
+    ecrire_etat CAUSE=reseau OUTIL=chaos-mesh "CIBLE=$registre_cible" "HOTE=$x" "LEURRE=$y" \
+                "INTENSITE=$intensite" "DEBUT=$demande" "DUREE=$duree"
     # Les deux objets partent ensemble ; ils doivent être confirmés dans les mêmes 60 s.
-    kubectl apply -f - >/dev/null <<EOF || { defaire_reseau; fail "Chaos Mesh a refusé un objet — voir ci-dessus."; }
+    kubectl apply -f - >/dev/null <<EOF || refus_reseau "Chaos Mesh a refusé un objet — voir ci-dessus."
 apiVersion: chaos-mesh.org/v1alpha1
 kind: NetworkChaos
 metadata:
@@ -958,9 +981,9 @@ EOF
         ok "injectée — $intensite ms sur ce qu'envoient les $n_x pods de « $x » ; leurre sur « $y » ; expire dans $duree min"
         return 0
     fi
-    defaire_reseau
+    local retire="tout est retiré"; defaire_reseau_dit || retire="le retrait a échoué en partie"
     consigner "$demande" "" injection reseau "$intensite" "$registre_cible" chaos-mesh/networkchaos+stresschaos NON_CONFIRMEE
-    warn "pas confirmée en 60 s (réseau : ${s1:-?}, leurre : ${s2:-?}${manque:+, pods sans le retard :$manque}${fuite:+, pods hors de $x retardés :$fuite}) : tout est retiré"
+    warn "pas confirmée en 60 s (réseau : ${s1:-?}, leurre : ${s2:-?}${manque:+, pods sans le retard :$manque}${fuite:+, pods hors de $x retardés :$fuite}) : $retire"
     return 1
 }
 
@@ -1094,7 +1117,10 @@ retirer_app() {
             while [ "$reste" -gt 0 ] && [ -n "$(adresses_retardees_base)" ]; do sleep 3; reste=$((reste - 3)); done
             [ -z "$(adresses_retardees_base)" ] || { warn "$BASE_POD porte encore le retard de panne-base"; resultat=ECHEC; } ;;
         reseau)
-            defaire_reseau || resultat=ECHEC
+            # Les paquets jetés de la panne se lisent maintenant : Chaos Mesh
+            # refait la file de chaque pod au retrait, compteur compris.
+            say "réseau de $HOTE avant le retrait : $(reseau_de_la_machine "$HOTE" || echo illisible)"
+            defaire_reseau_dit || resultat=ECHEC
             # Chaos Mesh retire le retard des pods peu après l'objet.
             local reste=30
             while [ "$reste" -gt 0 ] && [ -n "$(retards_reseau)" ]; do sleep 3; reste=$((reste - 3)); done
@@ -1217,7 +1243,7 @@ temoin_app() {   # [court] : sans rien demander à la base elle-même (les veill
     echo "  panne-reseau posée sur $(retards_reseau | wc -l) pod(s)"
     if [ "$court" != "court" ]; then
         local m
-        echo "  réseau des pods, par machine (compteurs depuis le démarrage des pods) :"
+        echo "  réseau des pods, par machine (jetés : depuis la dernière pose d'une file par Chaos Mesh ; retrans : depuis le démarrage des pods) :"
         for m in $(machines_de_travail); do echo "      $m $(reseau_de_la_machine "$m" || echo illisible)"; done
     fi
     if [ -f "$ETAT" ]; then . "$ETAT"; echo "  injection : $CAUSE depuis $DEBUT"; else echo "  injection : aucune"; fi

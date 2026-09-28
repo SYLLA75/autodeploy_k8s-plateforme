@@ -14,8 +14,11 @@ essais (journal, D.3) :
   la réplique de X est nettement plus lente si sa médiane pendant la panne vaut
   au moins 1,5 fois la plus grande médiane des deux autres pendant la panne.
 
-Code de sortie : 0 nettement plus lente ; 1 non (arrêt, décision avec
-l'utilisateur) ; 2 lecture impossible ou essai mal formé.
+Il compte aussi, sans en lire aucune valeur, les fenêtres de panne où manque le
+nœud host X ou la réplique de X : une seule suffit à l'effondrement de D.1.
+
+Code de sortie : 0 nettement plus lente ; 1 non, ou effondrement (arrêt,
+décision avec l'utilisateur) ; 2 lecture impossible ou essai mal formé.
 """
 from __future__ import annotations
 
@@ -52,6 +55,14 @@ def repliques(d: dict) -> dict[str, tuple[str | None, float | None]]:
 
 
 def main(argv: list[str]) -> int:
+    try:
+        return verifier(argv)
+    except (OSError, KeyError, ValueError, IndexError, TypeError) as e:
+        print(f"REFUS  lecture impossible : {type(e).__name__} {e}")
+        return 2
+
+
+def verifier(argv: list[str]) -> int:
     args = argv[1:]
     campagnes = HERE.parent / "campagnes"
     if "--campaigns" in args:
@@ -74,9 +85,14 @@ def main(argv: list[str]) -> int:
         return 2
     x = p["registre"][5].split("@")[0]
 
+    if not run.is_dir():
+        print(f"REFUS  run introuvable : {run}")
+        return 2
     avant: dict[str, list[float]] = {}
     pendant: dict[str, list[float]] = {}
-    ou: dict[str, set[str]] = {}
+    ou: dict[str, set[str]] = {}          # machines de chaque réplique PENDANT la panne
+    presentes: list[set[str]] = []        # répliques présentes, fenêtre de panne par fenêtre
+    sans_x = 0                            # fenêtres de panne sans le nœud host X
     n_avant = n_pendant = 0
     for d in fautifs_module.fenetres(run):
         debut, fin = _instant(d["window"]["start_ns"]), _instant(d["window"]["end_ns"])
@@ -84,10 +100,14 @@ def main(argv: list[str]) -> int:
             cible, n_avant = avant, n_avant + 1
         elif debut >= p["debut"] and fin <= p["fin"]:
             cible, n_pendant = pendant, n_pendant + 1
+            sans_x += x not in d["nodes"]["host"]["names"]
         else:
             continue
-        for n, (m, v) in repliques(d).items():
-            if m:
+        reps = repliques(d)
+        if cible is pendant:
+            presentes.append(set(reps))
+        for n, (m, v) in reps.items():
+            if m and cible is pendant:
                 ou.setdefault(n, set()).add(m)
             if v is not None:
                 cible.setdefault(n, []).append(v)
@@ -103,6 +123,12 @@ def main(argv: list[str]) -> int:
         print(f"REFUS  il faut une réplique sur {x} et deux ailleurs pendant la panne "
               f"(lu : {len(sur_x)} sur {x}, {len(autres)} ailleurs)")
         return 2
+    sans_rep = sum(sur_x[0] not in s for s in presentes)
+    print(f"  fenêtres de panne sans le nœud host {x} : {sans_x} ; sans la réplique de {x} : {sans_rep}")
+    if n_pendant == 0 or sans_x or sans_rep:
+        print("EFFONDREMENT  (D.1 : une seule fenêtre de panne sans X ou sans sa réplique) — arrêt, "
+              "décision avec l'utilisateur")
+        return 1
     mx = median(pendant[sur_x[0]])
     mo = max(median(pendant[n]) for n in autres)
     rapport = mx / mo if mo > 0 else float("inf")

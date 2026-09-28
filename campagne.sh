@@ -199,6 +199,7 @@ if [ -n "$PANNE" ]; then
     case "$DUREE" in ''|*[!0-9]*) fail "--duree : un nombre de minutes" ;; esac
     [ "$DUREE" -gt 0 ] || fail "--duree : au moins une minute"
     case "$INTENSITE" in *[!0-9]*) fail "--intensite : un nombre entier" ;; esac
+    [ "$PANNE" != "reseau" ] || [ "$INTENSITE" -ge 1 ] || fail "--panne reseau : --intensite d'au moins 1 ms"
     IFS=',' read -ra MORCEAUX <<< "$DEBUTS_BRUTS"
     for m in "${MORCEAUX[@]}"; do
         m="${m// /}"; [ -n "$m" ] || continue
@@ -724,7 +725,15 @@ injecter() {   # <rang de l'injection, depuis 0>
 
 retirer() {
     say "Retrait de « $PANNE »"
-    if sortie=$(distant panne.sh retirer); then
+    local ok_retrait=0
+    sortie=$(distant panne.sh retirer) || ok_retrait=1
+    # « reseau » : les paquets jetés de la panne ne se lisent que juste avant son
+    # retrait (Chaos Mesh refait la file des pods) ; gardés avec les témoins.
+    [ "$PANNE" != "reseau" ] || TEMOINS="${TEMOINS}
+--- relevé « avant le retrait » à $(maintenant)
+$(printf '%s\n' "$sortie" | grep -F 'avant le retrait')
+"
+    if [ "$ok_retrait" = 0 ]; then
         printf '%s\n' "$sortie" | sed 's/^/      /'
         noter_action "action: retrait, cause: $PANNE, resultat: ok"
     else
