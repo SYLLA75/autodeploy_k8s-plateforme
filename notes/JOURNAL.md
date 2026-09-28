@@ -2116,3 +2116,11 @@ de choix entre les trois sont écrites AVANT de les calculer ; toutes seront rap
   fautif et cause sur les pannes d'apprentissage comme le témoin 2 « avec exemples », et retombe sur l'étape 1
   devant « inconnue » (GNN_SPEC.md §12). Motif : J 1023-1024 lui interdisait ce que le témoin fait ; l'utilisateur
   exige que le GNN égale les témoins sur les 4 causes connues, à information égale.
+- **Choix de l'utilisateur sur E-2 (28 sept.)** : option 1, « une entrée de plus ». Deux lignes de résultats sur une
+  seule base : « GNN sans exemples » (étape 1 seule ; c'est lui qui porte la thèse sur C et D) et « GNN avec
+  exemples » (même base + alarme, fautif et cause appris sur les pannes d'apprentissage, repli sur l'étape 1 devant
+  « inconnue »). Ordre : la règle de §11 choisit la base (v1, v2 ou v3) ; la couche « avec exemples » est posée sur
+  CETTE base ; les deux sont figées ensemble (gnn-fige) ; sur C et D, chacune est comparée aux témoins du même
+  réglage (sans contre sans, avec contre avec). Risque dit à l'utilisateur : « avec exemples » peut prendre C ou D
+  pour une cause connue (C pour une lenteur, D pour une réplique lente) et accuser le mauvais nœud ; c'est un
+  résultat à montrer, pas à corriger après coup.
