@@ -180,13 +180,15 @@ def verifier(argv: list[str]) -> int:
               f"(lu : {len(autres)} autres{'' if rep_x in pendant else f', aucune valeur pour {rep_x}'})")
         return 2
     mx = median(pendant[rep_x])
-    if avant.get(rep_x):
-        attendu = median(avant[rep_x]) + 5 * d_ms
-        print(f"  réplique de {x} : {mx:.0f} ms pendant, attendu {attendu:.0f} ms (avant + 5 × {d_ms:.0f})")
-        if abs(mx - attendu) > TOLERANCE * attendu:
-            print("MOYEN NON CONFORME  la réplique de X ne suit pas avant + 5 × d à 10 % près — arrêt, "
-                  "décision avec l'utilisateur")
-            return 1
+    if not avant.get(rep_x):
+        print(f"REFUS  aucune valeur avant l'injection pour la réplique de {x} : le moyen ne peut pas être contrôlé")
+        return 2
+    attendu = median(avant[rep_x]) + 5 * d_ms
+    print(f"  réplique de {x} : {mx:.0f} ms pendant, attendu {attendu:.0f} ms (avant + 5 × {d_ms:.0f})")
+    if abs(mx - attendu) > TOLERANCE * attendu:
+        print("MOYEN NON CONFORME  la réplique de X ne suit pas avant + 5 × d à 10 % près — arrêt, "
+              "décision avec l'utilisateur")
+        return 1
     mo = max(median(pendant[n]) for n in autres)
     rapport = mx / mo if mo > 0 else float("inf")
     if rapport >= NETTEMENT:

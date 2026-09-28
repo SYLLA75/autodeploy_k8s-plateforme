@@ -46,7 +46,7 @@
 #                  retarder tout ce qu'envoient ces pods freinait les parcours
 #                  et la file ne débordait pas) ; + pod voisin-leurre et StressChaos
 #                  panne-leurre sur Y. Une seule ligne de registre, cible
-#                  « X@leurre:Y » ; les deux confirmés dans les mêmes 60 s, sinon
+#                  « X@leurre:Y » ; les trois objets confirmés dans les mêmes 60 s, sinon
 #                  tout est retiré et l'injection est NON_CONFIRMEE.
 #                  Pas la carte de la machine elle-même : Chaos Mesh refuse un pod
 #                  au réseau de l'hôte (« dangerous »), et poser tc sur la carte
@@ -495,6 +495,9 @@ verifier_cibles() {   # <cause> <cible>…
                 done
                 n_x=$(pods_de_la_machine "$x" | wc -l)
                 [ "$n_x" -gt 0 ] || { warn "cible $c : aucun pod de $NS en marche sur $x"; problemes=1; }
+                [ "$(printf '%s\n' "$liste" | awk -F'\t' -v h="$x" '$2 == h' | wc -l)" -eq 1 ] \
+                    || { warn "cible $c : il faut exactement une réplique de $CONSO sur $x"; problemes=1; }
+                [ -n "$(ips_devant_mysql)" ] || { warn "cible $c : adresses de service devant la base illisibles"; problemes=1; }
                 [ -z "$(retards_reseau)" ] || { warn "cible $c : des pods portent déjà un retard de panne-reseau"; problemes=1; }
                 libre_y=$(millicoeurs_libres "$y"); demande_y=2000
                 [ -z "$libre_y" ] || [ "$demande_y" -le $((libre_y - 100)) ] || demande_y=$(( (libre_y - 100) / 100 * 100 ))
@@ -851,10 +854,11 @@ defaire_reseau_dit() {   # la même, avec ce qu'on peut en dire à l'écran
     return 1
 }
 
-# Le réseau de X : un retard sur ce qu'envoie CHAQUE pod de l'espace applicatif
-# placé sur X (sélecteur nodes de Chaos Mesh), sans cible d'adresses, sans perte ni
-# gigue. Tout le trafic de X vers les autres machines est retardé une fois ; celui
-# entre deux pods de X l'est aussi (écart à la carte réseau, journal D.2).
+# Le chemin de X vers les données (écart 3, journal D.5) : la réplique de X est
+# retardée sur tout ce qu'elle envoie (sans cible) ; les autres pods de l'espace
+# applicatif sur X, hors de la base, seulement vers la base (pods et adresses de
+# service). Sans perte ni gigue. Le trafic entre pods de X n'est pas retardé,
+# sauf celui qui part de la réplique.
 injecter_reseau() {
     local duree="$1" intensite="$2" cible="$3"
     [ -n "$intensite" ] || fail "--intensite est exigée pour « reseau » (millisecondes)"
@@ -1015,12 +1019,16 @@ EOF
     # Ce que Chaos Mesh a vraiment posé : la réplique de X par panne-reseau-replique,
     # chaque autre pod de X par panne-reseau, au retard demandé et une seule fois ;
     # aucun pod d'une autre machine (relu une fois après 5 s si un pod manque).
-    local poses manque="" fuite="" essai p o
+    local poses manque="" fuite="" essai p o attendu base_x
+    base_x=$(kubectl get pods -n "$NS" -l "$MYSQL_LABEL" --field-selector="spec.nodeName=$x" --no-headers \
+        -o custom-columns=:metadata.name 2>/dev/null)
     for essai in 1 2; do
         poses=$(retards_reseau); manque=""; fuite=""
         for p in $sur_x; do
-            o=panne-reseau; [ "$p" = "$rep_x" ] && o=panne-reseau-replique
-            [ "$(printf '%s\n' "$poses" | awk -v p="$p" '$1 == p' )" = "$p ${intensite}ms $o" ] || manque="$manque $p"
+            attendu="$p ${intensite}ms panne-reseau"
+            [ "$p" = "$rep_x" ] && attendu="$p ${intensite}ms panne-reseau-replique"
+            printf '%s\n' "$base_x" | grep -qx "$p" && attendu=""   # la base : rien
+            [ "$(printf '%s\n' "$poses" | awk -v p="$p" '$1 == p' )" = "$attendu" ] || manque="$manque $p"
         done
         for p in $(printf '%s\n' "$poses" | cut -d' ' -f1); do
             printf '%s\n' "$sur_x" | grep -qx "$p" || fuite="$fuite $p"

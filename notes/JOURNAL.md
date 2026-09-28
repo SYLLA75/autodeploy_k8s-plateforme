@@ -2013,3 +2013,7 @@ seraient 706, 1 506 ou 3 006 ms au lieu de 2 206).
 **Campagne.** `jumeaux-01 --profil 25:180 --panne reseau --a 5,50,95,140 --duree 20 --intensite
 <retenue> --cible workers2:workers1 ×4`. Les règles de décision de D sont inchangées (au moins 2
 injections qui comptent). Essais nommés `essai-reseau-b-<d>`.
+Relecture de l'écart 3 (deux agents, constats contre-vérifiés) : aucun défaut bloquant ; corrigés :
+commentaires restés sur M0, deux refus de l'injection repris dans `verifier` (une seule réplique sur X,
+adresses devant la base lisibles), un pod de la base sur X n'attend aucun retard (il est exclu du
+sélecteur), essai_d.py refuse s'il ne peut pas faire le contrôle « avant + 5d ».
