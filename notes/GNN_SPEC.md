@@ -615,3 +615,16 @@ jour, pas du journal. Aucune donnée de C ni de D n'a été lue.
 **Choix de la version (remplace la règle de §11) :** (1) G_val ; (2) détection au budget de la règle ; (3) le plus
 grand min(F_C, F_D, F_R) de la version (à 0,05 près) ; (4) top-1 de validation (à ±5) ; (5) la plus simple.
 **Arrêt :** si aucune version n'atteint min(F_C, F_D, F_R) ≥ 0,5, on ne fige pas : décision avec l'utilisateur.
+
+---
+
+## 14. Écart E-4 (28 sept., décidé par l'utilisateur, avant l'ouverture de C et D) : rejet « inconnue » par le logit
+
+Remplace §12.3 (« rejet inchangé ») pour le GNN « avec exemples » : la régression du fautif ne désigne que si son logit
+maximal atteint un seuil calé sur l'APPRENTISSAGE seul, au milieu entre le 5e centile des causes connues (chaque
+injection mise de côté) et le 95e centile des causes retirées (chaque cause mise de côté) ; en dessous : cause
+« inconnue » et classement de l'étape 1. Motif : le rejet de §5 ne reconnaissait presque jamais une cause retirée
+(répétition : 0/76 pour blocage et lenteur), si bien que le repli prévu pour C et D ne se serait pas déclenché.
+À dire : ce seuil a connu deux essais, le premier (5e centile seul) vu sur la validation. Le rejet de §5 reste affiché
+à côté dans les sorties. Consigne de l'utilisateur : favoriser le GNN par tout réglage légitime AVANT l'ouverture de C
+et D, sur la validation et le banc seulement ; rien n'est réglé après l'ouverture, aucun résultat n'est caché.

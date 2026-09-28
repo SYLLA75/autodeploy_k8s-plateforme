@@ -2214,3 +2214,5 @@ mises de côté et le 95e centile des causes retirées, calé sur l'apprentissag
 blocage 68/76, lenteur 76/76, charge 74/75, hôte 57/78. À DIRE : premier essai au 5e centile vu sur la validation
 (rejetait blocage-03), puis passage au milieu. Contraire à §12.3 (« rejet inchangé ») : pas retenu sans accord.
 Fichiers : graphe_en/gnn_exemples.py (option --rejet §5 pour l'ancien rejet), campagnes/gnn-exemples-validation*.txt.
+- **E-4 accepté par l'utilisateur** (GNN_SPEC.md §14) : rejet « inconnue » du GNN avec exemples par le logit du fautif.
+  La validation à 5 graines et 150 époques du GNN avec exemples sera lancée sur la base retenue par E-3.
