@@ -17,6 +17,14 @@ essais (journal, D.3) :
 Il compte aussi, sans en lire aucune valeur, les fenêtres de panne où manque le
 nœud host X ou la réplique de X : une seule suffit à l'effondrement de D.1.
 
+Il écrit enfin le dépôt et le retrait de la file (publish_rate, consume_rate du
+nœud queue:food_delivery, médianes avant / pendant), que D.1 permet de lire pour
+choisir le cran (« lue seulement sur les relevés, la file et le dépôt »), et ce
+qu'en dit la règle de montée, fixée avant le premier verdict (journal, D.5) :
+dépôt proche = médiane pendant ≥ 0,9 × médiane avant ; au-dessus du retrait =
+médiane de (dépôt − retrait) pendant ≥ −0,1 message/s. Ceci ne change pas le
+code de sortie.
+
 Code de sortie : 0 nettement plus lente ; 1 non, ou effondrement (arrêt,
 décision avec l'utilisateur) ; 2 lecture impossible ou essai mal formé.
 """
@@ -33,6 +41,17 @@ HERE = Path(__file__).resolve().parent
 CONSO = "ts-delivery-service-"
 COLONNE = "process_time_p50"
 NETTEMENT = 1.5
+FILE = "food_delivery"
+PROCHE, ECART = 0.9, -0.1
+
+
+def file(d: dict) -> tuple[float | None, float | None]:
+    """(dépôt, retrait) de la file dans une fenêtre, en messages/s."""
+    bloc = d["nodes"]["queue"]
+    if FILE not in bloc["names"]:
+        return None, None
+    ligne = bloc["X"][bloc["names"].index(FILE)]
+    return ligne[bloc["columns"].index("publish_rate")], ligne[bloc["columns"].index("consume_rate")]
 
 
 def _instant(ns: int) -> datetime:
@@ -95,6 +114,8 @@ def verifier(argv: list[str]) -> int:
     presentes: list[set[str]] = []        # répliques présentes, fenêtre de panne par fenêtre
     sans_x = 0                            # fenêtres de panne sans le nœud host X
     n_avant = n_pendant = 0
+    depot: dict[str, list[float]] = {"avant": [], "pendant": []}
+    ecart: list[float] = []
     for d in fautifs_module.fenetres(run):
         debut, fin = _instant(d["window"]["start_ns"]), _instant(d["window"]["end_ns"])
         if fin <= p["debut"]:
@@ -105,6 +126,11 @@ def verifier(argv: list[str]) -> int:
         else:
             continue
         reps = repliques(d)
+        dep, ret = file(d)
+        if dep is not None:
+            depot["avant" if cible is avant else "pendant"].append(dep)
+            if cible is pendant and ret is not None:
+                ecart.append(dep - ret)
         if cible is pendant:
             presentes.append(set(reps))
         for n, (m, v) in reps.items():
@@ -127,6 +153,13 @@ def verifier(argv: list[str]) -> int:
         b = f"{median(pendant[n]):8.1f}" if pendant.get(n) else "       —"
         print(f"  {n:40s} {','.join(sorted(ou_tout.get(n, {'?'}))):10s} avant {a} ms   pendant {b} ms"
               f"   ({len(pendant.get(n, []))} fenêtres)")
+    if depot["avant"] and depot["pendant"] and ecart:
+        da, dp, e = median(depot["avant"]), median(depot["pendant"]), median(ecart)
+        print(f"  file {FILE} : dépôt avant {da:.2f}/s, pendant {dp:.2f}/s ; dépôt − retrait pendant {e:+.2f}/s"
+              f" → dépôt {'proche' if dp >= PROCHE * da else 'PAS proche'} de celui d'avant,"
+              f" {'au-dessus du' if e >= ECART else 'SOUS le'} retrait")
+    else:
+        print(f"  file {FILE} : dépôt illisible")
     sans_rep = sum(sur_x[0] not in s for s in presentes) if len(sur_x) == 1 else n_pendant
     print(f"  fenêtres de panne sans le nœud host {x} : {sans_x} ; sans la réplique de {x} : {sans_rep}")
     if sans_x or sans_rep:

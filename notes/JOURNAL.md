@@ -1869,3 +1869,18 @@ Seconde relecture, des seules corrections (un agent) : 2 défauts et 3 petits, c
 - une file illisible ne compte plus comme « 0 jeté, pod lu » ; le relevé avant le retrait dit aussi
   combien de pods sont encore retardés (0 : Chaos Mesh a déjà levé la panne, le relevé ne compte pas) ;
   son heure est prise avant le retrait.
+
+**D.5/7, essai 1 : 75 ms** — lancé à 01:17:04 UTC (horloge de vms0), 31 min après la fin de la purge :
+`./campagne.sh essai-reseau-75 --profil 25:30 --panne reseau --a 5 --duree 20 --intensite 75 --cible
+workers2:workers1` (tmux sur vms0, `~/journaux-hors-campagne/d5-lancer.sh`), tas relevé chaque minute.
+Au départ : leader tsdb-mysql-0 ; `verifier reseau` prêt (réglage de base 140 ms sur les trois
+répliques) ; couples recalculés sur le placement du départ : workers2:workers1, identiques aux cibles.
+À la 5e minute de panne (01:28 UTC), tas = 2 : 75 ms ne déborde pas avec marge ; l'essai va à son
+terme pour lire la règle de montée. **Le dépôt, fixé avant de le lire** : Prometheus ne garde aucun
+débit de RabbitMQ (seulement le tas et les consommateurs) ; le dépôt et le retrait ne se lisent que
+dans le graphe de l'essai (publish_rate et consume_rate de la file, reconstruits des spans), lecture
+que D.1 permet (« lue seulement sur les relevés, la file et le dépôt »). essai_d.py les écrit aussi
+(médianes avant / pendant), avec la règle de montée rendue chiffrée avant le premier verdict :
+« dépôt proche de celui d'avant » = médiane pendant ≥ 0,9 × médiane avant (à 25 voyageurs, le dépôt
+va de 3,3 à 3,75 : ±6 %) ; « au-dessus du retrait » = médiane de (dépôt − retrait) pendant
+≥ −0,1 message/s (l'écart d'équilibre mesuré à l'étalonnage : ±0,1). Rien d'autre du graphe n'est lu.
