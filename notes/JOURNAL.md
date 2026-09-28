@@ -1884,3 +1884,37 @@ que D.1 permet (« lue seulement sur les relevés, la file et le dépôt »). es
 « dépôt proche de celui d'avant » = médiane pendant ≥ 0,9 × médiane avant (à 25 voyageurs, le dépôt
 va de 3,3 à 3,75 : ±6 %) ; « au-dessus du retrait » = médiane de (dépôt − retrait) pendant
 ≥ −0,1 message/s (l'écart d'équilibre mesuré à l'étalonnage : ±0,1). Rien d'autre du graphe n'est lu.
+Résultat de l'essai 1 (75 ms), lu seulement comme D.1 le permet : injection confirmée 01:22:41 →
+retrait 01:42:32 (10 pods de workers2 retardés, leurre à 1 500 m sur workers1) ; 3 veilles pendant
+la panne « parcours ok », leader inchangé, aucun redémarrage ; Locust sans échec (p50 sur l'essai :
+chercher 0,58 s, réserver 2,3 s, repas 10 ms) ; paquets jetés sur workers2 : 0 (relevé avant le
+retrait, les 10 pods encore retardés), retransmissions +4 pendant la panne ; tas entre 0 et 7 pendant
+la panne, 2 à la 5e minute, 10 au retrait, puis 0. essai_d.py (graphe `runs/20260928-034749` sur vms0,
+25 fenêtres) : réplique de workers2 706 → 1 081 ms, les deux autres 706 ms (1,53 fois, « nettement
+plus lente » ; le calcul de D.1, 0,706 + 5 × 0,075 = 1,081 s) ; aucune fenêtre sans X ni sans sa
+réplique ; dépôt 3,34 → 3,35/s, dépôt − retrait +0,00. **Décision selon la règle** : le cran tient, ne
+déborde pas avec marge, le dépôt reste proche et au-dessus du retrait → essai 2 à 150 ms.
+
+**D.5/7, essai 2 : 150 ms** — lancé 01:50:13 UTC ; injection confirmée 01:57:02 → retrait 02:16:4x
+(10 pods de workers2, leurre 1 500 m sur workers1) ; couples au départ identiques. 3 veilles pendant la
+panne « parcours ok », leader inchangé, aucun redémarrage ; Locust sans échec (p50 sur l'essai :
+chercher 1,1 s, réserver 4,5 s, repas 10 ms) ; paquets jetés sur workers2 : 0 (avant le retrait, 10
+pods encore retardés) ; tas entre 0 et 9 pendant la panne, 8 à la 5e minute. essai_d.py (`runs/20260928-042201`) :
+réplique de workers2 706 → 1 456 ms (0,706 + 5 × 0,150 = 1,456 s), les autres 706 ms, 2,06 fois ;
+aucune fenêtre sans X ni sans sa réplique ; dépôt 3,37 → 3,17/s (94 %), dépôt − retrait +0,00.
+**Décision selon la règle** : tient, ne déborde pas avec marge, dépôt proche et au-dessus du retrait
+→ essai 3 à 200 ms. À noter : « réserver » approche les 5 s du rythme de Locust ; au-delà, le dépôt
+baissera (prédit en D.1).
+
+**D.5/7, essai 3 : 200 ms** — lancé 02:23:59 UTC ; injection confirmée 02:29:37 → retrait 02:50:09 ;
+3 veilles « parcours ok », leader inchangé, aucun redémarrage ; Locust sans échec (p50 : chercher
+1,5 s, réserver 6,1 s, repas 10 ms) ; jetés sur workers2 : 0 (10 pods encore retardés) ; tas entre 0
+et 7 pendant la panne. essai_d.py (`runs/20260928-045441`) : réplique de workers2 706 → 1 706 ms
+(0,706 + 5 × 0,2), 2,42 fois ; aucune fenêtre sans X ni sans sa réplique ; dépôt 3,31 → 3,04/s (92 %),
+dépôt − retrait +0,00. **Décision selon la règle** : tient, ne déborde pas, dépôt proche et
+au-dessus du retrait → essai 4 à 300 ms, le dernier cran.
+**Prédiction écrite avant l'essai 4** : le dépôt baisse à chaque cran (réserver passe les 5 s du
+rythme de Locust : preserve et station sont sur workers2). Les deux autres répliques absorbent
+2 × 1,416 = 2,83 messages/s ; à 300 ms la réplique de X en traite 1/2,206 = 0,45, soit 3,29 en tout.
+Si le dépôt tombe sous environ 3,2/s, la file ne débordera pas : ce sera « 300 ms sans débordement »,
+donc arrêt et décision avec l'utilisateur.
