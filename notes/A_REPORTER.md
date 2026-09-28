@@ -250,6 +250,13 @@ reprennent la perspective (19 et 20 de la version allégée, 16 de la plénière
     git était aveugle (lancé depuis graphe_en/ avec des chemins « graphe_en/… »), et l'axe (c) ne
     pouvait jamais valoir « perdu ». À dire : réparés le 28 sept., avant l'étiquette gnn-fige, sans
     rien avoir lu de C ; l'axe (c) est désormais plus strict pour le GNN (toutes les graines).
+27o. **D : le moyen de la panne a changé avant tout essai** (journal, 28 sept., « D.2 (résultats) et
+    D.3 ») : retard sur tous les pods train-ticket de X (Chaos Mesh, sélecteur nodes) au lieu de la
+    carte réseau (Chaos Mesh refuse les pods au réseau de l'hôte ; tc direct refusé par la protection
+    automatique de l'assistant). À dire : le trafic entre pods de X est retardé aussi ; la règle de Y
+    corrigée (1 400 m réclamés au moins, et non 2 100 m libres : prémisse fausse). Code à porter :
+    panne.sh (cause reseau, sous-commande libres), campagne.sh (--panne reseau, contrôle des couples),
+    couples_d.py, essai_d.py. La mesure de la suiveuse (535 → 596 µs) va au rapport.
 
 ### Limites à écrire honnêtement
 27. **Dérive** : toute méthode qui apprend le « normal » se trompe si le normal

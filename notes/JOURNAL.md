@@ -1760,3 +1760,69 @@ réseau de l'hôte, puis retiré (la file racine doit revenir à fq_codel).
   injection, « TOUS LES FAUTIFS SONT ÉTABLIS » ;
 - lecture.txt écrit par lecture.py sans être affiché (le juge en a besoin pour trouver le run).
 **C est sous scellé** : aucun témoin, aucun decision_c `--ouvrir` avant `gnn-fige`.
+
+## 2026-09-28 — D.2/7 (résultats) et D.3/7 : le moyen de la panne change, écrit avant tout essai
+
+**À valider par l'utilisateur à son réveil** : deux écarts à D.1, pris cette nuit parce que D ne pouvait
+pas partir autrement, écrits ici avant tout essai et toute donnée de D. S'il les refuse, D est refaite.
+
+**La suiveuse (mesure de D.2, 00:20–00:30 UTC).** Attente moyenne par validation : avant 535 µs
+(751 085 µs sur 1 404 validations), pendant le retard de 300 ms sur tsdb-mysql-1 596 µs (806 901 sur
+1 353), après 534 µs (723 366 sur 1 354) ; seuil de la règle 2 × 535 + 1 000 = 2 070 µs. Leader
+tsdb-mysql-0 tout du long (même adresse), 2 suiveuses branchées, semi-synchrone resté ON, aucune
+validation sans attente. → une suiveuse retardée ne change pas le temps de validation : elle n'exclut
+pas X (`couples_d.SUIVEUSE_EXCLUT = False`). Le NetworkChaos de la mesure a été retiré et vérifié.
+
+**La carte réseau : impossible.** L'essai à blanc a échoué : Chaos Mesh 2.8.4 refuse de poser un
+NetworkChaos sur un pod au réseau de l'hôte (le pod node-exporter de workers1). L'objet est resté
+accroché ; nettoyé (finaliseurs retirés, l'objet PodNetworkChaos de ce pod supprimé), la carte de
+workers1 est restée en fq_codel, rien n'a été retardé. Poser le retard directement sur la carte par
+`tc`, depuis le démon Chaos Mesh dans l'espace réseau de l'hôte, a été refusé par la protection
+automatique de Claude Code ; ce refus n'a pas été contourné.
+
+**Le moyen retenu (écart 1).** Un NetworkChaos `panne-reseau` sur TOUS les pods en marche de l'espace
+train-ticket placés sur X (sélecteur `namespaces: [train-ticket]`, `nodes: [X]`, `podPhaseSelectors:
+[Running]`), `direction: to` sans cible, retard d ms, gigue 0, corrélation 0, aucune perte, durée
+portée par l'objet. Ce que ça change par rapport à la carte :
+- pareil : tout ce qu'un pod de X envoie hors de X est retardé une fois de d (ses requêtes et ses
+  réponses aux appelants des autres machines) ; aucune perte ; la levée ne dépend pas du pilote ;
+- différent : le trafic ENTRE deux pods de X est retardé aussi (d à l'aller, d au retour), alors que
+  la carte l'épargnait. Dans la signature de D.1, « inchangé : le trafic entre pods de X » devient
+  « plus lent chez l'appelant de X » (les flèches calls entre pods de X, mesurées chez l'appelé,
+  restent inchangées). Le banc de pannes fabriquées de E prendra cette signature-là ;
+- différent : les pods des autres espaces sur X (coredns, dns-autoscaler, node-exporter, Calico,
+  kube-proxy) ne sont pas retardés. nacos-0 (espace train-ticket, sur workers2) l'est, comme avec la
+  carte ;
+- les paquets jetés et les retransmissions de X sont lus pod par pod (file du netem de chaque pod,
+  compteurs TCP de l'espace réseau de chaque pod, sommés sur les pods de X), à chaque témoin complet.
+  Une file par pod, avec bien moins de trafic que la machine entière : rien ne devrait être jeté.
+
+Confirmation exigée : AllInjected sur les deux objets dans les mêmes 60 s ; chaque pod en marche de X
+porte le retard de panne-reseau à d ms (lu dans les objets PodNetworkChaos), aucun pod d'une autre
+machine ne le porte ; sinon tout est retiré et l'injection est NON_CONFIRMEE. Au retrait : plus aucun
+pod ne porte ce retard (30 s au plus).
+
+**La règle de Y, corrigée (écart 2).** D.1 demandait 2 100 m de CPU libre sur Y, « la demande de 2
+cœurs du voisin de la seconde série ». La prémisse était fausse : dans la seconde série, panne.sh
+plafonne la demande du voisin à « libre − 100 m, arrondi à 100 m », et les voisins ont réclamé 1 400 à
+1 700 m. Avec 2 100 m, aucune machine n'était Y (la plus libre hors workers6 et hors base, workers1,
+a 1 725 m) : D ne serait pas partie. La règle suit maintenant son intention écrite : Y où le voisin
+réclamerait au moins 1 400 m par la même règle que la cause hote (la plus petite demande des voisins
+de la seconde série). Corrigée en voyant le CPU libre, mais sans rien lire de C, de D ni d'un témoin ;
+elle ne change pas X.
+
+**Les couples** (`graphe_en/couples_d.py`, placement de la fin de base-01, CPU libre relevé le 28
+sept.) : 249 fenêtres normales d'apprentissage ; workers0 pas X (le producteur) ; workers5 pas X (un
+seul service actif) ; workers2 X possible (ts-config, ts-order-other, ts-preserve, ts-station actifs
+dans 249/249) ; workers1 seul Y possible (1 725 m libres, le voisin réclamerait 1 600 m). Couple unique
+workers2:workers1, pour les trois injections. campagne.sh refait ce calcul au départ et refuse si les
+cibles diffèrent.
+
+**La vérification des essais, fixée avant le premier** (`graphe_en/essai_d.py`). Le graphe de l'essai
+est construit par run.py (code figé, mise à l'échelle apply) ; lecture.py n'est pas lancé ; le seul
+script lu dessus ne sort que, pour chaque réplique, sa machine et la médiane de process_time_p50 avant
+et pendant l'injection. « Nettement plus lente » (D.1) : la médiane de la réplique de X pendant la
+panne vaut au moins 1,5 fois la plus grande des deux autres (calcul : 0,706 s + 5 à 6 × d, soit 1,5 fois
+dès 75 ms environ). Sinon : arrêt, décision avec l'utilisateur. Le reste de chaque essai est lu comme
+en D.1 : tas relevé chaque minute, dépôt, temps des parcours Locust, paquets jetés et retransmissions
+de X, veilles.

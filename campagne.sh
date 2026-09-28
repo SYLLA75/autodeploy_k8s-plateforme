@@ -79,12 +79,14 @@
 #
 #  Options :
 #      --profil <p>       obligatoire — les paliers à appliquer
-#      --panne <cause>    charge, lenteur, hote, blocage ou base ; sans : campagne saine
+#      --panne <cause>    charge, lenteur, hote, blocage, base ou reseau ; sans : campagne saine
 #      --a <min[,min…]>   minute(s) où chaque injection commence, comptées
 #                         depuis le premier palier
 #      --duree <min>      durée de chaque injection
-#      --intensite <n>    voyageurs (charge), millisecondes (lenteur, base), cœurs (hote)
-#      --cible <x[,y…]>   nœud (hote) ou pod (blocage) ; sinon choisi par panne.sh.
+#      --intensite <n>    voyageurs (charge), millisecondes (lenteur, base, reseau), cœurs (hote)
+#      --cible <x[,y…]>   nœud (hote), pod (blocage) ou couple « X:Y » (reseau, exigé :
+#                         la règle de D.1, recalculée au départ par graphe_en/couples_d.py,
+#                         doit donner les mêmes cibles, sinon départ refusé) ; sinon choisi par panne.sh.
 #                         Une liste donne une cible par injection, dans l'ordre
 #                         des --a (autant de cibles que d'injections) ; une
 #                         seule cible vaut pour toutes les injections
@@ -188,9 +190,11 @@ done
 TYPE="saine"; DEBUTS=()
 if [ -n "$PANNE" ]; then
     TYPE="panne"
-    case "$PANNE" in charge|lenteur|hote|blocage|base) ;;
-        *) fail "--panne accepte charge, lenteur, hote, blocage ou base — pas « $PANNE »" ;; esac
+    case "$PANNE" in charge|lenteur|hote|blocage|base|reseau) ;;
+        *) fail "--panne accepte charge, lenteur, hote, blocage, base ou reseau — pas « $PANNE »" ;; esac
     [ -n "$DEBUTS_BRUTS" ] || fail "--panne exige --a <minute> : quand l'injection commence"
+    [ "$PANNE" != "reseau" ] || [ -n "$CIBLE_PANNE" ] || fail "--panne reseau exige --cible X:Y (graphe_en/couples_d.py)"
+    [ "$PANNE" != "reseau" ] || [ -n "$INTENSITE" ] || fail "--panne reseau exige --intensite <ms>"
     [ -n "$DUREE" ]        || fail "--panne exige --duree <minutes>"
     case "$DUREE" in ''|*[!0-9]*) fail "--duree : un nombre de minutes" ;; esac
     [ "$DUREE" -gt 0 ] || fail "--duree : au moins une minute"
@@ -207,17 +211,22 @@ if [ -n "$PANNE" ]; then
     # partent au master dans une ligne de commande : seuls les caractères d'un
     # nom Kubernetes sont admis.
     if [ -n "$CIBLE_PANNE" ]; then
-        case "$PANNE" in hote|blocage) ;;
-            *) fail "--cible est sans objet pour « $PANNE » : seules hote (un nœud) et blocage (un pod) visent un composant" ;; esac
+        case "$PANNE" in hote|blocage|reseau) ;;
+            *) fail "--cible est sans objet pour « $PANNE » : seules hote (un nœud), blocage (un pod) et reseau (X:Y) visent un composant" ;; esac
         # La chaîne entière d'abord : un retour à la ligne (liste collée depuis
         # kubectl) couperait la lecture après le premier nom, sans erreur.
-        [[ "${CIBLE_PANNE// /}" =~ ^[a-z0-9.,-]+$ ]] \
+        [[ "${CIBLE_PANNE// /}" =~ ^[a-z0-9.,:-]+$ ]] \
             || fail "--cible « $CIBLE_PANNE » : des noms séparés par des virgules (minuscules, chiffres, « - » et « . »)"
         case "${CIBLE_PANNE// /}" in ,*|*,|*,,*) fail "--cible « $CIBLE_PANNE » : une cible vide dans la liste" ;; esac
         IFS=',' read -ra MORCEAUX <<< "${CIBLE_PANNE// /}"
         for c in "${MORCEAUX[@]}"; do
-            [[ "$c" =~ ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$ ]] \
-                || fail "--cible « $c » : pas un nom de nœud ou de pod (minuscules, chiffres, « - » et « . »)"
+            if [ "$PANNE" = "reseau" ]; then
+                [[ "$c" =~ ^[a-z0-9.-]+:[a-z0-9.-]+$ ]] \
+                    || fail "--cible « $c » : pour reseau, « X:Y » (deux noms de nœud)"
+            else
+                [[ "$c" =~ ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$ ]] \
+                    || fail "--cible « $c » : pas un nom de nœud ou de pod (minuscules, chiffres, « - » et « . »)"
+            fi
             CIBLES+=("$c")
         done
         if [ "${#CIBLES[@]}" -eq 1 ]; then
@@ -375,7 +384,7 @@ rates=0; echoues=0; injectees=0; non_injectees=0; INJECTION_ACTIVE=0; INTERROMPU
 MARGE_S=$(( ${MARGE:-2} * 60 )); T_COLLECTE=""; T0=""
 T_PILOTE=$(date +%s)          # tout journal du master écrit après cet instant est à cette campagne
 etat_avant=""; etat_apres=""; fenetre=""; registre=""; registre_pannes=""; reglage_consommateur=""; etat_donnees=""
-leader_apres=""; leader_depart=""; placement_depart=""; placement_fin=""; reglage_fin=""
+leader_apres=""; leader_depart=""; placement_depart=""; placement_fin=""; reglage_fin=""; couples_lus=""
 plage_date=""; plage_de=""; plage_a=""
 
 ecrire_compte_rendu() {
@@ -433,6 +442,12 @@ ecrire_compte_rendu() {
         echo "placement_a_la_fin: |"
         printf '%s\n' "${placement_fin:-(non lu)}" | sed 's/^/  /'
         echo
+        if [ -n "$couples_lus" ]; then
+            echo "# Phase D : la règle des couples (X, Y), graphe_en/couples_d.py, sur le placement de départ."
+            echo "couples_d: |"
+            printf '%s\n' "$couples_lus" | sed 's/^/  /'
+            echo
+        fi
         echo "# Calculée par le pilote : mise en route de la collecte + marge → fin − marge."
         echo "plage_exploitable:"
         echo "  date: ${plage_date:-inconnue}"
@@ -631,6 +646,23 @@ placement_depart=$(lire_placement)
 # Le leader relu au départ réel : l'attente de la file et la purge ont pu durer.
 if ! leader_depart=$(distant panne.sh leader) || [ "$leader_depart" != "$leader_avant" ]; then
     fail "Le leader de la base a changé avant la collecte : « $leader_avant » puis « $leader_depart ». Départ refusé."
+fi
+# Phase D : les couples (X, Y) sont fixés par la règle écrite avant D (journal,
+# D.1) sur le placement relu ici même, après la purge. Des cibles fournies qui
+# ne sont plus celles de la règle refusent le départ, avant toute collecte.
+if [ "$PANNE" = "reseau" ]; then
+    f_pl=$(mktemp); f_li=$(mktemp)
+    printf '%s\n' "$placement_depart" > "$f_pl"
+    distant panne.sh libres > "$f_li" || { rm -f "$f_pl" "$f_li"; fail "CPU libre des machines illisible (panne.sh libres)."; }
+    couples_lus=$(cd "$RACINE/graphe_en" && ./.venv/bin/python couples_d.py --placement "$f_pl" --libres "$f_li" \
+        --injections "${#DEBUTS[@]}" 2>&1)
+    rm -f "$f_pl" "$f_li"
+    printf '%s\n' "$couples_lus" | sed 's/^/      /'
+    attendues=$(printf '%s\n' "$couples_lus" | sed -n 's/^cibles : //p')
+    fournies=$(IFS=,; echo "${CIBLES[*]}")
+    [ -n "$attendues" ] && [ "$attendues" = "$fournies" ] \
+        || fail "Couples relus au départ : « ${attendues:-aucun} » ; cibles fournies : « $fournies ». La règle de D.1 les fixe : départ refusé."
+    noter_action "action: couples_verifies, cibles: \"$fournies\""
 fi
 
 
