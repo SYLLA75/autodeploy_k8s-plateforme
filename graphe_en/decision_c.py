@@ -6,7 +6,8 @@ Ce qui décidera sur la base lente (phase C), écrit AVANT C.
 
 Les règles sont celles du journal (section du 27 sept., « Ce qui décidera sur C ») ;
 ce fichier les calcule sans rien régler. Il importe juge.py et les témoins figés
-(étiquette temoins-figes) sans les modifier.
+(étiquette temoins-figes) sans les modifier ; la règle avec l'idée « machine »
+(temoin_machine.py, étiquette temoin-machine-fige) ne sert qu'à D (methodes).
 
 --garde : la garde de spécificité G, calculée tout de suite sur les deux séries.
   Pour chaque méthode, chaque réglage et chaque graine : sur combien des
@@ -65,12 +66,14 @@ import bootstrap
 import fautifs as fautifs_module
 import gel
 import juge
+import temoin_machine as tm
 import temoins as temoins_module
 
 HERE = Path(__file__).resolve().parent
 TAS_COORDINATION = 10.0      # le même seuil que la vidange du juge (juge.lire, videe)
 ETIQUETTE_TEMOINS = "temoins-figes"
 ETIQUETTE_SCELLE = "gnn-fige"
+ETIQUETTE_MACHINE = "temoin-machine-fige"   # la règle avec l'idée « machine », figée avant D
 FIGES_TEMOINS = ("temoin_tableau.py", "temoin_noeud.py", "temoin_fleches.py", "temoins.py", "juge.py")
 
 
@@ -100,9 +103,21 @@ def reponses(fabrique, fen_apprentissage: list[dict], a_repondre: list[dict], gr
             for f in a_repondre}
 
 
-def methodes(fige: dict) -> list[tuple[str, object, bool]]:
-    """Les témoins figés. Le GNN s'ajoutera ici en phase E (nom commençant par « GNN »)."""
-    return temoins_module.temoins(fige)
+def methodes(fige: dict, machine: bool = False) -> list[tuple[str, object, bool]]:
+    """
+    Les témoins figés ; pour D (machine=True), aussi la règle avec l'idée « machine »
+    (option B, décidée le 28 sept. avant D). C garde la liste écrite avant C : l'idée
+    ne relève jamais le score de la base (elle ne joue qu'après « blocage » ou
+    « lenteur », où des répliques sont déjà à 1e9), F, G et TROUVE de C n'en
+    changeraient pas. Le GNN s'ajoutera ici en phase E (nom commençant par « GNN »).
+    """
+    out = temoins_module.temoins(fige)
+    if machine:
+        out += [
+            ("règle cause commune + machine, sans exemples", lambda fen, g: tm.Machine(fen, "sans exemples", fige), False),
+            ("règle cause commune + machine, avec exemples", lambda fen, g: tm.Machine(fen, "avec exemples", fige), False),
+        ]
+    return out
 
 
 def _case(valeurs: list, total: int | None = None) -> str:
@@ -120,7 +135,7 @@ def majorite(n: int, total: int) -> bool:
 # ------------------------------------------------------------------------------
 # La garde G, sur les deux séries
 # ------------------------------------------------------------------------------
-def garde(fen: list[dict], fige: dict, graines: int) -> tuple[list[str], dict[str, list[bool]]]:
+def garde(fen: list[dict], fige: dict, graines: int, liste: list) -> tuple[list[str], dict[str, list[bool]]]:
     """(lignes du rapport, {méthode : [G tient ? par graine]})."""
     base = cles_base(fige)
     test = [f for f in fen if f["jeu"] == "test" and f["etiquette"] not in juge.ECARTEES]
@@ -128,7 +143,7 @@ def garde(fen: list[dict], fige: dict, graines: int) -> tuple[list[str], dict[st
     lignes = [f"injections de test des causes connues : {len(injections)} "
               f"({', '.join(f'{c}#{k}' for c, k in sorted(injections))})"]
     tient: dict[str, list[bool]] = {}
-    for nom, fabrique, hasard in methodes(fige):
+    for nom, fabrique, hasard in liste:
         comptes, detail = [], []
         for g in range(graines if hasard else 1):
             rep = reponses(fabrique, fen, test, g)
@@ -155,7 +170,8 @@ def garde(fen: list[dict], fige: dict, graines: int) -> tuple[list[str], dict[st
 # Le scellé et le code
 # ------------------------------------------------------------------------------
 def _git(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", "-C", str(HERE), *args], capture_output=True, text=True)
+    """git lancé depuis la racine du dépôt : les chemins s'écrivent « graphe_en/… »."""
+    return subprocess.run(["git", "-C", str(HERE.parent), *args], capture_output=True, text=True)
 
 
 def _sans_main(source: str) -> str:
@@ -168,6 +184,10 @@ def controle_du_code() -> list[str]:
     """Ce qui empêche d'ouvrir C : le scellé fermé, ou un code qui a changé depuis son étiquette."""
     if _git("tag", "--list", ETIQUETTE_SCELLE).stdout.strip() != ETIQUETTE_SCELLE:
         return [f"SCELLÉ FERMÉ : l'étiquette « {ETIQUETTE_SCELLE} » n'existe pas ; C ne se lit qu'une fois le GNN figé."]
+    # Le contrôle doit voir une différence connue : decision_c.py n'existe pas à temoins-figes.
+    if _git("diff", "--quiet", ETIQUETTE_TEMOINS, "--", "graphe_en/decision_c.py").returncode != 1:
+        return ["LE CONTRÔLE NE VOIT RIEN : git ne voit pas que decision_c.py est né après "
+                f"{ETIQUETTE_TEMOINS} ; aucun contrôle de code n'est fiable, C ne s'ouvre pas."]
     soucis = []
     for f in FIGES_TEMOINS:
         if _git("diff", "--quiet", ETIQUETTE_TEMOINS, "--", f"graphe_en/{f}").returncode != 0:
@@ -176,8 +196,25 @@ def controle_du_code() -> list[str]:
     ancien = _git("show", f"{ETIQUETTE_TEMOINS}:graphe_en/fautifs.py").stdout
     if not ancien or _sans_main(ancien) != _sans_main((HERE / "fautifs.py").read_text()):
         soucis.append(f"graphe_en/fautifs.py a changé (hors main) depuis l'étiquette {ETIQUETTE_TEMOINS}")
+    # La règle « machine » : suivie, présente dans son étiquette, inchangée, figée avant le GNN.
+    machine = "graphe_en/temoin_machine.py"
+    if not _git("rev-parse", "-q", "--verify", f"refs/tags/{ETIQUETTE_MACHINE}").stdout.strip():
+        soucis.append(f"l'étiquette {ETIQUETTE_MACHINE} n'existe pas")
+    elif _git("cat-file", "-e", f"{ETIQUETTE_MACHINE}:{machine}").returncode != 0:
+        soucis.append(f"{machine} n'est pas dans l'étiquette {ETIQUETTE_MACHINE}")
+    else:
+        if _git("diff", "--quiet", ETIQUETTE_MACHINE, "--", machine).returncode != 0:
+            soucis.append(f"{machine} a changé depuis l'étiquette {ETIQUETTE_MACHINE}")
+        if _git("merge-base", "--is-ancestor", ETIQUETTE_MACHINE, ETIQUETTE_SCELLE).returncode != 0:
+            soucis.append(f"l'étiquette {ETIQUETTE_MACHINE} n'est pas antérieure à {ETIQUETTE_SCELLE}")
+    if _git("ls-files", "--error-unmatch", machine).returncode != 0:
+        soucis.append(f"{machine} n'est pas suivi par git")
     if _git("diff", "--quiet", ETIQUETTE_SCELLE, "--", "graphe_en/").returncode != 0:
         soucis.append(f"graphe_en/ a changé depuis l'étiquette {ETIQUETTE_SCELLE}")
+    # git diff ne voit pas un fichier non suivi : aucun .py non suivi dans graphe_en/.
+    hors = _git("ls-files", "--others", "--exclude-standard", "--", "graphe_en/*.py").stdout.split()
+    if hors:
+        soucis.append(f"fichiers Python non suivis dans graphe_en/ : {', '.join(hors)}")
     return soucis
 
 
@@ -224,7 +261,7 @@ def effondrement(v: list[dict], debut: datetime, fin: datetime, les_veilles: lis
 
 
 def lire_c(fen_series: list[dict], fen_c: list[dict], c: str, campagnes: Path, fige: dict,
-           graines: int, tient: dict[str, list[bool]]) -> list[str]:
+           graines: int, tient: dict[str, list[bool]], liste: list) -> list[str]:
     base = cles_base(fige)
     injections = par_injection([f for f in fen_c if f["cause"] == "base"])
     bornes = {k + 1: p for k, p in enumerate(fautifs_module.injections(campagnes / c / "campagne.yaml")[0])}
@@ -253,7 +290,7 @@ def lire_c(fen_series: list[dict], fen_c: list[dict], c: str, campagnes: Path, f
     a_repondre = [f for f in fen_c if f["etiquette"] in ("normale", "panne")]
     lignes += ["", f"Par méthode (apprise sur les deux séries seules ; {len(normales)} minutes normales de C) :"]
     trouve: dict[str, bool] = {}
-    for nom, fabrique, hasard in methodes(fige):
+    for nom, fabrique, hasard in liste:
         n_f, n_a, fa, trouve_g, minutes = [], [], [], [], []
         for g in range(graines if hasard else 1):
             rep = reponses(fabrique, fen_series, a_repondre, g)
@@ -308,7 +345,9 @@ def comparer(fa_gnn: list[int], fa_regle: int, minutes_gnn: list[dict], minutes_
       (b) plus tôt : au moins une minute d'avance sur une majorité stricte des
           injections qui comptent (« jamais » est plus tard que tout ; jamais
           contre jamais : égalité) ;
-      (c) plus d'injections trouvées (F, médiane des graines).
+      (c) plus d'injections trouvées (F) : gagné si toutes les graines en
+          trouvent plus que la règle, perdu si une majorité stricte des graines
+          en trouve moins (la médiane est donnée à côté dans le rapport).
     """
     def mieux(x: int, y: int) -> bool:
         return x <= y - 3 and x <= 0.75 * y
@@ -326,7 +365,8 @@ def comparer(fa_gnn: list[int], fa_regle: int, minutes_gnn: list[dict], minutes_
     retard = [sum(devant(minutes_regle[k], m[k]) for k in ks) for m in minutes_gnn]
     axes["b"] = ("gagné" if all(majorite(a, len(ks)) for a in avance)
                  else "perdu" if majorite(sum(majorite(r, len(ks)) for r in retard), tot) else "égal")
-    axes["c"] = "gagné" if statistics.median(f_gnn) > f_regle else "égal"
+    axes["c"] = ("gagné" if all(x > f_regle for x in f_gnn)
+                 else "perdu" if majorite(sum(x < f_regle for x in f_gnn), tot) else "égal")
     return axes
 
 
@@ -346,7 +386,8 @@ def rapport(mode: str, c: str | None, campagnes: Path, runs: Path, graines: int)
     print("# Décision sur la base lente — écrit par graphe_en/decision_c.py, ne pas éditer à la main.")
     print(f"# règles : notes/JOURNAL.md, 27 sept. ; graines 0 à {graines - 1} pour ce qui tire au hasard")
     print("\n== La garde de spécificité G (test des deux séries)")
-    lignes, tient = garde(fen_series, fige, graines)
+    liste = methodes(fige)   # la même liste pour la garde et la lecture
+    lignes, tient = garde(fen_series, fige, graines, liste)
     print("\n".join(lignes))
     if mode == "garde":
         return 0
@@ -356,7 +397,7 @@ def rapport(mode: str, c: str | None, campagnes: Path, runs: Path, graines: int)
         print(f"REFUS  {e}")
         return 1
     print(f"\n== La lecture de {c}")
-    print("\n".join(lire_c(fen_series, fen_c, c, campagnes, fige, graines, tient)))
+    print("\n".join(lire_c(fen_series, fen_c, c, campagnes, fige, graines, tient, liste)))
     return 0
 
 

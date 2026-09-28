@@ -238,6 +238,18 @@ reprennent la perspective (19 et 20 de la version allégée, 16 de la plénière
     victoire du GNN sur D veut dire « il désigne une machine muette que ces méthodes ne peuvent pas
     désigner », pas « il bat la règle à armes égales ».
 
+27m. **Option B : la règle reçoit l'idée « machine » avant D** (journal, 28 sept., « D.1, suite ») :
+    témoin 3 bis, `graphe_en/temoin_machine.py`, figé sous `temoin-machine-fige`, utilisé seulement
+    pour D. À dire au rapport : une première version a été vue en partie sur le test et corrigée
+    par principe (effet sur D inconnu ; compté dans versions-vues-sur-test/LISEZMOI.md). La phrase de 27l
+    (« aucun témoin figé n'a de principe au niveau de la machine ») est remplacée : sur D, le GNN
+    est comparé à une règle qui a ce principe. Code à porter : temoin_machine.py,
+    decision_c.methodes(machine=True) et le contrôle git renforcé.
+27n. **Deux défauts de decision_c.py (C.0) trouvés et réparés avant toute ouverture** : le contrôle
+    git était aveugle (lancé depuis graphe_en/ avec des chemins « graphe_en/… »), et l'axe (c) ne
+    pouvait jamais valoir « perdu ». À dire : réparés le 28 sept., avant l'étiquette gnn-fige, sans
+    rien avoir lu de C ; l'axe (c) est désormais plus strict pour le GNN (toutes les graines).
+
 ### Limites à écrire honnêtement
 27. **Dérive** : toute méthode qui apprend le « normal » se trompe si le normal
     bouge (nouvelles versions, trafic, données). Réponse : recaler la

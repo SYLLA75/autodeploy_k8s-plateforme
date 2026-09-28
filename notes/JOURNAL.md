@@ -1597,3 +1597,117 @@ Sur les fenêtres de la VALIDATION (juge.validation) des deux séries, jamais le
 - la variante « sans aucune arête » du retrait des flèches garde la même remontée pods → machine
   (elle lit la machine de chaque pod dans le champ hosts de ses nœuds, sans flèche) ; si elle
   TROUVE X, c'est la remontée écrite à la main et pas le GNN qui trouve : on le dit.
+
+### D.1, suite : l'option B, décidée par l'utilisateur (28 sept.)
+« Cette règle est évidente, on ne peut pas l'enlever » : la règle reçoit, avant D, l'idée qui sépare
+les jumeaux, comme la cause commune l'avait été pour C. Témoin 3 bis, `graphe_en/temoin_machine.py`
+(hérite de temoin_fleches.py sans le modifier), figé sous l'étiquette `temoin-machine-fige` avant D.
+Deux relectures par deux agents chacune.
+
+**L'idée, telle que figée.** Quand la règle « cause commune » accuse des répliques (« blocage » ou
+« lenteur »), elle regarde la machine h qui porte une majorité stricte des répliques accusées (une
+panne de machine n'explique pas des répliques lentes sur plusieurs machines ; sinon rien ne change).
+S'il existe au moins deux autres pods actifs sur h et qu'une majorité stricte d'entre eux sont lents,
+et qu'il existe au moins deux pods actifs ailleurs hors de l'amont de h avec au plus la moitié d'entre
+eux lents, elle accuse la machine (cause « inconnue »), les répliques passant sur le chemin.
+- actif : un pod qui, dans la fenêtre lue, est source d'une flèche calls ou queries vers un pod d'une
+  autre machine ;
+- amont de h : les services qui appellent un service de h, directement ou de proche en proche, dans
+  les fenêtres normales d'apprentissage (D.1 : ils ralentissent avec X, « hors de l'amont ») ;
+- lent : le plus haut écart du pod (temps de traitement ou de requête, flèches queries sortantes,
+  flèches calls entrantes) dépasse s_l, sa propre limite, calée comme s_f (95e centile sur les pods
+  actifs des fenêtres normales d'apprentissage, chaque campagne mise de côté), toujours sans exemples ;
+- alarme, s_f, s_m : ceux de la règle (même budget de fausses alertes). Avec exemples, s est choisie
+  par la grille de la règle, notée sur les réponses AVEC l'idée.
+
+**Une version vue sur le test, à dire.** Une première version (jamais commitée) comptait l'amont dans
+« ailleurs », jouait avec des répliques accusées sur trois machines, reprenait s comme limite de
+« lent », lisait « actif » sur le normal seul et gardait la grille sans l'idée. Son `--comparer`
+lisait aussi des fenêtres du test : lenteur-01/0063 et 0101, lenteur-02/0109 et 0111, dans les
+injections de lenteur du test, celles-là mêmes qui serviront à G_D pour les versions machine. Deux
+relecteurs ont mesuré ses défauts en partie sur les fenêtres normales du test. Les corrections sont
+choisies par principe (le texte de D.1 pour l'amont, une machine et non trois, s_l calée comme s_f) ;
+leur effet sur D est inconnu. Sur les données permises (la validation, et l'apprentissage des deux
+séries sans aucune fenêtre du test), seule la correction « majorité » change une réponse : une
+fenêtre de lenteur de la validation, où le défaut se voit donc sans le test. s_l rend « lent » plus
+strict sans exemples (5,0 % des pods actifs du normal mis de côté au-dessus de s_l, contre 7,9 %
+au-dessus de s_f) et moins strict avec exemples (0,4 % au-dessus de s = 5) ; ces pourcentages sont
+ceux de l'apprentissage complet des deux séries (sur la validation : 5,0 %, 6,8 % et 1,0 %). La majorité a un coût
+pour D, mesuré sur un banc de la validation : l'idée se tait dans 5 à 7 fenêtres sur 128 du cas M
+sans exemples (une autre réplique dépasse s par le bruit), 1 sur 128 avec. Compté dans
+`campagnes/versions-vues-sur-test/LISEZMOI.md`. `--comparer` ne lit plus que la validation.
+
+**Chiffres de la version figée** (poste) :
+- validation : 1 fenêtre changée sur 554 pour les deux réglages, blocage-02/0057 (panne connue, la
+  réplique de workers2 accusée → workers2) ; s_f = 3,79, s_l = 4,40 (1 962 pods actifs, 10 campagnes) ;
+  s = 3,79 sans exemples, 5 avec, comme la règle ;
+- apprentissage des deux séries, les limites qui serviront à D (vérifié par un relecteur, sans
+  fenêtre du test) : s_f = 2,39, s_l = 3,44 (4 053 pods actifs) ; avec exemples, la grille avec l'idée
+  choisit le même s que la règle, 5 (535 points contre 533 : l'idée ne coûte que blocage-02/0057) ;
+- banc grossier de la validation (signature de D.1 posée en écarts, file pleine) : cas M, X premier
+  dans 121 à 127 fenêtres sur 128 pour workers2 et workers5 dès un écart de +5 ou +6 ; cas R (la
+  réplique seule), X premier à tort 0 fois sur 128, pour chaque X, chaque retard, les deux réglages,
+  même avec le leurre ; à +3, presque rien (0 à 3 fenêtres sur 128 : la règle répond « charge »). Sans l'idée, X n'est jamais premier.
+
+**Où elle sert.** Seulement à D (`decision_c.methodes(machine=True)`, une seule liste passée à la
+garde et à la lecture). C garde la liste de méthodes écrite avant C : l'idée ne joue qu'après
+« blocage » ou « lenteur », où des répliques sont déjà à 1e9, donc la base reste à 1e7 au plus et
+l'alarme ne bouge pas ; avec exemples, s est la même (5). F, A, G, les minutes et les fausses alertes
+de C n'en changeraient pas.
+
+**Le contrôle avant l'ouverture, réparé.** La relecture a trouvé que `controle_du_code` (C.0) lançait
+git depuis graphe_en/ avec des chemins « graphe_en/… » : tous les contrôles « a changé » étaient
+aveugles. Réparé (git lancé depuis la racine) avec un auto-contrôle : git doit voir que
+decision_c.py est né après `temoins-figes`, sinon rien ne s'ouvre. `--ouvrir` refuse aussi si
+l'étiquette `temoin-machine-fige` manque, si le fichier n'y est pas, n'est pas suivi ou a changé, si
+l'étiquette n'est pas un ancêtre de `gnn-fige` (le même commit est accepté : la règle ne peut plus
+changer ensuite), ou s'il y a un .py non suivi dans graphe_en/. À faire en D.3 : refuser si le commit
+de `temoin-machine-fige` n'est pas antérieur au premier instant de campagne.yaml de D ; son hachage
+sera noté dans A_REPORTER.md dès l'étiquette posée.
+
+**L'axe (c) de `comparer`, réparé avant toute ouverture.** Le code ne pouvait jamais rendre
+« perdu » sur l'axe (c), contre « perdre est l'image de gagner ». Désormais, comme les autres axes :
+gagné si TOUTES les graines trouvent plus d'injections que la règle, perdu si une majorité stricte
+des graines en trouve moins (lecture plus stricte pour le GNN que « la médiane », donnée à côté).
+Vaut pour C et pour D.
+
+**Le choix de X (D.1), précisé** : un service compte comme actif pour la marge de X s'il l'est dans
+plus de la moitié des fenêtres normales d'apprentissage des deux séries (dans les séries, chaque
+service de workers0, workers2 et workers5 est actif dans 0 % ou 100 % des fenêtres normales).
+
+**Prédiction pour les versions machine, écrite avant D** : X premier quand la règle accuse la
+réplique de X seule (blocage ou lenteur), qu'une majorité stricte des autres pods actifs de X (au
+moins deux) dépassent s_l, et au plus la moitié des pods actifs ailleurs hors de l'amont ; sinon,
+la même réponse que la règle. Si D ressemble au banc, les deux versions machine TROUVERONT X ; le GNN
+devra alors gagner par l'axe (b) ou (c). La phrase « X n'est pas premier » des prédictions de D.1 ne
+vaut que pour la règle sans l'idée.
+
+**Ce que D pourra dire désormais** (remplace « Ce que D peut dire, écrit avant ») : la décision 2
+devient atteignable (la règle a le principe « machine ») ; un écart du GNN sur D ne pourra venir que
+de ce qu'il fait mieux que cette règle (plus tôt, plus d'injections trouvées, les cas limites où
+l'idée ne joue pas), pas de l'absence du principe.
+
+**La décision 2 de C, précisée avant toute ouverture** (relecture du 28 sept.) : quand plusieurs
+versions de la règle TROUVENT, « perdre est l'image de gagner » se lit ainsi : le GNN perd sur C si,
+contre AU MOINS UNE version, c'est l'image (elle TROUVE avec au moins autant d'injections, gagne
+nettement sur un axe et ne perd sur aucun) ; il gagne seulement contre chacune ; sinon égal. C'est la
+lecture la plus dure pour le GNN : il doit battre le meilleur adversaire, et perd s'il est battu par
+un seul.
+
+**L'axe (d) de C, table complétée** (remplace la table de D.1). « Version de la règle » comprend
+désormais les deux versions machine. On lit les lignes DANS CET ORDRE ; la première qui s'applique
+donne l'axe :
+0. moins de 2 injections qui comptent sur D, le plancher TROUVE, la décision 1 sur D (tableau ou
+   score par nœud TROUVE), ou la variante « sans aucune arête » TROUVE X → égal ;
+1. aucune version de la règle ne TROUVE et le GNN TROUVE (majorité stricte des graines, comme la
+   décision 3 de C) → gagné ;
+2. une ou plusieurs versions de la règle TROUVENT et le GNN aussi → le GNN est comparé à CHACUNE sur D
+   comme en décision 2 de C, avec les axes (b) et (c) lus sur D (l'axe (a) n'est pas repris : mêmes
+   minutes normales que C) ; gagné s'il TROUVE avec au moins autant d'injections que chacune ET gagne
+   nettement sur au moins un de ces axes sans perdre sur aucun, contre chacune ; perdu si, contre AU
+   MOINS UNE version, c'est l'image (elle TROUVE avec au moins autant d'injections que le GNN, gagne
+   nettement sur un axe et ne perd sur aucun) ; sinon égal. Sur chaque axe, gagner demande toutes les
+   graines, perdre une majorité stricte ;
+3. une version de la règle TROUVE et pas le GNN → perdu ;
+4. personne ne trouve → égal.
+Le rapport ne présentera pas une victoire sur C obtenue par l'axe (d) comme indépendante de D.

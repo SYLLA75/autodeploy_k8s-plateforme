@@ -10,6 +10,7 @@ validation (juge.validation), jamais sur le test.
 | temoin_tableau-974ba15.txt | témoin 1, commit 974ba15 (fautif appris case par case, rejet d'un seul côté, graine 0) | forêt partagée pour le fautif, résumés des flèches, rejet des deux côtés, 5 graines (relecture B.3) |
 | temoin_noeud-4ca7001.txt | témoin 2, commit 4ca7001 (détecteur forêt, plancher par sorte) | plancher, écarts croisés, repli du fautif, prototypes mis à l'échelle (deux relectures, vérifiés sur la validation) |
 | temoin_fleches-v1.txt | témoin 3, première version (jamais commitée : une limite d'alarme commune, charge nommée par le dépôt, sortie « file pleine inexpliquée → inconnue », plancher de l'ancien témoin 2) | deux limites, charge par élimination, puis relectures |
+| (pas de fichier) | témoin 3 bis, temoin_machine.py, première version (jamais commitée : l'amont dans « ailleurs », répliques accusées sur plusieurs machines, « lent » à s, « actif » lu sur le normal, grille sans l'idée) ; un regard par son --comparer (lenteur-01/0063, 0101, lenteur-02/0109, 0111), plus des mesures des relecteurs sur les normales du test | amont hors de « ailleurs », majorité des répliques sur la machine, limite s_l propre, actif lu dans la fenêtre, grille avec l'idée (journal, D.1, suite, 28 sept.) |
 
 Non gardées en fichier, chiffres dans le journal : le tableau avec le rejet calé
 « hors sac » (cause 33 %) ; le témoin 2 avec l'échelle par écart interquartile
@@ -24,3 +25,6 @@ témoin. Au test, c'est vrai pour le tableau (cause 144 → 150/153, fautif top-
 94 → 115/115), pour la règle (cause 52 → 150/153) et pour le score par nœud sans
 exemples (lenteur top-1 0/38 → 25/38) ; le score par nœud avec exemples y perd un
 peu (cause 136 → 130/153, top-1 114 → 113/115).
+
+Témoin 3 bis (28 sept.) : 1 regard sur le test par son --comparer, plus les mesures des deux
+relecteurs de la première version ; la version figée n'a été lancée que sur la validation.
