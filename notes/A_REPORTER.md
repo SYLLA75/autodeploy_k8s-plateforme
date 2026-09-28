@@ -301,3 +301,10 @@ reprennent la perspective (19 et 20 de la version allégée, 16 de la plénière
     font monter et descendre la file. Suites possibles : panne intermittente, charge variable pendant la panne,
     marge nulle (la file hésite). La difficulté de D n'est pas l'alarme mais la machine (X contre leurre) et
     « inconnue » ; une file qui monte existe aussi sans panne (cause « charge »).
+33. **Figures des résultats (demande du 28 sept., étape F)**, tracées APRÈS gnn-fige, à partir des mêmes réponses,
+    sans rien régler dessus : (1) courbe ROC de l'alarme + AUC (et précision-rappel), par méthode ; (2) courbe top-k
+    du fautif (AC@k, k = 1…10) ; (3) frise d'une campagne : file, bandes d'injection, instant d'alarme et fautif
+    désigné par méthode (partir de graphe_en/figure_campagnes.py) ; (4) barres du retrait des flèches (GNN complet,
+    sans aucune arête, sans executes_on, sans queries…) sur C et D ; (5) fausses alertes au fil du temps (dérive).
+    Tableaux : taux « x sur n » par cause, par minute et par injection, médiane [min–max] des graines ; F1 et
+    précision de l'alarme ajoutés à titre d'information.
