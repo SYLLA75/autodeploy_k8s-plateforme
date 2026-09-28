@@ -2067,3 +2067,14 @@ sélecteur), essai_d.py refuse s'il ne peut pas faire le contrôle « avant + 5d
   jumeaux-01 sert d'essai, avec la même règle (tas > 10 à la 5e minute de panne) ; sinon arrêt de la
   campagne (kill -INT au pilote) et décision avec l'utilisateur. essai_d.py (contrôle + 5d, nettement)
   sera passé sur la campagne elle-même avant le scellé, en ne lisant que ce qu'il lit.
+
+## 2026-09-28 — E.1 : la spécification du GNN, écrite avant tout code et tout calcul
+
+`notes/GNN_SPEC.md` : spécification de `graphe_en/gnn.py` (trois lecteurs indépendants : règles écrites avant,
+interfaces du code, puis synthèse ; plus la lecture de etat.txt et de rapport.tex, §10). Elle fixe AVANT le code :
+le cadrage (§0 : aucun fichier figé modifié ; un seul score et une seule alarme ; G_val au lieu de G avant le gel),
+les données (§1), l'étape 1 (§2 : R-GCN hétérogène 2 couches, H = 32, canal d'arête, relations inverses, masque
+« nœud + ses flèches entrantes », Huber + BCE de présence, Adam 3e-3, 150 époques, graines déterministes), le
+principe P et la grille B/H/V avec ses critères dans l'ordre (§3.5), l'alarme et les budgets (§4), l'étape 2
+(§5), les variantes du retrait des flèches (§6), le banc de pannes fabriquées (§7), l'ordre de travail et les tests
+T1–T7 (§8). Aucun hyperparamètre ne sera cherché ; un seul essai de rechange au plus, sur la validation, noté.
