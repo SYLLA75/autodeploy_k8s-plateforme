@@ -628,3 +628,34 @@ injection mise de côté) et le 95e centile des causes retirées (chaque cause m
 À dire : ce seuil a connu deux essais, le premier (5e centile seul) vu sur la validation. Le rejet de §5 reste affiché
 à côté dans les sorties. Consigne de l'utilisateur : favoriser le GNN par tout réglage légitime AVANT l'ouverture de C
 et D, sur la validation et le banc seulement ; rien n'est réglé après l'ouverture, aucun résultat n'est caché.
+
+---
+
+## 15. Écart E-5 (28 sept., décidé par l'utilisateur, écrit AVANT tout calcul) : le GNN combiné
+
+**Constat (§13, confirmé par un recompte indépendant).** Aucune version n'atteint min(F_C, F_D, F_R) ≥ 0,5. v1
+(B5/H2/V0) : F_C 0,77 [0,12–0,99], F_D 0,87, F_R 0,05, G_val tient, mais alarme cassée (11/153 au budget). v2 et v3 :
+alarme réparée (153/153) mais F_C ≤ 0,10 et F_D ≤ 0,10 ; en M+Y, le leurre passe premier (calage par identité : un
+nœud d'habitude calme paraît énorme). Aucune combinaison d'aucune version ne trouve à la fois la base et la réplique.
+
+**Le GNN combiné (nom de version « v12 »)** : deux exemplaires du même modèle, entraînés à part sur les mêmes normales,
+mêmes graines, chacun dans son réglage :
+- **alarme** : l'exemplaire v2 (score de fenêtre, seuil propre et budgets comme §4) ;
+- **classement du fautif** : l'exemplaire v1 et le CHOIX B5/H2/V0 (celui que §13 donne à v1) ;
+- **GNN avec exemples** : ses parties apprises (forêt d'alarme, régression du fautif, prototypes) sur les écarts et
+  le plongement de l'exemplaire v2 ; rejet par le logit (E-4, §14) ; repli : le classement de l'exemplaire v1 (B5/H2/V0) ;
+  alarme = forêt OU alarme de l'exemplaire v2 ;
+- aucune identité en entrée d'aucun modèle ; empreintes des deux exemplaires notées au gel.
+
+**Critères pour figer (validation et banc seulement, 5 graines, 150 époques), tous requis :**
+1. G_val tient pour les 5 graines ;
+2. détection au budget de la règle ≥ 150/153 (médiane) ;
+3. banc : F_C ≥ 0,5 et F_D ≥ 0,5 (médianes) ; F_R rapporté (faiblesse connue, dite) ;
+4. GNN avec exemples : top-1 ≥ 114/115 et détection ≥ 150/153 (médianes) ; répétition « jamais vue » : « inconnue »
+   dans une majorité des fenêtres de chaque cause retirée.
+Si un critère manque : pas de gel, décision avec l'utilisateur.
+
+**Pour la production (rapporté à part, ne change aucune décision)** : alarme « persistante » (2 minutes de suite),
+mesurée sur la validation (fausses alertes par heure, détection, retard de détection), comme etat.txt le propose
+(E:81). Consigne de l'utilisateur : rendre le GNN le plus performant possible honnêtement avant le gel, et le meilleur
+possible en production.

@@ -2216,3 +2216,10 @@ blocage 68/76, lenteur 76/76, charge 74/75, hôte 57/78. À DIRE : premier essai
 Fichiers : graphe_en/gnn_exemples.py (option --rejet §5 pour l'ancien rejet), campagnes/gnn-exemples-validation*.txt.
 - **E-4 accepté par l'utilisateur** (GNN_SPEC.md §14) : rejet « inconnue » du GNN avec exemples par le logit du fautif.
   La validation à 5 graines et 150 époques du GNN avec exemples sera lancée sur la base retenue par E-3.
+
+## 2026-09-28 — E.6 : E-3 appliqué, aucune version ne passe ; E-5 (GNN combiné) décidé par l'utilisateur
+
+Recalcul E-3 (5 graines, 150 époques) confirmé par un recompte indépendant : min(F_C, F_D, F_R) = 0,054 (v1),
+0,000 (v2), 0,020 (v3) : pas de gel (règle d'arrêt de §13). v1 trouve la base et la machine fabriquées mais ne sonne
+pas ; v2/v3 sonnent mais ratent base et machine (et accusent le leurre). Décision de l'utilisateur : GNN combiné
+(GNN_SPEC.md §15, écrit avant calcul) : alarme de l'exemplaire v2, fautif de l'exemplaire v1 (B5/H2/V0).

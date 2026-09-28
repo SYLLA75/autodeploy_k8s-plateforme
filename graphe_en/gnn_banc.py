@@ -45,7 +45,16 @@ LA MESURE : pour chaque (famille, cas, cible, d, graine) et chaque combinaison
   des 30 de la grille : le nombre de fenêtres où la réponse attendue est au rang
   1 (juge.rang, égalités contre le GNN), et la réponse la plus souvent première.
 
-LE CHOIX (§3.5), dans l'ordre :
+LE CHOIX (écart E-3, §13 de la spécification, qui remplace le critère 3 du §3.5) :
+  parmi les combinaisons dont G_val tient pour chaque graine, le plus grand
+  min(F_C, F_D, F_R), chaque famille en part des cas au rang 1, médiane des graines
+  (F_C : « entrant dans tsdb-mysql-0 » ; F_D : M et M+Y ; F_R : R et « sortant »,
+  d ∈ 75, 150, 300) ; à 0,05 près, le plus grand top-1 de validation ; puis la plus
+  simple. Y, « entrant » ts-order-service et 400 ms sont écrits à titre
+  d'information. Si le min du choix est sous 0,5, la sortie le dit : la version ne
+  peut pas être figée (§13, arrêt).
+
+L'ANCIEN CHOIX (§3.5), écrit à côté pour comparaison, dans l'ordre :
   1. admissible si G_val tient pour chaque graine : instance:tsdb-mysql-0 n'est
      première dans une majorité stricte des fenêtres d'aucune des injections de
      test des causes connues de la validation (première ou ex aequo en tête :
@@ -119,6 +128,11 @@ FAMILLE = {"M": "machine", "R": "machine", "M+Y": "machine", "Y": "machine",
            "entrant": "entrant dans T", "sortant": "sortant de T"}
 MINIMAUX = {"bout": gnn.BOUTS[0], "remontee": gnn.REMONTEES[0], "explication": gnn.EXPLICATIONS[0]}
 DIMENSIONS = (("explication", "V"), ("remontee", "H"), ("bout", "B"))
+# L'écart E-3 (§13) : les trois familles du critère, les chiffres donnés à titre
+# d'information, la tolérance sur min(F_C, F_D, F_R).
+FAMILLES_E3 = ("F_C", "F_D", "F_R")
+COLONNES_E3 = FAMILLES_E3 + ("Y", "ent. order", "400 F_C", "400 F_D", "400 F_R")
+TOLERANCE_E3 = 0.05
 LOT_TACHE = 40                                     # fenêtres par tâche du parallélisme
 
 
@@ -451,6 +465,70 @@ def _simplifiee(choix: dict, dim: str) -> dict:
     return c
 
 
+def famille_e3(groupe: tuple, base) -> str | None:
+    """La famille de l'écart E-3 (§13) d'un groupe du banc, d = 400 compris ; None hors familles.
+      F_C : « entrant dans tsdb-mysql-0 » (base = ses clés) ;
+      F_D : cas M et M+Y ; F_R : cas R et « sortant » (la réplique)."""
+    _, cas, cible, _ = groupe
+    if cas == "entrant":
+        return "F_C" if cible in base else None
+    if cas in ("M", "M+Y"):
+        return "F_D"
+    if cas in ("R", "sortant"):
+        return "F_R"
+    return None
+
+
+def colonne_e3(groupe: tuple, base) -> str | None:
+    """La colonne du tableau E-3 : une famille du critère (d ∈ 75, 150, 300), ou un
+    chiffre donné à titre d'information (Y, « entrant » ts-order-service, 400 ms)."""
+    _, cas, _, d = groupe
+    if cas == "Y":
+        return "Y"
+    fam = famille_e3(groupe, base)
+    if d == HORS_CRITERE:
+        return f"400 {fam}" if fam else None
+    if fam:
+        return fam
+    return "ent. order" if cas == "entrant" else None
+
+
+def choisir_e3(g_val: dict, t1: dict, parts: dict) -> tuple[dict, dict, list[str]]:
+    """
+    La règle de l'écart E-3 (§13), pour une version. Entrées par nom de combinaison, une
+    valeur par graine : g_val, t1 (comme choisir) ; parts[nom][famille] : la part des cas
+    de la famille au rang 1. Parmi les combinaisons dont G_val tient pour chaque graine :
+    le plus grand min(F_C, F_D, F_R) (chaque F en médiane des graines) ; à TOLERANCE_E3
+    près, le plus grand top-1 de validation (médiane) ; puis la plus simple. Aucune :
+    B1/H0/V0 (la valeur écrite par défaut au §3.5 ; §13 ne dit rien de ce cas).
+    Rend (CHOIX, {nom : min des familles}, lignes).
+    """
+    mins = {gnn.nom_choix(ch): min(_med(parts[gnn.nom_choix(ch)][f]) for f in FAMILLES_E3) for ch in gnn.grille()}
+    tient = [ch for ch in gnn.grille() if all(n == 0 for n in g_val[gnn.nom_choix(ch)])]
+    lignes = [f"règle 1 (G_val tient pour chaque graine) : {len(tient)} combinaisons sur {len(mins)}"
+              + (f" ({', '.join(gnn.nom_choix(c) for c in tient)})" if tient else "")]
+    if not tient:
+        choix = dict(MINIMAUX)
+        lignes.append(f"aucune combinaison ne tient : {gnn.nom_choix(choix)}, la valeur écrite par défaut (§3.5)")
+        return choix, mins, lignes
+    meilleur = max(mins[gnn.nom_choix(c)] for c in tient)
+    proches = [c for c in tient if mins[gnn.nom_choix(c)] >= meilleur - TOLERANCE_E3 - 1e-9]
+    t1_max = max(_med(t1[gnn.nom_choix(c)]) for c in proches)
+    en_tete = [c for c in proches if _med(t1[gnn.nom_choix(c)]) == t1_max]
+    choix = min(en_tete, key=gnn.simplicite)
+    lignes.append(f"règle 2 (le plus grand min(F_C, F_D, F_R), médianes des graines) : {meilleur:.3f}, atteint par "
+                  + ", ".join(gnn.nom_choix(c) for c in tient if mins[gnn.nom_choix(c)] == meilleur))
+    lignes.append(f"règle 3 (à {TOLERANCE_E3:g} près, soit min ≥ {meilleur - TOLERANCE_E3:.3f} : le plus grand "
+                  f"top-1 de validation) : " + ", ".join(f"{gnn.nom_choix(c)} (min {mins[gnn.nom_choix(c)]:.3f}, "
+                                                       f"top-1 {_med(t1[gnn.nom_choix(c)]):g})" for c in proches)
+                  + f" → top-1 {t1_max:g}")
+    lignes.append(f"règle 4 (à égalité, la plus simple) : {gnn.nom_choix(choix)}")
+    lignes.append(f"seuil d'arrêt du §13 (min(F_C, F_D, F_R) ≥ 0.5) : "
+                  + ("atteint" if mins[gnn.nom_choix(choix)] >= 0.5 else
+                     f"NON ATTEINT ({mins[gnn.nom_choix(choix)]:.3f}) : cette version ne peut pas être figée"))
+    return choix, mins, lignes
+
+
 def choisir(g_val: dict, t1: dict, banc: dict) -> tuple[dict, dict, list[str]]:
     """
     Le choix du §3.5. Entrées par nom de combinaison, une valeur par graine :
@@ -631,7 +709,18 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques: int, version: st
             total[nom].append(sum(v[0] for gr, v in agr.items() if gr[3] != HORS_CRITERE))
             for c in COLONNES:
                 par_col[nom][c].append(sum(v[0] for gr, v in agr.items() if _colonne(gr) == c))
-    choix, etat, lignes_choix = choisir(g_val, t1, total)
+    # Les familles de l'écart E-3 (§13) : part au rang 1, par graine.
+    base = set(dc.cles_base(fige))
+    tot_e3 = {c: sum(n for g, n in par_groupe.items() if colonne_e3(g, base) == c) for c in COLONNES_E3}
+    parts = {}
+    for k, nom in enumerate(NOMS):
+        parts[nom] = {c: [] for c in COLONNES_E3}
+        for g in range(graines):
+            agr = _agreger(res[g], groupes, k, n_val)
+            for c in COLONNES_E3:
+                parts[nom][c].append(sum(v[0] for gr, v in agr.items() if colonne_e3(gr, base) == c) / tot_e3[c])
+    choix_ancien, etat, lignes_choix = choisir(g_val, t1, total)
+    choix, mins_e3, lignes_e3 = choisir_e3(g_val, t1, parts)
     n_inj = sum(1 for v in dc.par_injection(val).values() if not v[0]["jamais_vue"])
     n_app = len(_apprises(val))
     tot_col = {c: sum(n for g, n in par_groupe.items() if _colonne(g) == c) for c in COLONNES}
@@ -649,18 +738,41 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques: int, version: st
         print(f"{nom:<12}{gv:>10}{_case(t1[nom]):>12}{('ok' if not raisons else 'NON'):>9}{_case(total[nom]):>14}"
               + "".join(f"{_case(par_col[nom][c]):>18}" for c in COLONNES))
 
-    print("\n== 2. le choix (§3.5, dans l'ordre)")
+    print(f"\n== 1 bis. les familles de l'écart E-3 (§13) : part des cas au rang 1, médiane des graines [min–max]")
+    print(f"F_C : « entrant dans » {', '.join(sorted(base))}, d = {', '.join(map(str, RETARDS))} ({tot_e3['F_C']} cas) ; "
+          f"F_D : M et M+Y, X = {', '.join(XS)} ({tot_e3['F_D']}) ; F_R : R et « sortant » ({tot_e3['F_R']}) ; "
+          f"min : min(F_C, F_D, F_R) des médianes. À titre d'information, hors critère : Y ({tot_e3['Y']}), "
+          f"« entrant » ts-order-service ({tot_e3['ent. order']}), et les trois familles à 400 ms")
+    print(f"{'combinaison':<12}{'G_val':>6}{'top-1':>7}" + "".join(f"{c:>18}" for c in FAMILLES_E3)
+          + f"{'min':>7}" + "".join(f"{c:>18}" for c in COLONNES_E3[3:]))
+
+    def _part(v: list) -> str:
+        t = f"{_med(v):.2f}"
+        return t + (f" [{min(v):.2f}–{max(v):.2f}]" if min(v) != max(v) else "")
+    for nom in NOMS:
+        print(f"{nom:<12}{('ok' if etat[nom][0] else 'NON'):>6}{_med(t1[nom]):>7g}"
+              + "".join(f"{_part(parts[nom][c]):>18}" for c in FAMILLES_E3) + f"{mins_e3[nom]:>7.3f}"
+              + "".join(f"{_part(parts[nom][c]):>18}" for c in COLONNES_E3[3:]))
+
+    print("\n== 2. le choix de l'écart E-3 (§13, dans l'ordre) : c'est le CHOIX")
+    print("\n".join(lignes_e3))
+    print(f"CHOIX = {json.dumps(choix, ensure_ascii=False)}"
+          + ("" if graines >= 5 else f"   (sur {graines} graine(s) : indicatif, à refaire sur 5)"))
+
+    print("\n== 2 bis. pour comparaison : l'ancien choix du §3.5 (remplacé par le §13)")
     print("\n".join(lignes_choix))
     for nom in NOMS:
         if etat[nom][1]:
             print(f"  {nom} écartée au critère 2 : {' ; '.join(etat[nom][1])}")
-    print(f"CHOIX = {json.dumps(choix, ensure_ascii=False)}"
-          + ("" if graines >= 5 else f"   (sur {graines} graine(s) : indicatif, à refaire sur 5)"))
+    print(f"ancien choix §3.5 = {json.dumps(choix_ancien, ensure_ascii=False)} (min(F_C, F_D, F_R) "
+          f"{mins_e3[gnn.nom_choix(choix_ancien)]:.3f})")
 
-    nom_c, nom_p = gnn.nom_choix(choix), gnn.nom_choix(MINIMAUX)
-    for numero, nom in zip(("3", "3 bis"), dict.fromkeys((nom_c, nom_p))):
+    nom_c, nom_a, nom_p = gnn.nom_choix(choix), gnn.nom_choix(choix_ancien), gnn.nom_choix(MINIMAUX)
+    titres = ((nom_c, "le choix, §13"), (nom_a, "l'ancien choix, §3.5"), (nom_p, "le plus simple"))
+    for numero, nom in zip(("3", "3 bis", "3 ter"), dict.fromkeys((nom_c, nom_a, nom_p))):
         k = NOMS.index(nom)
-        print(f"\n== {numero}. le détail de {nom}{' (le choix)' if nom == nom_c else ''}, graine 0 : "
+        role = " ; ".join(t for n, t in titres if n == nom)
+        print(f"\n== {numero}. le détail de {nom} ({role}), graine 0 : "
               f"au rang 1 / fenêtres, et la réponse la plus souvent première")
         agr = _agreger(res[0], groupes, k, n_val)
         for gr in sorted(agr, key=lambda x: (x[0], CAS.index(x[1]), x[2], x[3])):
@@ -873,6 +985,71 @@ def _t10() -> tuple[bool, str]:
         f" ; {'; '.join(soucis)}" if soucis else "")
 
 
+def _t12() -> tuple[bool, str]:
+    """La règle de l'écart E-3 (§13) sur des tables inventées, et les familles des groupes."""
+    soucis = []
+    zero = {n: [0, 0, 0] for n in NOMS}
+    t1 = {n: [10, 10, 10] for n in NOMS}
+
+    def parts_(defaut=(0.2, 0.2, 0.2), **autres):
+        p = {n: {c: [0.0] * 3 for c in COLONNES_E3} for n in NOMS}
+        for n in NOMS:
+            for f, v in zip(FAMILLES_E3, autres.get(n.replace("/", "_"), defaut)):
+                p[n][f] = [v] * 3 if not isinstance(v, list) else v
+        return p
+    # 1) tout égal : la plus simple.
+    c, _, _ = choisir_e3(zero, t1, parts_())
+    if gnn.nom_choix(c) != "B1/H0/V0":
+        soucis.append(f"égalité : {gnn.nom_choix(c)}")
+    # 2) le min compte, pas la somme : B5/H2/V1 a F_C = F_D = 0.9 mais F_R = 0.1 ; B3/H1/V0 fait 0.4 partout.
+    p = parts_(B5_H2_V1=(0.9, 0.9, 0.1), B3_H1_V0=(0.4, 0.4, 0.4))
+    c, mins, _ = choisir_e3(zero, t1, p)
+    if gnn.nom_choix(c) != "B3/H1/V0" or abs(mins["B5/H2/V1"] - 0.1) > 1e-12:
+        soucis.append(f"min : {gnn.nom_choix(c)}")
+    # 3) G_val tombe pour une graine sur le meilleur : le suivant.
+    gv = dict(zero)
+    gv["B3/H1/V0"] = [0, 1, 0]
+    p = parts_(B3_H1_V0=(0.6, 0.6, 0.6), B4_H1_V1=(0.5, 0.5, 0.5))
+    c, _, _ = choisir_e3(gv, t1, p)
+    if gnn.nom_choix(c) != "B4/H1/V1":
+        soucis.append(f"G_val : {gnn.nom_choix(c)}")
+    # 4) à 0,05 près, le top-1 départage : B2/H0/V1 (0.46, top-1 20) bat B3/H1/V0 (0.50, top-1 10) ;
+    #    B4/H0/V0 (0.44, top-1 30) est hors tolérance.
+    p = parts_(B3_H1_V0=(0.5, 0.5, 0.5), B2_H0_V1=(0.46, 0.9, 0.9), B4_H0_V0=(0.44, 0.9, 0.9))
+    t = dict(t1)
+    t["B2/H0/V1"], t["B4/H0/V0"] = [20, 20, 20], [30, 30, 30]
+    c, _, _ = choisir_e3(zero, t, p)
+    if gnn.nom_choix(c) != "B2/H0/V1":
+        soucis.append(f"tolérance : {gnn.nom_choix(c)}")
+    # 5) la médiane des graines : F_R [0, 0.9, 0.1] vaut 0.1.
+    p = parts_(B2_H0_V0=(0.9, 0.9, [0.0, 0.9, 0.1]), B1_H1_V0=(0.3, 0.3, 0.3))
+    c, _, _ = choisir_e3(zero, t1, p)
+    if gnn.nom_choix(c) != "B1/H1/V0":
+        soucis.append(f"médiane : {gnn.nom_choix(c)}")
+    # 6) rien ne tient : B1/H0/V0 ; et le seuil d'arrêt est dit.
+    c, _, lignes = choisir_e3({n: [1] for n in NOMS}, {n: [3] for n in NOMS},
+                              {n: {f: [0.9] for f in COLONNES_E3} for n in NOMS})
+    if gnn.nom_choix(c) != "B1/H0/V0":
+        soucis.append(f"aucune : {gnn.nom_choix(c)}")
+    _, _, lignes = choisir_e3(zero, t1, parts_())
+    if not any("NON ATTEINT" in x for x in lignes):
+        soucis.append("le seuil d'arrêt 0,5 n'est pas signalé")
+    # 7) les familles des groupes.
+    base = {"instance:tsdb-mysql-0"}
+    attendu = {("machine", "M", "workers0", 75): "F_D", ("machine", "M+Y", "workers5", 300): "F_D",
+               ("machine", "R", "workers2", 150): "F_R", ("sortant de T", "sortant", "réplique de workers0", 75): "F_R",
+               ("entrant dans T", "entrant", "instance:tsdb-mysql-0", 300): "F_C",
+               ("entrant dans T", "entrant", "instance:ts-order-service", 300): "ent. order",
+               ("machine", "Y", Y_LEURRE, 0): "Y", ("machine", "M", "workers0", 400): "400 F_D",
+               ("entrant dans T", "entrant", "instance:tsdb-mysql-0", 400): "400 F_C",
+               ("entrant dans T", "entrant", "instance:ts-order-service", 400): None}
+    for g, c in attendu.items():
+        if colonne_e3(g, base) != c:
+            soucis.append(f"famille de {g} : {colonne_e3(g, base)} au lieu de {c}")
+    return not soucis, "7 tables inventées (égalité, min, G_val, tolérance 0,05, médiane, aucune, arrêt) et " \
+                       f"{len(attendu)} groupes classés" + (f" ; {'; '.join(soucis)}" if soucis else "")
+
+
 class _Repondeur:
     """Une réponse de décision_c pour une combinaison, sur l'étape 1 donnée (pour dc.garde)."""
 
@@ -910,6 +1087,7 @@ def verifier(campagnes: Path, runs: Path, version: str = gnn.VERSION) -> int:
 
     # T10 : le choix.
     resultats["T10 le choix du §3.5"] = _t10()
+    resultats["T12 le choix de l'écart E-3 (§13)"] = _t12()
 
     # Un petit modèle (2 époques) pour la notation.
     petit = gnn._petit_jeu(fen)

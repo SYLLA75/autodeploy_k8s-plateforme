@@ -49,7 +49,8 @@ LE POST-TRAITEMENT, écrit à la main (principe P du journal), en fonctions pure
   H (la remontée pods → machine, par le champ hosts) : H0 aucune, H1 somme à
     seuil (au moins deux pods anormaux), H2 concentrée ;
   V (l'explication par les dépendances) : V0 aucune, V1 héritage.
-  CHOIX (CHOIX_VERSIONS, un par version) est fixé par le banc (gnn_banc.py).
+  CHOIX (CHOIX_VERSIONS, un par version) est fixé par le banc (gnn_banc.py), règle
+  équilibrée de l'écart E-3 (§13 de la spécification).
 
 LES TROIS VERSIONS DE L'ÉTAPE 1 (écart E-1, §11 de la spécification, fixées avant
   tout calcul ; VERSION, v1 par défaut) :
@@ -165,16 +166,21 @@ MINUTES_BUDGET = 249
 BOUTS = ("B1", "B2", "B3", "B4", "B5")
 REMONTEES = ("H0", "H1", "H2")
 EXPLICATIONS = ("V0", "V1")
-# Le résultat du banc de gnn_banc.py (§3.5), codé en dur : chaque version a le
-# sien, fixé par SON banc (§11), validation seule, graines 0 à 4, 150 époques.
-# CHOIX est celui de la version 1. CHOIX_SOURCES dit d'où vient chacun (None :
-# PROVISOIRE, la valeur écrite par défaut B1/H0/V0).
-CHOIX = {"bout": "B5", "remontee": "H1", "explication": "V1"}
+# Le résultat du banc de gnn_banc.py, codé en dur : chaque version a le sien, fixé
+# par SON banc (§11), validation seule, graines 0 à 4, 150 époques, selon la règle
+# ÉQUILIBRÉE de l'écart E-3 (§13 : le plus grand min(F_C, F_D, F_R), qui remplace le
+# critère 3 du §3.5 ; l'ancien choix était v1 B5/H1/V1, v2 et v3 B2/H0/V1).
+# Aucune version n'atteint min(F_C, F_D, F_R) ≥ 0,5 (v1 0,054 ; v2 0,000 ; v3 0,020) :
+# selon le §13, aucune n'est figée ; ces CHOIX ne servent qu'à la mesure.
+# CHOIX est celui de la version 1. CHOIX_SOURCES dit d'où vient chacun.
+CHOIX = {"bout": "B5", "remontee": "H2", "explication": "V0"}
 CHOIX_VERSIONS = {"v1": CHOIX,
                   "v2": {"bout": "B2", "remontee": "H0", "explication": "V1"},
                   "v3": {"bout": "B2", "remontee": "H0", "explication": "V1"}}
+MIN_FAMILLES = {"v1": 0.054, "v2": 0.000, "v3": 0.020}     # min(F_C, F_D, F_R) du CHOIX, lu au banc
 CHOIX_SOURCES = {v: f"fixé par campagnes/{'gnn-banc-validation.txt' if v == 'v1' else f'gnn-banc-validation-{v}.txt'}"
-                    f", 5 graines, 150 époques" for v in ("v1", "v2", "v3")}
+                    f", 5 graines, 150 époques, règle de l'écart E-3 (§13) ; min(F_C, F_D, F_R) "
+                    f"{MIN_FAMILLES[v]:.3f} < 0,5 : NON FIGÉ" for v in ("v1", "v2", "v3")}
 
 # Les trois versions de l'étape 1 (écart E-1, §11 de la spécification, fixées avant
 # tout calcul) : masque (reconstruire un nœud masqué par ses voisins) ou
