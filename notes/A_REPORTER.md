@@ -294,3 +294,10 @@ reprennent la perspective (19 et 20 de la version allégée, 16 de la plénière
     jamais l'identité d'un pod ou d'une machine en entrée du GNN (comme le tableau équitable
     de B.3), mesures exprimées en écart au normal du nœud ; un composant d'une sorte absente
     ici (Kafka, cache) demande un type de plus et un réapprentissage de cette partie.
+32. **Forme de la file pendant une panne** (question du 28 sept.) : charge constante (rythme fixe de Locust,
+    choisi pour qu'une variation vienne de la panne et non du hasard) + panne constante → la file monte en ligne
+    droite pendant l'injection (D : ≈ +13/min), puis se vide au retrait (dent de scie sur la campagne). Bonne
+    validité interne ; limite de réalisme à écrire : en production, charge variable et pannes intermittentes
+    font monter et descendre la file. Suites possibles : panne intermittente, charge variable pendant la panne,
+    marge nulle (la file hésite). La difficulté de D n'est pas l'alarme mais la machine (X contre leurre) et
+    « inconnue » ; une file qui monte existe aussi sans panne (cause « charge »).
