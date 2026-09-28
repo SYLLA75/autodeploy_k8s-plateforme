@@ -725,12 +725,12 @@ injecter() {   # <rang de l'injection, depuis 0>
 
 retirer() {
     say "Retrait de « $PANNE »"
-    local ok_retrait=0
+    local ok_retrait=0 avant_retrait; avant_retrait=$(maintenant)
     sortie=$(distant panne.sh retirer) || ok_retrait=1
     # « reseau » : les paquets jetés de la panne ne se lisent que juste avant son
     # retrait (Chaos Mesh refait la file des pods) ; gardés avec les témoins.
     [ "$PANNE" != "reseau" ] || TEMOINS="${TEMOINS}
---- relevé « avant le retrait » à $(maintenant)
+--- relevé « avant le retrait », demandé à $avant_retrait
 $(printf '%s\n' "$sortie" | grep -F 'avant le retrait')
 "
     if [ "$ok_retrait" = 0 ]; then

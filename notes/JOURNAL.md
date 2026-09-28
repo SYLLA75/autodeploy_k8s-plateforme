@@ -1860,3 +1860,12 @@ qui cherchait à le réfuter) : 15 constats, 10 confirmés, tous corrigés avant
 Écartés à la contre-vérification : Y « sans réplique » (écrit en D.1), les restes d'objets au départ
 (déjà refusés par l'état et le nettoyage), une lecture ratée comptée 0 (le nombre de pods lus est
 affiché), le retrait lu dans les objets de Chaos Mesh (même lecture que pour la base).
+Seconde relecture, des seules corrections (un agent) : 2 défauts et 3 petits, corrigés :
+- essai_d.py : les pires effondrements (réplique de X absente de toute la panne, X absent, réplique
+  recréée sous un autre nom) sortaient en « REFUS » ; la réplique de X est désormais désignée par les
+  fenêtres d'AVANT la panne et l'effondrement est testé avant la forme ;
+- l'ordre du retrait : le pod leurre met 30 s à partir (son sh ignore SIGTERM) ; le retard de X
+  restait donc 30 s après la fin du stress. Ordre : stress de Y, retard de X, puis le pod ;
+- une file illisible ne compte plus comme « 0 jeté, pod lu » ; le relevé avant le retrait dit aussi
+  combien de pods sont encore retardés (0 : Chaos Mesh a déjà levé la panne, le relevé ne compte pas) ;
+  son heure est prise avant le retrait.

@@ -344,14 +344,16 @@ reseau_de_la_machine() {   # <nœud> → « jetes=… retrans=… pods=… »
     cids=$(kubectl get pods -n "$NS" --field-selector="spec.nodeName=$1,status.phase=Running" \
         -o jsonpath='{range .items[*]}{.status.containerStatuses[0].containerID}{"\n"}{end}' 2>/dev/null \
         | sed 's|^.*://||' | grep .)
-    [ -n "$cids" ] || return 1
+    [ -n "$cids" ] || { echo "aucun pod de $NS"; return 0; }
     kubectl exec -n "$CHAOS_NS" "$d" -- sh -c '
 j=0; r=0; n=0
-for cid in "$@"; do
+for cid in "$@"; do   # n : les pods dont la file a été lue
     f=$(grep -ls "$cid" /proc/[0-9]*/cgroup 2>/dev/null | head -1)
     [ -n "$f" ] || continue
     pid=${f#/proc/}; pid=${pid%/cgroup}
-    x=$(nsenter -t "$pid" -n tc -s qdisc show dev eth0 2>/dev/null | sed -n "s/.*dropped \([0-9]*\).*/\1/p" | awk "{s += \$1} END {print s + 0}")
+    q=$(nsenter -t "$pid" -n tc -s qdisc show dev eth0 2>/dev/null)
+    [ -n "$q" ] || continue
+    x=$(printf "%s\n" "$q" | sed -n "s/.*dropped \([0-9]*\).*/\1/p" | awk "{s += \$1} END {print s + 0}")
     y=$(awk "/^Tcp:/ {k++; if (k == 1) {for (i = 1; i <= NF; i++) if (\$i == \"RetransSegs\") c = i} else print \$c}" "/proc/$pid/net/snmp" 2>/dev/null)
     j=$((j + ${x:-0})); r=$((r + ${y:-0})); n=$((n + 1))
 done
@@ -825,11 +827,14 @@ EOF
 }
 
 # Le leurre et le réseau, défaits ensemble (échec, retrait, restes).
-defaire_reseau() {   # tente les trois retraits (le leurre d'abord), 1 si l'un a échoué
+# Tente les trois retraits, 1 si l'un a échoué : le stress du leurre, puis le
+# retard de X (les deux finissent ensemble), puis le pod leurre, le plus lent à
+# partir (son sh ignore SIGTERM : 30 s de délai de grâce) et qui ne fait rien.
+defaire_reseau() {
     local r=0
     kubectl delete stresschaos panne-leurre -n "$VOISIN_NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 || r=1
-    kubectl delete pod voisin-leurre -n "$VOISIN_NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 || r=1
     kubectl delete networkchaos panne-reseau -n "$NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 || r=1
+    kubectl delete pod voisin-leurre -n "$VOISIN_NS" --ignore-not-found --timeout=90s >/dev/null 2>&1 || r=1
     return $r
 }
 defaire_reseau_dit() {   # la même, avec ce qu'on peut en dire à l'écran
@@ -1119,7 +1124,9 @@ retirer_app() {
         reseau)
             # Les paquets jetés de la panne se lisent maintenant : Chaos Mesh
             # refait la file de chaque pod au retrait, compteur compris.
-            say "réseau de $HOTE avant le retrait : $(reseau_de_la_machine "$HOTE" || echo illisible)"
+            # Si Chaos Mesh a déjà levé la panne (plus aucun pod retardé), la file
+            # est déjà refaite : ce relevé ne compte pas.
+            say "réseau de $HOTE avant le retrait : $(reseau_de_la_machine "$HOTE" || echo illisible) ; pods encore retardés : $(retards_reseau | wc -l)"
             defaire_reseau_dit || resultat=ECHEC
             # Chaos Mesh retire le retard des pods peu après l'objet.
             local reste=30

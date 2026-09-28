@@ -90,16 +90,17 @@ def verifier(argv: list[str]) -> int:
         return 2
     avant: dict[str, list[float]] = {}
     pendant: dict[str, list[float]] = {}
-    ou: dict[str, set[str]] = {}          # machines de chaque réplique PENDANT la panne
+    ou_avant: dict[str, set[str]] = {}    # machines de chaque réplique, avant / pendant la panne
+    ou_pendant: dict[str, set[str]] = {}
     presentes: list[set[str]] = []        # répliques présentes, fenêtre de panne par fenêtre
     sans_x = 0                            # fenêtres de panne sans le nœud host X
     n_avant = n_pendant = 0
     for d in fautifs_module.fenetres(run):
         debut, fin = _instant(d["window"]["start_ns"]), _instant(d["window"]["end_ns"])
         if fin <= p["debut"]:
-            cible, n_avant = avant, n_avant + 1
+            cible, ou, n_avant = avant, ou_avant, n_avant + 1
         elif debut >= p["debut"] and fin <= p["fin"]:
-            cible, n_pendant = pendant, n_pendant + 1
+            cible, ou, n_pendant = pendant, ou_pendant, n_pendant + 1
             sans_x += x not in d["nodes"]["host"]["names"]
         else:
             continue
@@ -107,29 +108,38 @@ def verifier(argv: list[str]) -> int:
         if cible is pendant:
             presentes.append(set(reps))
         for n, (m, v) in reps.items():
-            if m and cible is pendant:
+            if m:
                 ou.setdefault(n, set()).add(m)
             if v is not None:
                 cible.setdefault(n, []).append(v)
-    sur_x = sorted(n for n in pendant if ou.get(n) == {x})
-    autres = sorted(n for n in pendant if n not in sur_x)
     print(f"{nom} : X = {x} ; {n_avant} fenêtres avant l'injection, {n_pendant} pendant")
+    if n_pendant == 0:
+        print("REFUS  aucune fenêtre entièrement dans l'injection")
+        return 2
+    # La réplique de X : celle que les fenêtres d'AVANT placent sur X (à défaut, celles
+    # de la panne) ; une réplique recréée sous un autre nom manque alors pendant la panne.
+    sur_x = sorted(n for n, m in ou_avant.items() if m == {x}) if ou_avant else []
+    if len(sur_x) != 1:
+        sur_x = sorted(n for n, m in ou_pendant.items() if m == {x})
+    ou_tout = {n: ou_avant.get(n, set()) | ou_pendant.get(n, set()) for n in set(ou_avant) | set(ou_pendant)}
     for n in sorted(set(avant) | set(pendant)):
         a = f"{median(avant[n]):8.1f}" if avant.get(n) else "       —"
         b = f"{median(pendant[n]):8.1f}" if pendant.get(n) else "       —"
-        print(f"  {n:40s} {','.join(sorted(ou.get(n, {'?'}))):10s} avant {a} ms   pendant {b} ms"
+        print(f"  {n:40s} {','.join(sorted(ou_tout.get(n, {'?'}))):10s} avant {a} ms   pendant {b} ms"
               f"   ({len(pendant.get(n, []))} fenêtres)")
-    if len(sur_x) != 1 or len(autres) != 2:
-        print(f"REFUS  il faut une réplique sur {x} et deux ailleurs pendant la panne "
-              f"(lu : {len(sur_x)} sur {x}, {len(autres)} ailleurs)")
-        return 2
-    sans_rep = sum(sur_x[0] not in s for s in presentes)
+    sans_rep = sum(sur_x[0] not in s for s in presentes) if len(sur_x) == 1 else n_pendant
     print(f"  fenêtres de panne sans le nœud host {x} : {sans_x} ; sans la réplique de {x} : {sans_rep}")
-    if n_pendant == 0 or sans_x or sans_rep:
+    if sans_x or sans_rep:
         print("EFFONDREMENT  (D.1 : une seule fenêtre de panne sans X ou sans sa réplique) — arrêt, "
               "décision avec l'utilisateur")
         return 1
-    mx = median(pendant[sur_x[0]])
+    rep_x = sur_x[0]
+    autres = sorted(n for n in pendant if n != rep_x)
+    if len(autres) != 2 or rep_x not in pendant:
+        print(f"REFUS  il faut la réplique de {x} et deux autres pendant la panne "
+              f"(lu : {len(autres)} autres{'' if rep_x in pendant else f', aucune valeur pour {rep_x}'})")
+        return 2
+    mx = median(pendant[rep_x])
     mo = max(median(pendant[n]) for n in autres)
     rapport = mx / mo if mo > 0 else float("inf")
     if rapport >= NETTEMENT:
