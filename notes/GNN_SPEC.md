@@ -568,3 +568,31 @@ un voisinage (file + répliques + base).
 3. à ±5 fenêtres près, le plus grand top-1 sans alarme (causes apprises), médiane des graines ;
 4. à égalité, la plus simple : v1 < v2 < v3.
 Si aucune ne passe 1 : v2 avec B1/H0/V0 serait inacceptable → arrêt, décision avec l'utilisateur.
+
+---
+
+## 12. Écart E-2 (28 sept., décidé par l'utilisateur, écrit AVANT tout calcul) : le GNN « avec exemples » a les mêmes droits que les témoins
+
+**Constat.** J 1023-1024 et §0.2 font désigner le fautif TOUJOURS par l'étape 1 (apprise sur le normal seul), même
+devant une cause connue ; le témoin 2 « avec exemples », lui, apprend l'alarme (forêt), le fautif (régression
+logistique partagée) et la cause (prototypes) sur les pannes d'apprentissage, et ne retombe sur l'écart seul que
+devant « inconnue » (J 1018-1024) : 114/115 au top-1 de validation. Le GNN courait avec un handicap que le témoin n'a
+pas. L'utilisateur exige que le GNN égale les témoins sur les 4 causes connues : on lui donne la même information.
+
+**Ce qui change (réglage « avec exemples » du GNN seulement ; « sans exemples » inchangé = étape 1 seule).**
+Même recette que `temoin_noeud` « avec exemples », mais sur ce que voit le GNN (sans aucun nom en entrée) :
+1. **Alarme apprise** : une forêt (mêmes réglages que le témoin 2 : 200 arbres, graines 0–4) sur le profil d'écart du
+   GNN (§5 : extrêmes signés des z par sorte/colonne et par relation/colonne) + le score de fenêtre de l'étape 1 ;
+   seuil calé comme le témoin 2 (mêmes minutes normales tenues hors pli, même budget).
+2. **Fautif appris** : une régression logistique PARTAGÉE par sorte de nœud (mêmes réglages que le témoin 2), dont
+   les entrées pour un nœud sont ses z (nœud) et l'agrégat de ses flèches (B), plus son plongement de l'étape 1
+   (dimension 32, sans nom) : la probabilité d'être le fautif classe les nœuds.
+3. **Cause** : prototypes et rejet de §5, inchangés.
+4. **Repli** : si la cause est « inconnue » (rejet) ou si l'alarme apprise ne sonne pas mais que l'alarme de l'étape 1
+   sonne, le classement est celui de l'étape 1 (graphe, CHOIX B/H/V) — c'est le cas de C et D, causes jamais vues.
+5. Tout se règle sur `juge.validation` ; aucune fenêtre de test des séries, ni C, ni D. La répétition « panne jamais
+   vue » (validation) mesure le repli.
+
+**Comparaison.** Le GNN « avec exemples » est comparé aux témoins « avec exemples » (même information), le GNN « sans
+exemples » aux témoins « sans exemples ». Les décisions de C et D (J 1244-1257) restent écrites comme avant ; sur C et D,
+la cause étant nouvelle, c'est le repli (étape 1) qui désigne, pour les deux réglages.

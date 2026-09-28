@@ -2112,3 +2112,7 @@ gnn.py et gnn_banc.py écrits (agents), --verifier T1–T11 passent, deux relect
 corrigés (remontée H2 coupée dans les variantes ; empreinte du modèle selon §8 ; égalité en tête comptée CONTRE le
 GNN dans G_val). Validation v1 (graine 0) : détection 4/153 — voir GNN_SPEC.md §11 : les versions v2 et v3 et la règle
 de choix entre les trois sont écrites AVANT de les calculer ; toutes seront rapportées.
+- **Écart E-2 (décidé par l'utilisateur, 28 sept., avant calcul)** : le GNN « avec exemples » apprend alarme,
+  fautif et cause sur les pannes d'apprentissage comme le témoin 2 « avec exemples », et retombe sur l'étape 1
+  devant « inconnue » (GNN_SPEC.md §12). Motif : J 1023-1024 lui interdisait ce que le témoin fait ; l'utilisateur
+  exige que le GNN égale les témoins sur les 4 causes connues, à information égale.
