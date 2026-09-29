@@ -2315,3 +2315,14 @@ git log -1 (lectures) alors que la consigne disait aucune commande git.
   4a2ec3c385fbc0af…), gnn-exemples-v12.txt (37 991 octets, sha256 2c6e95f30c425745…). Ils restent fermés jusqu'au choix
   du modèle retenu et au gel (§19).
 - 16:10 : décision de l'utilisateur : le modèle retenu sera choisi par lui sur l'examen blanc seul (spec fbb98e3).
+
+## 2026-09-29 — Banc de u1, et banc de v12 refait sur gpu : la base fabriquée dépend de la machine
+
+- 16:12 (gpu) : banc de u1 : G_val tient ; F_C 0,29 [0,12–0,91], F_D 0,88 [0,87–0,96] → critère 3 non tenu (F_C) ;
+  F_R 0,07.
+- Or le classement de u1 est, par construction, celui de v12 (même exemplaire v1, calage par sorte, B5/H2/V0), et v12
+  avait F_C 0,77 sur vms0. Contrôle : banc de v12 refait sur gpu (~/gnn-v12-gpu, 16:14–16:19, même code) : F_C 0,29
+  [0,12–0,91], F_D 0,88 : IDENTIQUE à u1. Donc le critère 3 de v12 tenu sur vms0 tient à la machine (arrondis), pas au
+  modèle. Graine par graine, F_C est du tout ou rien : graines 0 et 2 ≈ 0,9 et 0,99, graine 1 = 0 (sur les deux
+  machines) ; les graines 3 et 4 font basculer la médiane. À rapporter : la base fabriquée n'est trouvée de façon
+  fiable par AUCUNE variante ; donner les valeurs par graine, pas seulement la médiane.
