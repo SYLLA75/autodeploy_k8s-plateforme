@@ -2326,3 +2326,14 @@ git log -1 (lectures) alors que la consigne disait aucune commande git.
   modèle. Graine par graine, F_C est du tout ou rien : graines 0 et 2 ≈ 0,9 et 0,99, graine 1 = 0 (sur les deux
   machines) ; les graines 3 et 4 font basculer la médiane. À rapporter : la base fabriquée n'est trouvée de façon
   fiable par AUCUNE variante ; donner les valeurs par graine, pas seulement la médiane.
+
+## 2026-09-29 — u1 fini (validation, gpu)
+
+- Sans exemples : détection 74/153 [44–77] au budget de la règle → critère 2 NON TENU ; fausses alertes 1/102 [0–3] ;
+  top-1 38/115 ; panne jamais vue : charge 2/75 et lenteur 1/76 détectées. La compression (asinh) tue l'alarme ; le
+  calage par identité ne la répare pas (réponse à la question laissée ouverte par E-1).
+- Banc : G_val tient ; F_C 0,29, F_D 0,88 (= v12 refaite sur gpu).
+- Avec exemples : détection 153/153, fausses alertes 2/102 [1–15], cause 152/153 [151–153], top-1 115/115 ; « inconnue »
+  57/76 [14–73], 75/75, 78/78, 76/76 → critère 4 tenu. Meilleur « avec exemples » à ce jour en fausses alertes (v12 14,
+  u 15 ; les règles 2), parce que l'alarme du GNN, faible, sonne peu et que la forêt rattrape la détection ; une graine
+  à 15.
