@@ -1,7 +1,7 @@
 """
 Le GNN « avec exemples » : les mêmes droits que le témoin 2 (écart E-2).
 
-    ./.venv/bin/python gnn_exemples.py --verifier [--version v12|v1|v2|v3|u|u1]
+    ./.venv/bin/python gnn_exemples.py --verifier [--version v12|v1|v2|v3|u|u1|u2]
     ./.venv/bin/python gnn_exemples.py --validation [--graines n] [--epoques e] [--version v]
                                        [--sans-temoins] [--sans-repetition] [--variantes a,b|toutes]
     ./.venv/bin/python gnn_exemples.py --test [mêmes options]   refusé sans les étiquettes gnn-fige
@@ -116,6 +116,15 @@ LA SECONDE VARIANTE « GNN UNIQUE » u1 (§18) : les parties apprises (forêt, r
   le classement de CE MÊME modèle calé par sorte sous B5/H2/V0 : le repli même de v12 ;
   l'alarme est la forêt OU l'alarme de l'exemplaire v1 calé par identité.
 
+LA DERNIÈRE VARIANTE « GNN UNIQUE » u2 (§19, double entrée) : UN réseau à deux échelles d'entrée
+  et deux têtes (gnn.py, modèle « double ») ; les parties apprises (forêt, régression du fautif,
+  prototypes) lisent les écarts PAR IDENTITÉ de sa tête brute (gnn.TeteBrute, « double:brute »,
+  sous B2/H0/V1) et le plongement de ce réseau (la dernière couche, commune aux deux têtes) ; le
+  monde sans c du double croisement est calé de même, par identité, sur des réseaux doubles « sans c
+  ni c' » vus par leur tête brute (gnn.VueTete) ; le rejet est celui du logit (E-4) ; le repli est le
+  classement de sa tête asinh calée PAR SORTE sous B5/H2/V0 (gnn.TeteAsinh) ; l'alarme est la forêt
+  OU l'alarme de la tête brute.
+
 LE BUDGET DE LA RÈGLE (« GNN, avec exemples, budget de la règle », pour decision_c) :
   les deux alarmes calées ENSEMBLE sur les mêmes normales mises de côté (scores
   tenus de l'étape 1, probabilités du double croisement) : chacune à son k-ième
@@ -128,16 +137,19 @@ LA PRODUCTION (§15, rapportée à part, ne change aucune décision) : l'alarme
 
 LE SCELLÉ : juge.lire n'est appelé qu'avec fautifs.SERIES ; tout se règle et se
   note sur juge.validation (jamais « hors ») ; --test est refusé tant que
-  l'étiquette gnn-fige n'existe pas, puis, pour TOUTE version (§17–§19 : le vrai test
-  de v12 montre l'alarme de u et le classement de u1), tant que gnn-fige-2 n'est pas
-  bien posée (gnn.scelle_ouvert, gnn.raisons_scelle_2 : le scellé de gnn.py).
+  l'étiquette gnn-fige n'existe pas, puis, pour TOUTE version, u, u1 et u2 compris
+  (§17–§19 : le vrai test de v12 montre l'alarme de u et le classement de u1), tant que
+  gnn-fige-2 n'est pas bien posée (gnn.scelle_ouvert, gnn.raisons_scelle_2 : le scellé
+  de gnn.py, contrôle du code compris).
 
 Options :
   --verifier             les contrôles X1 à X12 (forme, déterminisme, aucun nom,
                          repli, croisement, scellé, double croisement, aucun seuil
                          ne lit le test, v12 = parties v2 et repli v1 ; u =
                          parties de v12 et repli v2 par sorte ; u1 = parties
-                         v1 par identité et repli de v12, budget de la
+                         v1 par identité et repli de v12 ; u2 = parties sur la
+                         tête brute par identité et le plongement du réseau
+                         double, repli sur sa tête asinh par sorte ; budget de la
                          règle, mesure de production), sur toute la validation
                          à 2 époques
   --validation           le tableau de bord sur juge.validation, avec les témoins
@@ -407,9 +419,10 @@ def _cle_e1(e1, normales: list[dict]) -> tuple:
 
 
 def _recale(e1) -> bool:
-    """L'étape 1 est-elle un exemplaire recalé (gnn.Recale : « v1:identite » de u1, §18) ? Ses
-    modèles « sans c ni c' » sont ceux de son modèle (même clé _cle_e1), mais son monde sans c
-    se cale comme elle."""
+    """L'étape 1 est-elle un exemplaire recalé (gnn.Recale : « v1:identite » de u1, §18 ; une tête
+    du réseau double de u2, « double:brute », §19) ? Ses modèles « sans c ni c' » sont ceux de son
+    modèle (même clé _cle_e1), mais son monde sans c se cale comme elle (et, pour une tête, se lit
+    par cette tête : Paires)."""
     return getattr(e1, "exemplaire", e1.version) != e1.version
 
 
@@ -465,7 +478,9 @@ class Paires:
     """Le « monde sans c » de chaque campagne c : son modèle final est le pli c de
     l'étape 1 ; ses plis, les modèles appris sans c ni c' ; ses résidus tenus, les
     normales de c' notées par le modèle sans c ni c'. Le calage du monde sans c vient
-    de tous ses résidus tenus ; celui qui note c', des résidus tenus des autres."""
+    de tous ses résidus tenus ; celui qui note c', des résidus tenus des autres. Pour une
+    tête du réseau double (u2, §19), chaque modèle « sans c ni c' » est vu par cette tête
+    (e1.envelopper : gnn.VueTete)."""
 
     def __init__(self, e1, normales: list[dict]):
         self.e1, self.normales = e1, normales
@@ -477,6 +492,9 @@ class Paires:
             _ETATS_PAIRES[cle] = {p: etats[i][0] for i, p in enumerate(_paires_de(e1))}
         kw = _kw(gnn.charger, version=e1.version)
         self.modeles = {p: gnn.charger(etat, e1.dims, e1.variante, **kw) for p, etat in _ETATS_PAIRES[cle].items()}
+        envelopper = getattr(e1, "envelopper", None)       # u2 (§19) : la tête de l'étape 1
+        if envelopper is not None:
+            self.modeles = {p: envelopper(m) for p, m in self.modeles.items()}
         # Pour --verifier : les campagnes vues par chaque modèle de paire.
         self.vues_par = {(a, b): {f["campagne"] for f in normales if f["campagne"] not in (a, b)}
                          for a, b in _paires_de(e1)}
@@ -500,7 +518,7 @@ class Paires:
             tenues = {c2: [self.residus(c, f) for f in self.normales if f["campagne"] == c2]
                       for c2 in e1.campagnes if c2 != c}
             kw = _kw(gnn.Calage, version=e1.version)
-            if _recale(e1):          # u1 (§18) : le monde sans c calé comme l'exemplaire (par identité)
+            if _recale(e1):          # u1 (§18), u2 (§19) : le monde sans c calé comme l'exemplaire (par identité)
                 kw["par_identite"] = e1.calage.par_identite
             notees = e1.modele.notees
             final = gnn.Calage([s for v in tenues.values() for s in v], e1.variante, notees, **kw)
@@ -967,6 +985,66 @@ def verifier(campagnes: Path, runs: Path, version: str | None) -> int:
             f"alarme, cause, probabilité, confiance identiques à v12, scores = régression ou, au repli ({n_repli}), "
             f"les résidus {e1.version} calés par sorte sous {gnn.nom_choix(choix_u)} (autres que le repli de v12 sur "
             f"{autre})" + (f" ; {len(soucis10)} soucis, dont {soucis10[0]}" if soucis10 else ""))
+    elif va != vc and v in getattr(gnn, "UNIQUES", {}) and va.endswith(getattr(gnn, "TETE_BRUTE", "\0")):
+        # X10 (u2, §19) : les parties apprises lisent la TÊTE BRUTE du réseau double, ses résidus calés PAR
+        # IDENTITÉ (recalculés ici à part : résidus des plis par des gnn.VueTete neuves, gnn.Calage
+        # par_identite=True ; profil + S que voit la forêt, S de l'alarme de l'étape 1) sous B2/H0/V1, et le
+        # plongement de ce réseau (la dernière couche, lue ici sur le réseau lui-même) ; le monde sans c est calé
+        # par identité, sur des réseaux doubles « sans c ni c' » vus par la tête brute ; l'alarme de l'étape 1
+        # est celle de gnn.GNN u2 ; le repli est le classement de la TÊTE ASINH calée PAR SORTE sous B5/H2/V0
+        # (recalculé à part). Et les deux têtes comptent : le profil de la tête asinh par sorte diffère.
+        ed = gnn.etape1(fen, fige, "complet", 0, epo, gnn.modele_de(va))
+        cu = gnn.GNN(fen, fige, graine=0, reglage="sans exemples", epoques=epo, version=v)
+        e1 = a.e1
+        normales_app = gnn._normales(fen)
+        brute, asinh_ = gnn.TETES
+
+        def calage_tete(t: str, identite: bool):
+            tenues = [gnn.residus(gnn.VueTete(ed.plis[c], t), f["donnees"])
+                      for c in ed.campagnes for f in normales_app if f["campagne"] == c]
+            return gnn.Calage(tenues, ed.variante, ed.modele.notees, ed.version, par_identite=identite)
+        cal_b, cal_a = calage_tete(brute, True), calage_tete(asinh_, False)
+        choix_a, choix_c = gnn.choix_exemplaire(va), gnn.CHOIX_VERSIONS[v]
+        memes_parts = (isinstance(e1, gnn.TeteBrute) and e1.modele.reseau is ed.modele and e1.modele.tete == brute
+                       and e1.calage.par_identite and a.choix == choix_a and a.base.choix == choix_c
+                       and isinstance(a.base.etape1, gnn.TeteAsinh) and a.base.etape1.modele.reseau is ed.modele
+                       and not a.base.etape1.calage.par_identite
+                       and all(a.paires.monde(c)[0].par_identite for c in e1.campagnes)
+                       and all(t_[6] == ed.version for t_ in _taches_paires(e1, normales_app))
+                       and all(isinstance(m, gnn.VueTete) and m.tete == brute and m.reseau.version == ed.version
+                               for m in a.paires.modeles.values()))
+        soucis10, n_repli, autre = [], 0, 0
+        for f in test:
+            r, ru = reps[f["id"]], cu.repondre(f["donnees"])
+            sb = gnn.residus(gnn.VueTete(ed.modele, brute), f["donnees"])
+            sa = gnn.residus(gnn.VueTete(ed.modele, asinh_), f["donnees"])
+            s_att = gnn.noter_noeuds(sb, cal_b, choix_a)[1]
+            if r["_S"] != s_att or r["_S"] != ru["_S"] or r["_alarme_etape1"] != ru["alarme"]:
+                soucis10.append(f"{f['id']} : S ou alarme de l'étape 1")
+            cles_, x_, _, _, vue_ = a.lecteur.lignes(f["donnees"])
+            if vue_ != gnn.profil(sb, cal_b) + [s_att]:
+                soucis10.append(f"{f['id']} : vue de la forêt")
+            emb = plongements(ed.modele, f["donnees"])
+            larg = {k: emb[k].shape[1] for k in SORTES}
+            if any(not np.array_equal(x_[sb.decal[k]:sb.decal[k] + sb.n[k], -sum(larg.values()):]
+                                      [:, sum(larg[kk] for kk in SORTES[:SORTES.index(k)]):
+                                       sum(larg[kk] for kk in SORTES[:SORTES.index(k) + 1])], emb[k]) for k in SORTES):
+                soucis10.append(f"{f['id']} : plongement ≠ celui du réseau")
+            autre += gnn.profil(sa, cal_a) != gnn.profil(sb, cal_b)
+            if r["_repli"]:
+                n_repli += 1
+                if r["scores"] != gnn.noter_noeuds(sa, cal_a, choix_c)[0] or r["scores"] != ru["scores"]:
+                    soucis10.append(f"{f['id']} : scores du repli ≠ tête asinh par sorte")
+        if not autre:
+            soucis10.append("le profil de la tête asinh par sorte est partout celui de la tête brute par identité")
+        resultats["X10 u2 = parties apprises tête brute, repli tête asinh"] = (
+            memes_parts and not soucis10,
+            f"tête brute du réseau {ed.version} calée par identité ({gnn.nom_choix(choix_a)}), plongement du réseau, "
+            f"monde sans c par identité sur des réseaux doubles vus par la tête brute : {memes_parts} ; {len(test)} "
+            f"réponses : S, alarme de l'étape 1, vue de la forêt, plongement = tête brute par identité (recalculés à "
+            f"part) ; au repli ({n_repli}), les scores de la tête asinh par sorte ({gnn.nom_choix(choix_c)}) ; profil de "
+            f"la tête asinh autre sur {autre}/{len(test)} fenêtres"
+            + (f" ; {len(soucis10)} soucis, dont {soucis10[0]}" if soucis10 else ""))
     elif va != vc and v in getattr(gnn, "UNIQUES", {}):
         # X10 (u1, §18) : les parties apprises lisent CE modèle v1 (l'objet même de l'exemplaire du
         # classement de v12 : son plongement), ses résidus calés PAR IDENTITÉ (gnn.Calage,
@@ -1317,7 +1395,7 @@ def _en_tete(t: GNNExemples) -> list[str]:
         c = b.etape1
         lignes.append(f"#   exemplaire du classement (le repli) : étape 1 version {getattr(c, 'exemplaire', c.version)} ; "
                       f"empreinte {c.empreinte[:16]} ; post-traitement {gnn.nom_choix(b.choix)} "
-                      f"({'§17 : le même modèle, calé par sorte' if isinstance(c, getattr(gnn, 'ParSorte', ())) else '§18 : le même modèle, le classement de v12' if t.version in getattr(gnn, 'UNIQUES', {}) else 'écart E-5, §15'})")
+                      f"({'§19 : le même réseau, sa tête asinh calée par sorte' if isinstance(c, getattr(gnn, 'TeteAsinh', ())) else '§17 : le même modèle, calé par sorte' if isinstance(c, getattr(gnn, 'ParSorte', ())) else '§18 : le même modèle, le classement de v12' if t.version in getattr(gnn, 'UNIQUES', {}) else 'écart E-5, §15'})")
     return lignes + [
         f"#   budget de la règle ({b21}/{n}) : les deux alarmes calées ensemble, chacune à son {k}e score tenu "
         f"(étape 1 au-dessus de {s1:.3f}, forêt au-dessus de {sf:.3f}) ; elles sonnent ensemble sur {union}/{n} "

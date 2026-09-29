@@ -1,9 +1,9 @@
 """
 Le GNN : reconstruire le normal de chaque nœud par ses voisins, puis nommer la cause.
 
-    ./.venv/bin/python gnn.py --verifier [--version v12|v1|v2|v3|u|u1]
+    ./.venv/bin/python gnn.py --verifier [--version v12|v1|v2|v3|u|u1|u2]
     ./.venv/bin/python gnn.py --validation [--graines n] [--epoques e] [--sans-temoins]
-                              [--variantes a,b|toutes] [--repetition] [--version v12|v1|v2|v3|u|u1]
+                              [--variantes a,b|toutes] [--repetition] [--version v12|v1|v2|v3|u|u1|u2]
     ./.venv/bin/python gnn.py --repetition [mêmes options]
     ./.venv/bin/python gnn.py --test [mêmes options]       refusé sans les étiquettes gnn-fige
                                                           et gnn-fige-2, pour toute version
@@ -113,6 +113,27 @@ LA SECONDE VARIANTE « GNN UNIQUE » u1 (§18, symétrique de u, écrite avant t
                 même de v12.
   Noms : « GNN unique u1, sans exemples »… (decision_c --variante u1).
 
+LA DERNIÈRE VARIANTE « GNN UNIQUE » u2 (§19, double entrée, écrite avant tout calcul de u2, avant
+  tout chiffre de u1 et avant tout regard sur la première ouverture) : UN réseau, UN entraînement,
+  le modèle « double » (VERSIONS ; il ne se choisit pas seul par --version) :
+    entrée      chaque colonne chiffrée (état, contexte, flèche) DEUX fois, telle quelle (comme v2)
+                puis en asinh (comme v1), bout à bout (convertir(..., DEUX_ECHELLES)) ; les bits de
+                présence et le drapeau de masque une seule fois ;
+    sortie      deux têtes de reconstruction, les mêmes décodeurs dupliqués (dec, dec_e : la tête
+                brute ; dec_asinh, dec_e_asinh : la tête asinh), sur le même plongement ;
+    perte       ½ (L_v2 + L_v1) : chacune la perte complète de sa version (Huber, 0,5 × BCE de
+                présence, flèches ; moyennes par sorte et par relation) sur SA tête et SA cible ;
+    le reste    même architecture, même masque, mêmes normales, mêmes graines, mêmes
+                hyperparamètres, même déterminisme, même empreinte (§8).
+  Ses deux têtes sont deux exemplaires (VueTete : les poids du réseau, la sortie et la cible
+  d'une tête ; classes TeteBrute et TeteAsinh : rien n'y est appris) :
+    alarme      « double:brute » : les résidus de la tête brute, calés PAR IDENTITÉ (la méthode de
+                v2), sous le choix de l'alarme de v12 (B2/H0/V1), seuils et budgets comme v12 ;
+    classement  « double:asinh » : les résidus de la tête asinh, calés PAR SORTE (la méthode de
+                v1), sous B5/H2/V0 (le classement de v12).
+  B/H/V sont fixés (aucun réglage nouveau) ; le banc rapporte la grille sans choisir.
+  Noms : « GNN unique u2, sans exemples »… (decision_c --variante u2).
+
 LES PROCESSUS : GNN_PROCESSUS (variable d'environnement, défaut 4) fixe le nombre
   d'entraînements en parallèle (PROCESSUS), pour gnn.py, gnn_exemples.py, gnn_banc.py
   et decision_c.py. Sans effet sur les résultats : chaque tâche a son germe (graine ×
@@ -134,8 +155,10 @@ LE SCELLÉ : juge.lire n'est appelé qu'avec fautifs.SERIES ; --validation et
   --repetition ne lisent que juge.validation (jamais « hors ») ; --test est refusé
   tant que l'étiquette gnn-fige n'existe pas, puis, pour TOUTE version, tant que
   l'étiquette gnn-fige-2 n'est pas bien posée : après gnn-fige, portant les empreintes
-  d'UNE variante unique (graphe_en/gnn-empreintes-<u|u1>.txt ; pour u et u1, celles de
-  cette variante), avec le scellé de decision_c (scelle_2_mal_pose), graphe_en/ inchangé
+  d'UNE variante unique (graphe_en/gnn-empreintes-<u|u1|u2>.txt ; pour u, u1 et u2,
+  celles de cette variante), avec le scellé de decision_c (scelle_2_mal_pose) et le
+  même contrôle ici (entre gnn-fige et gnn-fige-2, graphe_en/ ne change que dans
+  PERMIS_SCELLE_2 et les empreintes des variantes uniques), graphe_en/ inchangé
   depuis gnn-fige-2 et aucun .py non suivi. Pourquoi toute version : l'alarme de v12
   est celle de u, son classement celui de u1, et v1, v2 sont leurs modèles mêmes ; le
   vrai test de v12 (la première ouverture) n'est regardé qu'après gnn-fige-2 (§17,
@@ -152,7 +175,11 @@ Options :
                          calés par sorte, noms, un seul exemplaire, déterminisme),
                          pour u1, T19 (classement = celui de v12, alarme = résidus v1
                          calés par identité sous B2/H0/V1, noms, un seul exemplaire,
-                         déterminisme), sur 20 fenêtres de validation et 2 époques
+                         déterminisme), pour u2, T20 (formes de l'entrée et des têtes,
+                         perte = ½ (L_v2 + L_v1) recalculée à la main, déterminisme en
+                         1 et 3 processus, chaque tête lit son échelle, alarme = tête
+                         brute par identité, classement = tête asinh par sorte, un seul
+                         réseau, noms), sur 20 fenêtres de validation et 2 époques
   --validation           le tableau de bord sur juge.validation ; écrit
                          <campagnes>/gnn-validation.txt
   --repetition           la répétition « panne jamais vue », dans la validation
@@ -164,8 +191,9 @@ Options :
   --variantes <liste>    variantes en plus du complet, séparées par des virgules,
                          ou « toutes »
   --version <v>          v12 (défaut, le GNN combiné), v1, v2, v3, u (le GNN
-                         unique, §17) ou u1 (§18) ; les sorties d'une version autre
-                         que v1 portent son nom (gnn-validation-v12.txt, -u.txt, -u1.txt)
+                         unique, §17), u1 (§18) ou u2 (§19) ; les sorties d'une version
+                         autre que v1 portent son nom (gnn-validation-v12.txt, -u.txt,
+                         -u1.txt, -u2.txt)
   --campaigns <dossier>  le dossier des dossiers de campagne (défaut ../campagnes)
   --runs <dossier>       où sont les runs (défaut runs)
   --help                 ce texte
@@ -205,7 +233,10 @@ import temoin_noeud as tn
 
 HERE = Path(__file__).resolve().parent
 ETIQUETTE_SCELLE = "gnn-fige"
-ETIQUETTE_SCELLE_2 = "gnn-fige-2"      # le gel de la variante unique (u ou u1, §17–§19), après gnn-fige
+ETIQUETTE_SCELLE_2 = "gnn-fige-2"      # le gel de la variante unique (u, u1 ou u2, §17 à §19), après gnn-fige
+# Ce qui peut changer dans graphe_en/ entre gnn-fige et gnn-fige-2, en plus des gnn-empreintes-<u|u1|u2>.txt :
+# le même tuple que decision_c.PERMIS_SCELLE_2 (raisons_scelle_2 fait les contrôles de code de decision_c).
+PERMIS_SCELLE_2 = ("gnn.py", "gnn_exemples.py", "gnn_banc.py", "decision_c.py")
 SORTES = ("instance", "queue", "host")
 # (source, cible) de chaque relation du gel, dans l'ordre d'edges.RELATIONS.
 RELATIONS = {r: (s, d) for r, (s, d, _) in export_pyg.RELATIONS.items()}
@@ -270,9 +301,17 @@ CHOIX_SOURCES = {v: f"fixé par campagnes/{'gnn-banc-validation.txt' if v == 'v1
 # auto-encodeur sans masque à goulot ; asinh sur les nombres ou non ; calage des
 # résidus par sorte ou par identité (temoin_noeud.identite). L'identité ne sert
 # qu'à caler la SORTIE, jamais en entrée du modèle, en aucune version.
+# Le modèle de la variante u2 (§19), « double » : le masque, chaque colonne chiffrée DEUX fois en
+# entrée (brute puis asinh : convertir(..., DEUX_ECHELLES)), deux têtes de reconstruction (TETES,
+# dans l'ordre des échelles) ; il n'a pas de calage à lui : chacune de ses têtes a le sien (TeteBrute
+# par identité, TeteAsinh par sorte). Il ne se choisit pas seul (TOUTES_VERSIONS) : c'est le modèle de u2.
+DOUBLE = "double"
+DEUX_ECHELLES = "brute+asinh"          # la valeur « asinh » du modèle double : les deux échelles, bout à bout
+TETES = ("brute", "asinh")             # ses têtes, dans l'ordre des échelles de l'entrée
 VERSIONS = {"v1": {"masque": True, "asinh": True, "identite": False},
             "v2": {"masque": True, "asinh": False, "identite": True},
-            "v3": {"masque": False, "asinh": False, "identite": True}}
+            "v3": {"masque": False, "asinh": False, "identite": True},
+            DOUBLE: {"masque": True, "asinh": DEUX_ECHELLES, "identite": None, "tetes": TETES}}
 GOULOT = 8               # v3 : la dimension du plongement final, lu seul par les décodeurs
 # Le GNN combiné (écart E-5, §15 de la spécification, écrit avant tout calcul) : deux
 # exemplaires du même modèle, appris à part sur les mêmes normales et les mêmes graines,
@@ -291,12 +330,23 @@ COMBINEES = {"v12": {"alarme": "v2", "classement": "v1"}}
 # font l'alarme, sous le choix de l'alarme de v12 (B2/H0/V1) ; les mêmes résidus calés par
 # sorte font le classement sous B5/H2/V0 : exactement le classement de v12. L'exemplaire
 # calé par identité porte le nom « v1:identite » (PAR_IDENTITE).
+# La dernière variante « GNN unique » u2 (§19, double entrée) : UN réseau, le modèle « double » ; sa
+# tête brute, ses résidus calés PAR IDENTITÉ (la méthode de v2), fait l'alarme sous le choix de
+# l'alarme de v12 (B2/H0/V1) : l'exemplaire « double:brute » (TETE_BRUTE) ; sa tête asinh, ses résidus
+# calés PAR SORTE (la méthode de v1), fait le classement sous B5/H2/V0 : « double:asinh » (TETE_ASINH).
+# Le banc rapporte la grille sans choisir (banc_sans_choix).
 PAR_SORTE = ":sorte"
 PAR_IDENTITE = ":identite"
-RECALAGES = {PAR_SORTE: False, PAR_IDENTITE: True}     # suffixe d'un exemplaire recalé -> calage par identité
+TETE_BRUTE = ":" + TETES[0]
+TETE_ASINH = ":" + TETES[1]
+RECALAGES = {PAR_SORTE: False, PAR_IDENTITE: True,     # suffixe d'un exemplaire recalé -> calage par identité
+             TETE_BRUTE: True, TETE_ASINH: False}      # u2 : une tête du réseau double -> son calage
 UNIQUES = {"u": {"modele": "v2", "alarme": "v2", "classement": "v2" + PAR_SORTE, "section": "§17"},
-           "u1": {"modele": "v1", "alarme": "v1" + PAR_IDENTITE, "classement": "v1", "section": "§18"}}
-TOUTES_VERSIONS = tuple(VERSIONS) + tuple(COMBINEES) + tuple(UNIQUES)
+           "u1": {"modele": "v1", "alarme": "v1" + PAR_IDENTITE, "classement": "v1", "section": "§18"},
+           "u2": {"modele": DOUBLE, "alarme": DOUBLE + TETE_BRUTE, "classement": DOUBLE + TETE_ASINH, "section": "§19",
+                  "role": "tête brute par identité pour l'alarme, tête asinh par sorte pour le classement",
+                  "banc_sans_choix": True}}
+TOUTES_VERSIONS = tuple(v for v in VERSIONS if not VERSIONS[v].get("tetes")) + tuple(COMBINEES) + tuple(UNIQUES)
 VERSION = "v12"
 # Ce qui travaille sur UN modèle (Reconstructeur, entrainer, charger, Calage, Etape1,
 # etape1) prend une version de VERSIONS, jamais une combinée ; v1 par défaut, comme avant v12.
@@ -313,14 +363,20 @@ CHOIX_VERSIONS["u1"] = CHOIX_VERSIONS[COMBINEES["v12"]["classement"]]
 CHOIX_SOURCES["u1"] = ("celui de l'exemplaire v1 de v12 (§18 : B5/H2/V0, fixé par campagnes/gnn-banc-validation.txt) : "
                        "le même exemplaire, le classement même de v12 ; l'alarme vient de ce modèle calé PAR IDENTITÉ, "
                        f"sous le choix de l'alarme de v12 {'/'.join(CHOIX_VERSIONS['v2'].values())}")
-# Le début des noms que rend methodes() (decision_c) : « GNN » sauf pour une variante (§17, §18).
-PREFIXES = {"u": "GNN unique", "u1": "GNN unique u1"}
+CHOIX_VERSIONS["u2"] = CHOIX_VERSIONS[COMBINEES["v12"]["classement"]]
+CHOIX_SOURCES["u2"] = ("celui du classement de v12 (§19 : B5/H2/V0, fixé par campagnes/gnn-banc-validation.txt), "
+                       "appliqué aux résidus de la tête asinh du réseau double calés PAR SORTE ; l'alarme vient de sa "
+                       f"tête brute calée PAR IDENTITÉ, sous le choix de l'alarme de v12 "
+                       f"{'/'.join(CHOIX_VERSIONS['v2'].values())} ; B/H/V fixés, le banc ne choisit pas")
+# Le début des noms que rend methodes() (decision_c) : « GNN » sauf pour une variante (§17, §18, §19).
+PREFIXES = {"u": "GNN unique", "u1": "GNN unique u1", "u2": "GNN unique u2"}
 
 
 def exemplaires(version: str) -> tuple[str, str]:
     """(exemplaire de l'ALARME, exemplaire du CLASSEMENT) : les deux sont la même version
     pour v1, v2, v3 ; v12 : (v2, v1) ; u (§17) : (v2, v2:sorte), le même modèle calé
-    deux fois ; u1 (§18) : (v1:identite, v1), de même."""
+    deux fois ; u1 (§18) : (v1:identite, v1), de même ; u2 (§19) : (double:brute,
+    double:asinh), les deux têtes du même réseau."""
     if version in COMBINEES:
         return COMBINEES[version]["alarme"], COMBINEES[version]["classement"]
     if version in UNIQUES:
@@ -331,7 +387,8 @@ def exemplaires(version: str) -> tuple[str, str]:
 
 
 def modele_de(exemplaire: str) -> str:
-    """La version du modèle appris d'un exemplaire (« v2:sorte » → « v2 », « v1:identite » → « v1 »)."""
+    """La version du modèle appris d'un exemplaire (« v2:sorte » → « v2 », « v1:identite » → « v1 »,
+    « double:brute » → « double »)."""
     for suffixe in RECALAGES:
         if exemplaire.endswith(suffixe):
             return exemplaire[:-len(suffixe)]
@@ -340,34 +397,43 @@ def modele_de(exemplaire: str) -> str:
 
 def par_identite(exemplaire: str) -> bool:
     """Les résidus de cet exemplaire sont-ils calés par identité ? Ceux de sa version (v2, v3),
-    ou ceux de son recalage (« :identite » oui, « :sorte » non)."""
+    ou ceux de son recalage (« :identite » oui, « :sorte » non), ou ceux de sa tête (u2 :
+    « :brute » oui, « :asinh » non)."""
     for suffixe, oui in RECALAGES.items():
         if exemplaire.endswith(suffixe):
             return oui
+    if VERSIONS[exemplaire]["identite"] is None:     # le réseau double (u2, §19) : seules ses têtes ont un calage
+        raise ValueError(f"{exemplaire} : le réseau à deux têtes (u2, §19) n'a pas de calage à lui ; nommer sa tête "
+                         f"({exemplaire}{TETE_BRUTE} par identité, {exemplaire}{TETE_ASINH} par sorte)")
     return VERSIONS[exemplaire]["identite"]
 
 
 def choix_exemplaire(exemplaire: str) -> dict:
     """Le CHOIX B/H/V sous lequel un exemplaire note par défaut : celui de sa version ; un
     exemplaire recalé par sorte (u, §17) : B5/H2/V0, celui de l'exemplaire v1 de v12 ; recalé
-    par identité (u1, §18) : B2/H0/V1, celui de l'alarme de v12 (l'exemplaire v2)."""
+    par identité (u1, §18) : B2/H0/V1, celui de l'alarme de v12 (l'exemplaire v2) ; la tête
+    brute de u2 (§19) : B2/H0/V1 ; sa tête asinh : B5/H2/V0."""
     if exemplaire in CHOIX_VERSIONS:
         return CHOIX_VERSIONS[exemplaire]
     if exemplaire.endswith(PAR_SORTE):
         return CHOIX_VERSIONS[COMBINEES["v12"]["classement"]]
     if exemplaire.endswith(PAR_IDENTITE):
         return CHOIX_VERSIONS[COMBINEES["v12"]["alarme"]]
+    if exemplaire.endswith(TETE_BRUTE):          # u2 (§19) : la tête brute fait l'alarme, comme l'alarme de v12
+        return CHOIX_VERSIONS[COMBINEES["v12"]["alarme"]]
+    if exemplaire.endswith(TETE_ASINH):          # u2 (§19) : la tête asinh fait le classement, comme celui de v12
+        return CHOIX_VERSIONS[COMBINEES["v12"]["classement"]]
     raise ValueError(f"exemplaire inconnu : {exemplaire}")
 
 
 def modeles_de(version: str) -> tuple[str, ...]:
-    """Les versions de modèle à apprendre pour une version (une ; deux pour v12 ; une pour u et u1)."""
+    """Les versions de modèle à apprendre pour une version (une ; deux pour v12 ; une pour u, u1 et u2)."""
     return tuple(dict.fromkeys(modele_de(e) for e in exemplaires(version)))
 
 
 def prefixe(version: str) -> str:
     """Le début des noms de methodes() : « GNN », ou « GNN unique » pour u (§17), « GNN
-    unique u1 » pour u1 (§18)."""
+    unique u1 » pour u1 (§18), « GNN unique u2 » pour u2 (§19)."""
     return PREFIXES.get(version, "GNN")
 
 
@@ -375,6 +441,9 @@ def decrire(version: str) -> str:
     """Une ligne qui dit ce qu'est la version."""
     def un(v: str) -> str:
         cfg = VERSIONS[v]
+        if cfg.get("tetes"):
+            return ("masque, chaque colonne chiffrée deux fois en entrée (brute et asinh), deux têtes de "
+                    "reconstruction, perte ½ (L_v2 + L_v1)")
         return (f"{'masque' if cfg['masque'] else f'auto-encodeur sans masque, goulot {GOULOT}'}, "
                 f"{'asinh' if cfg['asinh'] else 'sans asinh'}, calage {'par identité' if cfg['identite'] else 'par sorte'}")
     if version in COMBINEES:
@@ -382,6 +451,13 @@ def decrire(version: str) -> str:
         return (f"GNN combiné (écart E-5, §15) : alarme = exemplaire {va} ({un(va)}, choix "
                 f"{'/'.join(CHOIX_VERSIONS[va].values())}) ; classement = exemplaire {vc} ({un(vc)}, choix "
                 f"{'/'.join(CHOIX_VERSIONS[version].values())}) ; mêmes normales, mêmes graines")
+    if version in UNIQUES and VERSIONS[UNIQUES[version]["modele"]].get("tetes"):
+        va, vc = exemplaires(version)
+        return (f"GNN unique u2 ({UNIQUES[version]['section']}) : UN réseau {UNIQUES[version]['modele']} "
+                f"({un(UNIQUES[version]['modele'])}) ; alarme = sa tête brute ({va}), résidus calés PAR IDENTITÉ, "
+                f"choix {'/'.join(choix_exemplaire(va).values())} (celui de l'alarme de v12) ; classement = sa tête "
+                f"asinh ({vc}), résidus calés PAR SORTE, choix {'/'.join(CHOIX_VERSIONS[version].values())} (celui du "
+                f"classement de v12) ; un seul entraînement")
     if version in UNIQUES and exemplaires(version)[1].endswith(PAR_SORTE):
         va, vc = exemplaires(version)
         return (f"GNN unique (§17) : UN exemplaire {va} ({un(va)}) ; alarme = ses résidus calés par identité, choix "
@@ -460,10 +536,13 @@ class Graphe:
     n: dict          # sorte -> nombre de nœuds
 
 
-def convertir(donnees: dict, asinh: bool = True) -> Graphe:
+def convertir(donnees: dict, asinh: bool | str = True) -> Graphe:
     """La conversion du graphe figé (export_pyg), puis asinh (version 1 ; pas en
     versions 2 et 3), contexte à part. Gardée en mémoire par objet : `donnees` est
-    partagé par les copies de juge.validation."""
+    partagé par les copies de juge.validation. `asinh` = DEUX_ECHELLES (u2, §19) : les
+    deux échelles bout à bout (convertir_double)."""
+    if asinh == DEUX_ECHELLES:
+        return convertir_double(donnees)
     cle = (id(donnees), asinh)
     if cle in _GRAPHES and _GRAPHES[cle][0] is donnees:
         return _GRAPHES[cle][1]
@@ -485,6 +564,33 @@ def convertir(donnees: dict, asinh: bool = True) -> Graphe:
     g = Graphe(x, p, ctx, ei, ea, n)
     _GRAPHES[cle] = (donnees, g)
     return g
+
+
+def convertir_double(donnees: dict) -> Graphe:
+    """u2 (§19) : l'entrée du réseau à deux échelles. Chaque colonne chiffrée deux fois, bout à
+    bout : telle quelle (convertir sans asinh, comme v2), puis en asinh (convertir avec, comme v1),
+    pour l'état (x), le contexte (ctx) et les flèches (ea) ; la présence (p), les flèches (ei) et
+    les nombres de nœuds une seule fois. Gardée en mémoire comme convertir."""
+    cle = (id(donnees), DEUX_ECHELLES)
+    if cle in _GRAPHES and _GRAPHES[cle][0] is donnees:
+        return _GRAPHES[cle][1]
+    b, a = convertir(donnees, False), convertir(donnees, True)
+    g = Graphe({k: torch.cat([b.x[k], a.x[k]], 1) for k in SORTES}, b.p,
+               {k: torch.cat([b.ctx[k], a.ctx[k]], 1) for k in SORTES}, b.ei,
+               {r: torch.cat([b.ea[r], a.ea[r]], 1) for r in RELATIONS}, dict(b.n))
+    _GRAPHES[cle] = (donnees, g)
+    return g
+
+
+def cible(g: Graphe, tete: str, dims: dict) -> Graphe:
+    """u2 (§19) : ce que reconstruit la tête `tete` (TETES), pris dans l'entrée à deux échelles :
+    les colonnes d'état, de contexte et des flèches de SON échelle ; la présence et les flèches
+    telles quelles. Rien n'est copié (des vues des tenseurs)."""
+    i = TETES.index(tete)
+    de, dc, dr = dims["etat"], dims["ctx"], dims["rel"]
+    return Graphe({k: g.x[k][:, i * de[k]:(i + 1) * de[k]] for k in SORTES}, g.p,
+                  {k: g.ctx[k][:, i * dc[k]:(i + 1) * dc[k]] for k in SORTES}, g.ei,
+                  {r: g.ea[r][:, i * dr[r]:(i + 1) * dr[r]] for r in RELATIONS}, g.n)
 
 
 def dimensions(fige: dict) -> dict:
@@ -544,6 +650,11 @@ class Reconstructeur(nn.Module):
     masque ni de drapeau m ([état, présence, contexte] ; [e]), et un goulot de
     dimension GOULOT par sorte après la dernière couche : les décodeurs ne lisent
     que ce plongement final.
+    Modèle « double » (u2, §19) : l'entrée [brut·(1−m), asinh·(1−m), présence·(1−m),
+    contexte brut, contexte asinh, m] (convertir_double) ; flèche [e brut·(1−m_e),
+    asinh(e)·(1−m_e), m_e] ; deux têtes : les mêmes décodeurs dupliqués (dec, dec_e :
+    la tête brute ; dec_asinh, dec_e_asinh : la tête asinh, créés après tout le reste),
+    sur le même plongement ; forward rend alors {tête : (valeurs, logits, flèches)}.
     """
 
     def __init__(self, dims: dict, variante: str = "complet", version: str = MODELE_DEFAUT):
@@ -551,6 +662,8 @@ class Reconstructeur(nn.Module):
         cfg = VARIANTES[variante]
         self.dims, self.lie = dims, cfg["lie"]
         self.version, self.masque = version, VERSIONS[version]["masque"]
+        self.tetes = VERSIONS[version].get("tetes")          # u2 (§19) : deux têtes ; None sinon
+        ne = len(self.tetes) if self.tetes else 1            # chaque colonne chiffrée, une fois par échelle
         drapeau = 1 if self.masque else 0
         self.canal = [r for r in CHIFFREES if cfg["canal"] and r in cfg["relations"] and dims["rel"][r]]
         self.notees = [r for r in CHIFFREES if r in cfg["notees"] and dims["rel"][r]]
@@ -559,8 +672,9 @@ class Reconstructeur(nn.Module):
             if r in cfg["relations"]:
                 self.passages += [(r, r, s, d, True), (f"rev_{r}", r, d, s, False)]
         de, dc = dims["etat"], dims["ctx"]
-        self.enc = nn.ModuleDict({k: nn.Linear(2 * de[k] + dc[k] + drapeau, H) for k in SORTES})
-        self.phi = nn.ModuleDict({r: nn.Sequential(nn.Linear(dims["rel"][r] + drapeau, H), nn.ReLU(), nn.Linear(H, H))
+        self.enc = nn.ModuleDict({k: nn.Linear(ne * de[k] + de[k] + ne * dc[k] + drapeau, H) for k in SORTES})
+        self.phi = nn.ModuleDict({r: nn.Sequential(nn.Linear(ne * dims["rel"][r] + drapeau, H), nn.ReLU(),
+                                                   nn.Linear(H, H))
                                   for r in self.canal})
         self.soi = nn.ModuleList([nn.ModuleDict({k: nn.Linear(H, H) for k in SORTES}) for _ in range(COUCHES)])
         if self.lie:
@@ -576,6 +690,15 @@ class Reconstructeur(nn.Module):
                                   for k in SORTES})
         self.dec_e = nn.ModuleDict({r: nn.Sequential(nn.Linear(2 * lu, H), nn.ReLU(), nn.Linear(H, dims["rel"][r]))
                                     for r in self.notees})
+        if self.tetes:   # u2 (§19) : la tête asinh, les mêmes décodeurs dupliqués, créés après tout le reste
+            self.dec_asinh = nn.ModuleDict({k: nn.Sequential(nn.Linear(lu, H), nn.ReLU(), nn.Linear(H, 2 * de[k]))
+                                            for k in SORTES})
+            self.dec_e_asinh = nn.ModuleDict({r: nn.Sequential(nn.Linear(2 * lu, H), nn.ReLU(),
+                                                               nn.Linear(H, dims["rel"][r])) for r in self.notees})
+
+    def decodeurs(self, tete: str | None = None) -> tuple[nn.ModuleDict, nn.ModuleDict]:
+        """(décodeurs des nœuds, des flèches) : ceux du modèle ; u2, ceux de la tête `tete`."""
+        return (self.dec_asinh, self.dec_e_asinh) if self.tetes and tete == TETES[1] else (self.dec, self.dec_e)
 
     def forward(self, g: Graphe, m: dict | None):
         """m : sorte -> masque des nœuds (versions à masque) ; ignoré en version 3."""
@@ -601,14 +724,20 @@ class Reconstructeur(nn.Module):
             h = {k: self.norme[couche][k](h[k] + F.relu(a[k])) for k in SORTES}
         if self.goulot is not None:
             h = {k: self.goulot[k](h[k]) for k in SORTES}
+        if self.tetes:   # u2 (§19) : une sortie par tête, sur le même plongement
+            return {t: self._decoder(h, g, *self.decodeurs(t)) for t in self.tetes}
+        return self._decoder(h, g, self.dec, self.dec_e)
+
+    def _decoder(self, h: dict, g: Graphe, dec: nn.ModuleDict, dec_e: nn.ModuleDict):
+        """(valeurs, logits de présence, flèches) lus par ces décodeurs sur le plongement h."""
         valeurs, logits = {}, {}
         for k in SORTES:
-            v, lo = self.dec[k](h[k]).split(self.dims["etat"][k], 1)
+            v, lo = dec[k](h[k]).split(self.dims["etat"][k], 1)
             valeurs[k], logits[k] = v, lo
         fleches = {}
         for r in self.notees:
             s, d = RELATIONS[r]
-            fleches[r] = self.dec_e[r](torch.cat([h[s][g.ei[r][0]], h[d][g.ei[r][1]]], 1))
+            fleches[r] = dec_e[r](torch.cat([h[s][g.ei[r][0]], h[d][g.ei[r][1]]], 1))
         return valeurs, logits, fleches
 
 
@@ -616,8 +745,21 @@ def perte_masquee(modele: Reconstructeur, g: Graphe, m: dict):
     """Huber sur les valeurs présentes et 0,5 × BCE sur la présence des nœuds masqués ;
     Huber sur les flèches masquées ; moyenne par sorte, moyenne par relation. En
     version 3 (sans masque), m vaut 1 partout : la perte porte sur tous les nœuds et
-    toutes les flèches, et le modèle ne voit pas m."""
-    valeurs, logits, fleches = modele(g, m)
+    toutes les flèches, et le modèle ne voit pas m. Modèle double (u2, §19) :
+    ½ (L_v2 + L_v1), chacune la perte complète de sa version (cette même perte) sur SA
+    tête et SA cible (cible) ; la présence, la même dans les deux, compte donc une fois."""
+    sorties = modele(g, m)
+    if modele.tetes:
+        pertes = [_perte(sorties[t], cible(g, t, modele.dims), m, modele.notees) for t in modele.tetes]
+        if pertes[0] is None:          # mêmes masques, mêmes lignes : les deux pertes existent ou aucune
+            return None
+        return 0.5 * (pertes[0] + pertes[1])   # ½ (L_v2 + L_v1) : TETES = (brute, asinh)
+    return _perte(sorties, g, m, modele.notees)
+
+
+def _perte(sortie: tuple, g: Graphe, m: dict, notees: list[str]):
+    """La perte d'une version sur ses sorties (valeurs, logits, flèches) et sa cible g (perte_masquee)."""
+    valeurs, logits, fleches = sortie
     noeuds = []
     for k in SORTES:
         lignes = m[k]
@@ -629,7 +771,7 @@ def perte_masquee(modele: Reconstructeur, g: Graphe, m: dict):
         hub = F.huber_loss(v[la], x[la], delta=HUBER) if bool(la.any()) else v.sum() * 0.0
         noeuds.append(hub + POIDS_PRESENCE * F.binary_cross_entropy_with_logits(lo, pr))
     aretes = []
-    for r in modele.notees:
+    for r in notees:
         me = m[RELATIONS[r][1]][g.ei[r][1]]
         if bool(me.any()):
             aretes.append(F.huber_loss(fleches[r][me], g.ea[r][me], delta=HUBER))
@@ -723,6 +865,50 @@ def charger(etat: dict, dims: dict, variante: str, version: str = MODELE_DEFAUT)
     return modele.eval()
 
 
+class VueTete(nn.Module):
+    """
+    u2 (§19) : une tête du réseau à deux échelles, vue comme un modèle simple. La même entrée
+    (convertir_double), les sorties de SA tête (valeurs, logits de présence, flèches) et SA cible
+    (cible) ; les poids sont ceux du réseau, le même objet : rien n'est copié ni appris. Son
+    plongement (norme) est celui du réseau, commun aux deux têtes.
+    """
+
+    def __init__(self, reseau: Reconstructeur, tete: str):
+        super().__init__()
+        if not reseau.tetes or tete not in reseau.tetes:
+            raise ValueError(f"tête {tete} : le modèle {reseau.version} n'a pas cette tête")
+        self.reseau, self.tete = reseau, tete
+        self.version, self.masque, self.notees, self.dims = reseau.version, reseau.masque, reseau.notees, reseau.dims
+        self.tetes = None
+
+    @property
+    def norme(self):
+        """La dernière couche du réseau (gnn_exemples.plongements) : le plongement commun."""
+        return self.reseau.norme
+
+    def forward(self, g: Graphe, m: dict | None):
+        return self.reseau(g, m)[self.tete]
+
+    def cible(self, g: Graphe) -> Graphe:
+        return cible(g, self.tete, self.dims)
+
+
+def reseau_de(modele: nn.Module) -> Reconstructeur:
+    """Le réseau appris d'un modèle : lui-même, ou celui d'une tête (VueTete, u2)."""
+    reseau = getattr(modele, "reseau", None)
+    return modele if reseau is None else reseau
+
+
+def tete_de(modele: nn.Module) -> str | None:
+    """La tête d'un modèle (u2 : « brute » ou « asinh ») ; None pour un modèle simple."""
+    return getattr(modele, "tete", None)
+
+
+def vue_tete(modele: Reconstructeur, tete: str | None) -> nn.Module:
+    """Le modèle tel quel (tete None), ou sa tête `tete` (VueTete, u2)."""
+    return modele if tete is None else VueTete(modele, tete)
+
+
 # ------------------------------------------------------------------------------
 # La note d'une fenêtre : résidus, écarts, post-traitement
 # ------------------------------------------------------------------------------
@@ -773,8 +959,15 @@ class Sortie:
 def residus(modele: Reconstructeur, donnees: dict) -> Sortie:
     """Versions à masque : un passage par nœud, en lot (la copie i masque le nœud i et
     ses flèches entrantes). Version 3 : une seule passe, sans masque, les résidus de
-    tous les nœuds et de toutes les flèches d'un coup."""
+    tous les nœuds et de toutes les flèches d'un coup. Une tête du réseau double (VueTete,
+    u2, §19) : l'entrée aux deux échelles, les résidus de SA tête contre SA cible."""
+    if getattr(modele, "tetes", None):
+        raise ValueError("u2 : le réseau à deux têtes se lit par une tête (VueTete)")
     g = convertir(donnees, VERSIONS[modele.version]["asinh"])
+    # Ce que le modèle reconstruit : g, ou la cible de sa tête (VueTete, reconnue à sa méthode `cible` et non
+    # par isinstance : gnn.py lancé en script et importé par gnn_exemples a deux classes VueTete).
+    cible_de = getattr(modele, "cible", None)
+    t = cible_de(g) if cible_de is not None else g
     n = {k: g.n[k] for k in SORTES}
     total = sum(n.values())
     decal, o = {}, 0
@@ -797,16 +990,16 @@ def residus(modele: Reconstructeur, donnees: dict) -> Sortie:
     for k in SORTES:
         i = torch.arange(n[k])
         lignes = (decal[k] + i) * n[k] + i if modele.masque else i
-        r = (g.x[k] - valeurs[k][lignes]).numpy().astype(float)
-        r[g.p[k].numpy() < 0.5] = np.nan
-        absents = (g.p[k] - torch.sigmoid(logits[k][lignes])).sum(1).numpy().astype(float)
+        r = (t.x[k] - valeurs[k][lignes]).numpy().astype(float)
+        r[t.p[k].numpy() < 0.5] = np.nan
+        absents = (t.p[k] - torch.sigmoid(logits[k][lignes])).sum(1).numpy().astype(float)
         res_n[k] = np.concatenate([r, absents[:, None]], 1)
     res_e = {}
     for r in modele.notees:
         s, d = RELATIONS[r]
         e = g.ei[r].shape[1]
         lignes = (decal[d] + g.ei[r][1]) * e + torch.arange(e) if modele.masque else torch.arange(e)
-        res_e[r] = (g.ea[r] - fleches[r][lignes]).numpy().astype(float) if e else np.zeros((0, g.ea[r].shape[1]))
+        res_e[r] = (t.ea[r] - fleches[r][lignes]).numpy().astype(float) if e else np.zeros((0, t.ea[r].shape[1]))
     inst = donnees["nodes"]["instance"]
     return Sortie(res_n, res_e, {r: g.ei[r].numpy() for r in RELATIONS}, n,
                   {k: list(donnees["nodes"][k]["names"]) for k in SORTES}, list(inst.get("hosts") or [None] * n["instance"]))
@@ -1080,12 +1273,17 @@ class Calage:
 
     `par_identite` (None : celui de la version) : la variante u (§17) cale les résidus
     de l'exemplaire v2 PAR SORTE (par_identite=False) pour son classement ; la variante u1
-    (§18) cale ceux de l'exemplaire v1 PAR IDENTITÉ (par_identite=True) pour son alarme."""
+    (§18) cale ceux de l'exemplaire v1 PAR IDENTITÉ (par_identite=True) pour son alarme. Le
+    réseau double (u2, §19) n'a pas de calage à lui : `par_identite` est alors obligatoire
+    (tête brute True, tête asinh False), sinon ValueError."""
 
     def __init__(self, sorties: list[Sortie], variante: str, notees: list[str], version: str = MODELE_DEFAUT,
                  par_identite: bool | None = None):
         self.variante, self.notees, self.sorties = variante, list(notees), sorties
         self.version = version
+        if par_identite is None and VERSIONS[version].get("tetes"):
+            raise ValueError(f"Calage du réseau {version} (u2, §19) : préciser le calage de la tête (par_identite), "
+                             f"le réseau n'en a pas à lui")
         self.par_identite = VERSIONS[version]["identite"] if par_identite is None else bool(par_identite)
         self.med_n, self.ech_n, self.med_e, self.ech_e = {}, {}, {}, {}
         for k in SORTES:
@@ -1215,7 +1413,8 @@ class Etape1:
     pli (une campagne mise de côté). Les résidus tenus : les normales de chaque
     campagne notées par le modèle appris sans elle. Le calage du modèle final vient
     de tous les résidus tenus ; celui qui note la campagne c, des résidus tenus des
-    autres campagnes (§3.1).
+    autres campagnes (§3.1). Le réseau double (u2, §19) n'a ni résidus ni calage à lui : il
+    garde ses normales, et chacune de ses têtes (TeteBrute, TeteAsinh : recale) a les siens.
     """
 
     def __init__(self, normales: list[dict], fige: dict, variante: str = "complet", graine: int = 0,
@@ -1243,6 +1442,12 @@ class Etape1:
         # Toutes les empreintes (modèle final et plis : les plis calent le seuil), pour empreintes().
         self.empreintes = {"modèle final": self.empreinte,
                            **{f"pli sans {c}": empreinte(etats[r][0]) for r, c in enumerate(self.campagnes, 1)}}
+        if VERSIONS[version].get("tetes"):
+            # u2 (§19) : le réseau à deux têtes ; chaque tête calcule SES résidus tenus sur ces normales.
+            self.normales = list(normales)
+            self.tenues = self.calage = self.calages_sans = None
+            self._sorties, self._tenus, self._recales = {}, {}, {}
+            return
         self.tenues = {c: [(f["id"], residus(self.plis[c], f["donnees"])) for f in normales if f["campagne"] == c]
                        for c in self.campagnes}
         notees = self.modele.notees
@@ -1255,9 +1460,12 @@ class Etape1:
 
     def recale(self, suffixe: str) -> "Recale":
         """Le même exemplaire, ses résidus calés autrement : PAR SORTE (« :sorte », variante u,
-        §17) ou PAR IDENTITÉ (« :identite », variante u1, §18) ; gardé."""
+        §17) ou PAR IDENTITÉ (« :identite », variante u1, §18) ; ou, pour le réseau double (u2,
+        §19), une de ses têtes avec son calage (« :brute » par identité, « :asinh » par sorte) ;
+        gardé."""
         if suffixe not in self._recales:
-            self._recales[suffixe] = {PAR_SORTE: ParSorte, PAR_IDENTITE: ParIdentite}[suffixe](self)
+            self._recales[suffixe] = {PAR_SORTE: ParSorte, PAR_IDENTITE: ParIdentite,
+                                      TETE_BRUTE: TeteBrute, TETE_ASINH: TeteAsinh}[suffixe](self)
         return self._recales[suffixe]
 
     def par_sorte(self) -> "ParSorte":
@@ -1340,6 +1548,63 @@ class ParIdentite(Recale):
     SUFFIXE = PAR_IDENTITE
 
 
+class Tete(Recale):
+    """
+    u2 (§19) : une tête du réseau à deux échelles, avec SES résidus et SON calage. Le modèle final
+    et les plis sont ceux du réseau, vus par cette tête (VueTete : les mêmes poids, rien n'est
+    appris ni copié) ; les empreintes sont celles du réseau. Les résidus tenus hors pli sont ceux de
+    SA tête (les normales de chaque campagne notées par le pli appris sans elle, §3.1), calés
+    PAR IDENTITÉ (tête brute, la méthode de v2) ou PAR SORTE (tête asinh, la méthode de v1) :
+    Calage(..., par_identite=RECALAGES[SUFFIXE]), le calage final et celui de chaque pli. Le nom de
+    l'exemplaire est « double:brute » ou « double:asinh ».
+    """
+    SUFFIXE = ""
+    TETE = ""
+
+    def __init__(self, origine: Etape1):     # sans Etape1.__init__ ni Recale.__init__ : rien n'est appris
+        if not VERSIONS[origine.version].get("tetes"):
+            raise ValueError(f"{self.SUFFIXE} : l'exemplaire {origine.exemplaire} n'a pas de têtes (u2, §19)")
+        self.origine = origine
+        for a in ("campagnes", "variante", "graine", "epoques", "version", "dims", "infos", "empreinte", "empreintes"):
+            setattr(self, a, getattr(origine, a))
+        self.exemplaire = origine.exemplaire + self.SUFFIXE
+        self.modele = self.envelopper(origine.modele)
+        self.plis = {c: self.envelopper(p) for c, p in origine.plis.items()}
+        self.tenues = {c: [(f["id"], residus(self.plis[c], f["donnees"])) for f in origine.normales if f["campagne"] == c]
+                       for c in self.campagnes}
+        notees = self.modele.notees
+        identite = RECALAGES[self.SUFFIXE]
+
+        def calage(campagnes: list[str]) -> Calage:
+            return Calage([s for c in campagnes for _, s in self.tenues[c]], self.variante, notees, self.version,
+                          par_identite=identite)
+        self.calage = calage(self.campagnes)
+        self.calages_sans = {c: calage([c2 for c2 in self.campagnes if c2 != c]) for c in self.campagnes}
+        self._sorties: dict[int, tuple[dict, Sortie]] = {}
+        self._tenus: dict[tuple, list] = {}
+        self._recales = {self.SUFFIXE: self}
+
+    def envelopper(self, modele: Reconstructeur) -> VueTete:
+        """Un réseau double (le final, un pli, un modèle « sans c ni c' » de gnn_exemples) vu par cette tête."""
+        return VueTete(modele, self.TETE)
+
+    def sortie(self, donnees: dict) -> Sortie:
+        """Les résidus de SA tête sur le modèle final (gardés par objet, comme Etape1.sortie)."""
+        return Etape1.sortie(self, donnees)
+
+
+class TeteBrute(Tete):
+    """u2 (§19) : la tête brute (comme v2), calée PAR IDENTITÉ : l'alarme, sous B2/H0/V1."""
+    SUFFIXE = TETE_BRUTE
+    TETE = TETES[0]
+
+
+class TeteAsinh(Tete):
+    """u2 (§19) : la tête asinh (comme v1), calée PAR SORTE : le classement, sous B5/H2/V0."""
+    SUFFIXE = TETE_ASINH
+    TETE = TETES[1]
+
+
 _CACHE: dict[tuple, Etape1] = {}
 
 
@@ -1355,7 +1620,9 @@ def etape1(fen: list[dict], fige: dict, variante: str = "complet", graine: int =
            epoques: int = EPOQUES, version: str = MODELE_DEFAUT) -> Etape1:
     """L'étape 1 apprise sur les normales d'apprentissage de `fen`, gardée en mémoire. Un
     exemplaire « v2:sorte » (variante u, §17) : l'étape 1 v2, calée par sorte (ParSorte) ;
-    « v1:identite » (variante u1, §18) : l'étape 1 v1, calée par identité (ParIdentite)."""
+    « v1:identite » (variante u1, §18) : l'étape 1 v1, calée par identité (ParIdentite) ;
+    « double:brute », « double:asinh » (u2, §19) : une tête du réseau double (TeteBrute,
+    TeteAsinh)."""
     for suffixe in RECALAGES:
         if version.endswith(suffixe):
             return etape1(fen, fige, variante, graine, epoques, modele_de(version)).recale(suffixe)
@@ -1398,7 +1665,8 @@ def empreintes(fen: list[dict], fige: dict, graines: int = 5, epoques: int = EPO
     {clé : sha256 de torch.save en mémoire (§8)} de tous les modèles qui entrent dans les
     décisions (decision_c.empreintes_du_gnn) : pour chaque variante de methodes(), chaque
     graine et chaque exemplaire (v12 : l'alarme v2 et le classement v1 ; u : le seul
-    exemplaire v2, calé deux fois ; u1 : le seul exemplaire v1, calé deux fois), le modèle
+    exemplaire v2, calé deux fois ; u1 : le seul exemplaire v1, calé deux fois ; u2 : le seul
+    réseau double, ses deux têtes calées chacune à sa façon), le modèle
     final ET chaque pli (ils calent le seuil) ; et, pour « GNN, avec exemples » (complet),
     les modèles « sans c ni c' » du modèle de l'alarme, qui calent le seuil de sa forêt
     (gnn_exemples). Ce qui manque est appris (mêmes caches que les réponses). La forêt et
@@ -1408,7 +1676,7 @@ def empreintes(fen: list[dict], fige: dict, graines: int = 5, epoques: int = EPO
     preparer(fen, fige, graines, variantes, epoques, version)
     va, vc = exemplaires(version)
     if version in UNIQUES:           # un seul modèle : ses empreintes une fois
-        roles = [(UNIQUES[version]["modele"], "alarme par identité et classement par sorte")]
+        roles = [(UNIQUES[version]["modele"], UNIQUES[version].get("role", "alarme par identité et classement par sorte"))]
     else:
         roles = [(va, "alarme et classement")] if va == vc else [(va, "alarme"), (vc, "classement")]
     out = {}
@@ -1475,7 +1743,9 @@ class GNN:
     (écart E-5, §15), l'exemplaire v2 sous son choix, et l'exemplaire v1 sous B5/H2/V0 ;
     pour u (§17), l'exemplaire v2 sous son choix, et le même calé par sorte (ParSorte)
     sous B5/H2/V0 ; pour u1 (§18), l'exemplaire v1 calé par identité (ParIdentite) sous
-    B2/H0/V1, et le même exemplaire v1 sous B5/H2/V0 (celui de v12).
+    B2/H0/V1, et le même exemplaire v1 sous B5/H2/V0 (celui de v12) ; pour u2 (§19), la tête
+    brute du réseau double calée par identité (TeteBrute) sous B2/H0/V1, et sa tête asinh
+    calée par sorte (TeteAsinh) sous B5/H2/V0.
     """
 
     def __init__(self, fen: list[dict], fige: dict, graine: int = 0, variante: str = "complet",
@@ -1614,9 +1884,9 @@ def fichier_empreintes_unique(version: str) -> str:
 def scelle_ouvert(version: str | None = None) -> bool:
     """Sans version : l'étiquette gnn-fige existe-t-elle ? (lecture seule, comme decision_c._git)
     Avec une version (le vrai test de cette version) : il faut EN PLUS l'étiquette gnn-fige-2
-    bien posée (raisons_scelle_2), pour TOUTE version : l'alarme de v12 est celle de u, son
-    classement celui de u1, v1 et v2 sont leurs modèles mêmes (§17, §18) ; le vrai test de
-    v12 (la première ouverture) n'est regardé qu'après gnn-fige-2 (§19.3)."""
+    bien posée (raisons_scelle_2), pour TOUTE version (u, u1, u2 compris) : l'alarme de v12 est
+    celle de u, son classement celui de u1, v1 et v2 sont leurs modèles mêmes (§17, §18) ; le
+    vrai test de v12 (la première ouverture) n'est regardé qu'après gnn-fige-2 (§19.3)."""
     r = subprocess.run(["git", "-C", str(HERE.parent), "rev-parse", "-q", "--verify",
                         f"refs/tags/{ETIQUETTE_SCELLE}"], capture_output=True, text=True)
     ouvert = r.returncode == 0 and bool(r.stdout.strip())
@@ -1630,12 +1900,14 @@ def raisons_scelle_2(version: str) -> list[str]:
     est ouvert :
       - gnn-fige-2 existe, posée APRÈS gnn-fige (gnn-fige ancêtre, sur un autre commit) ;
       - elle porte les empreintes d'UNE seule variante unique (graphe_en/gnn-empreintes-<w>.txt,
-        §18 : une seule seconde lecture) : pour u et u1, celles de cette variante ; pour v12, v1,
-        v2, v3, celles de la variante figée, quelle qu'elle soit ;
-      - le scellé de la seconde lecture (decision_c.scelle_2_mal_pose : entre gnn-fige et
-        gnn-fige-2, graphe_en/ ne change que dans le code du GNN et les empreintes des variantes) ;
-      - graphe_en/ inchangé depuis gnn-fige-2 et aucun .py non suivi : le vrai test se lit avec
-        le code figé, comme la seconde lecture (decision_c.controle_du_code)."""
+        §18 : une seule seconde lecture) : pour u, u1 et u2, celles de cette variante ; pour v12,
+        v1, v2, v3, celles de la variante figée, quelle qu'elle soit ;
+      - le scellé de la seconde lecture (decision_c.scelle_2_mal_pose), et le même contrôle ici :
+        entre gnn-fige et gnn-fige-2, graphe_en/ ne change que dans PERMIS_SCELLE_2 (le code du
+        GNN et de la lecture) et les empreintes des variantes uniques ;
+      - graphe_en/ inchangé depuis gnn-fige-2 (copie de travail comprise) et aucun .py non suivi
+        dans graphe_en/ : le vrai test se lit avec le code figé, comme la seconde lecture
+        (decision_c.controle_du_code)."""
     c1 = _git_lecture("rev-parse", "-q", "--verify", f"refs/tags/{ETIQUETTE_SCELLE}^{{commit}}").stdout.strip()
     c2 = _git_lecture("rev-parse", "-q", "--verify", f"refs/tags/{ETIQUETTE_SCELLE_2}^{{commit}}").stdout.strip()
     pourquoi = "" if version in UNIQUES else (f" (le vrai test de {version} montre l'alarme de u et le classement "
@@ -1659,9 +1931,19 @@ def raisons_scelle_2(version: str) -> list[str]:
                 f"(§18 : une seule variante figée) ; elle porte : {', '.join(portees) or 'aucune'}{pourquoi}"]
     import decision_c as dc      # le même scellé que la seconde lecture (import paresseux, comme T16)
     soucis = list(dc.scelle_2_mal_pose(fichiers[portees[0]]))
+    # Le même contrôle ici, par PERMIS_SCELLE_2 : entre gnn-fige et gnn-fige-2, graphe_en/ ne change que
+    # dans le code du GNN et les empreintes des variantes uniques.
+    permis = {f"graphe_en/{x}" for x in PERMIS_SCELLE_2} | set(fichiers)
+    r = _git_lecture("diff", "-z", "--name-only", "--no-renames", c1, c2, "--", "graphe_en/")
+    hors_permis = sorted(n for n in r.stdout.split("\0") if n and n not in permis)
+    if r.returncode != 0 or hors_permis:
+        soucis.append(f"graphe_en/ a changé entre « {ETIQUETTE_SCELLE} » et « {ETIQUETTE_SCELLE_2} » hors de "
+                      f"{', '.join(sorted(permis))} : "
+                      f"{', '.join(hors_permis) if r.returncode == 0 else 'git diff illisible'}")
     if _git_lecture("diff", "--quiet", c2, "--", "graphe_en/").returncode != 0:
         soucis.append(f"graphe_en/ a changé depuis l'étiquette {ETIQUETTE_SCELLE_2} : le vrai test se lit avec le "
                       f"code figé")
+    # git diff ne voit pas un fichier non suivi : aucun .py non suivi dans graphe_en/ (comme decision_c).
     hors = _git_lecture("ls-files", "--others", "--exclude-standard", "--", "graphe_en/*.py").stdout.split()
     if hors:
         soucis.append(f"fichiers Python non suivis dans graphe_en/ : {', '.join(hors)}")
@@ -1794,9 +2076,11 @@ def verifier(campagnes: Path, runs: Path, version: str = VERSION) -> int:
     empreintes de tous les modèles) et T16 (les noms qu'attend decision_c). La variante u
     (§17) passe les contrôles d'un modèle pour son seul exemplaire v2, T2 et T12 aussi pour
     ce même exemplaire calé par sorte (« v2:sorte »), et T17 au lieu de T14 ; la variante u1
-    (§18) de même pour son seul exemplaire v1 et « v1:identite », et T19. Pour toute version,
-    T6 éprouve le refus du vrai test sans gnn-fige, puis sans gnn-fige-2 bien posée (§17–§19).
-    T18 (le nombre de processus) pour toute version."""
+    (§18) de même pour son seul exemplaire v1 et « v1:identite », et T19 ; la variante u2 (§19)
+    pour son seul réseau double (T3, T13, T18) et ses deux têtes (T2, T12 : « double:brute »,
+    « double:asinh »), et T20. Pour toute version, T6 éprouve le refus du vrai test sans
+    gnn-fige, puis sans gnn-fige-2 bien posée (§17–§19). T18 (le nombre de processus) pour
+    toute version."""
     _un_fil()
     fige, ecarts_ref, _ = gel.reference()
     if ecarts_ref:
@@ -2180,7 +2464,7 @@ def verifier(campagnes: Path, runs: Path, version: str = VERSION) -> int:
                           f"réappris à neuf : mêmes empreintes et réponses {neuf}"
             + (f" ; {len(soucis17)} soucis, dont {soucis17[0]}" if soucis17 else ""))
 
-    if version in UNIQUES and not vc.endswith(PAR_SORTE):
+    if version in UNIQUES and va.endswith(PAR_IDENTITE):
         # T19 : la variante u1 (§18). (a) Le classement est celui de v12 à graine égale : le même
         # exemplaire v1 (le même objet), le même choix B5/H2/V0 ; scores, S du classement, premier,
         # racines et pointeurs identiques, pour chaque variante, chaque réglage, seuil propre et
@@ -2296,6 +2580,304 @@ def verifier(campagnes: Path, runs: Path, version: str = VERSION) -> int:
                           f"{vc} de v12) ; noms « {nu[0]} »… ; réappris à neuf : mêmes empreintes et réponses {neuf19}"
             + (f" ; {len(soucis19)} soucis, dont {soucis19[0]}" if soucis19 else ""))
 
+    if version in UNIQUES and VERSIONS[UNIQUES[version]["modele"]].get("tetes"):
+        # T20 : la variante u2 (§19). (a) Les formes : l'entrée aux deux échelles (la brute = convertir sans
+        # asinh, puis l'asinh = convertir avec, bout à bout ; présence et flèches une fois), l'encodeur, le
+        # canal d'arête, les deux têtes (les mêmes décodeurs dupliqués, distincts), les sorties de chaque tête ;
+        # le nombre de paramètres. (b) La perte = ½ (L_v2 + L_v1), recalculée à la main sur un petit lot
+        # (Huber δ = 1, 0,5 × BCE de présence, flèches, moyennes par sorte et par relation, écrites ici sans
+        # F.huber_loss ni F.binary_cross_entropy_with_logits) ; son gradient atteint les deux têtes. (c) Le
+        # déterminisme : les mêmes entraînements en 1 et en 3 processus, mêmes empreintes, celles de l'étape 1
+        # déjà apprise ; tout réappris à neuf (caches vidés), mêmes empreintes et mêmes réponses. (d) Chaque tête
+        # lit SON échelle : le résidu d'un nœud et de ses flèches entrantes, recalculé à la main par une passe du
+        # réseau où ce nœud seul est masqué, contre la cible brute (tête brute) et la cible asinh (tête asinh).
+        # (e) L'alarme de u2 est la tête brute calée PAR IDENTITÉ sous B2/H0/V1 (résidus des plis, calages,
+        # scores tenus, seuils propre et au budget, S, alarme et prototype recalculés à part), le classement la
+        # tête asinh calée PAR SORTE sous B5/H2/V0 (scores recalculés à part), pour chaque variante, réglage et
+        # seuil ; les deux têtes comptent (l'autre tête donnerait un autre S, d'autres scores). (f) Un seul
+        # réseau : les empreintes de u2 sont celles du réseau double (modèle final, plis, modèles « sans c ni
+        # c' »), aucune de v1 ni de v2 ; les modèles « sans c ni c' » sont des réseaux doubles vus par la tête
+        # brute, leur monde calé par identité. (g) Les noms : ceux de v12, « GNN unique u2 » en tête, distincts
+        # de ceux de u et de u1.
+        import gnn_exemples as gx      # import paresseux : gnn_exemples importe gnn
+        soucis20, garder20 = [], []
+        m_u2 = UNIQUES[version]["modele"]
+        ed = etape1(petit, fige, "complet", 0, 2, m_u2)
+        res = ed.modele
+        de, dcx, dr = dims["etat"], dims["ctx"], dims["rel"]
+        # (a) les formes
+        for f in petit[:3] + [{"donnees": _sans_fleches(petit[0]["donnees"])}]:
+            gb, ga, gd = (convertir(f["donnees"], False), convertir(f["donnees"], True),
+                          convertir(f["donnees"], DEUX_ECHELLES))
+            for k in SORTES:
+                if not (torch.equal(gd.x[k], torch.cat([gb.x[k], ga.x[k]], 1)) and torch.equal(gd.p[k], gb.p[k])
+                        and torch.equal(gd.ctx[k], torch.cat([gb.ctx[k], ga.ctx[k]], 1))
+                        and torch.equal(ga.x[k], torch.asinh(gb.x[k])) and torch.equal(ga.ctx[k], torch.asinh(gb.ctx[k]))
+                        and gd.x[k].shape[1] == 2 * de[k] and gd.p[k].shape[1] == de[k]
+                        and gd.ctx[k].shape[1] == 2 * dcx[k] and gd.n[k] == gb.n[k]):
+                    soucis20.append(f"entrée {k}")
+            for r in RELATIONS:
+                if not (torch.equal(gd.ea[r], torch.cat([gb.ea[r], ga.ea[r]], 1)) and torch.equal(gd.ei[r], gb.ei[r])
+                        and torch.equal(ga.ea[r], torch.asinh(gb.ea[r])) and gd.ea[r].shape[1] == 2 * dr[r]):
+                    soucis20.append(f"entrée {r}")
+        for k in SORTES:
+            if res.enc[k].in_features != 3 * de[k] + 2 * dcx[k] + 1:
+                soucis20.append(f"encodeur {k} : {res.enc[k].in_features} entrées")
+            for t in TETES:
+                dk = res.decodeurs(t)[0][k]
+                if dk[0].in_features != H or dk[-1].out_features != 2 * de[k]:
+                    soucis20.append(f"décodeur {t} {k}")
+        for r in res.canal:
+            if res.phi[r][0].in_features != 2 * dr[r] + 1:
+                soucis20.append(f"canal {r} : {res.phi[r][0].in_features} entrées")
+        for r in res.notees:
+            for t in TETES:
+                d_r = res.decodeurs(t)[1][r]
+                if d_r[0].in_features != 2 * H or d_r[-1].out_features != dr[r]:
+                    soucis20.append(f"décodeur {t} {r}")
+        forme = lambda mod: [tuple(p.shape) for p in mod.parameters()]
+        if forme(res.dec) != forme(res.dec_asinh) or forme(res.dec_e) != forme(res.dec_e_asinh) \
+                or {id(p) for p in res.dec.parameters()} & {id(p) for p in res.dec_asinh.parameters()} \
+                or {id(p) for p in res.dec_e.parameters()} & {id(p) for p in res.dec_e_asinh.parameters()}:
+            soucis20.append("les deux têtes n'ont pas des décodeurs dupliqués et distincts")
+        g0 = convertir(petit[-1]["donnees"], DEUX_ECHELLES)
+        m0 = {k: torch.zeros(g0.n[k], dtype=torch.bool) for k in SORTES}
+        m0["instance"][0] = True
+        with torch.no_grad():
+            o0 = res(g0, m0)
+        if list(o0) != list(TETES):
+            soucis20.append(f"sorties {list(o0)}")
+        for t in TETES:
+            v_, lo_, fl_ = o0[t]
+            if any(tuple(v_[k].shape) != (g0.n[k], de[k]) or tuple(lo_[k].shape) != (g0.n[k], de[k]) for k in SORTES) \
+                    or any(tuple(fl_[r].shape) != (g0.ei[r].shape[1], dr[r]) for r in res.notees):
+                soucis20.append(f"sorties de la tête {t}")
+        n_par = sum(p.numel() for p in res.parameters())
+        with torch.random.fork_rng():
+            n_v = {v: sum(p.numel() for p in Reconstructeur(dims, "complet", v).parameters()) for v in ("v1", "v2")}
+        if ed.infos[0]["parametres"] != n_par:
+            soucis20.append(f"paramètres : {ed.infos[0]['parametres']} à l'entraînement, {n_par} ici")
+
+        # (b) la perte, à la main, sur un petit lot (6 fenêtres, 30 % des nœuds masqués)
+        normales_p20 = _normales(petit)
+        lot = assembler([convertir(f["donnees"], DEUX_ECHELLES) for f in normales_p20[:6]])
+        gen20 = torch.Generator().manual_seed(20)
+        m20 = {k: torch.rand(lot.n[k], generator=gen20) < 0.3 for k in SORTES}
+        with torch.no_grad():
+            perte20 = float(perte_masquee(res, lot, m20))
+            o20 = res(lot, m20)
+
+        def huber(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+            d_ = (a - b).abs()
+            return torch.where(d_ < 1.0, 0.5 * d_ * d_, d_ - 0.5).mean()
+
+        def a_la_main(sortie: tuple, i: int) -> float:
+            """La perte complète d'une version sur une tête, contre l'échelle i de l'entrée."""
+            valeurs, logits, fleches = sortie
+            noeuds, aretes = [], []
+            for k in SORTES:
+                lig = m20[k]
+                if not bool(lig.any()) or de[k] == 0:
+                    continue
+                x_ = lot.x[k][lig][:, i * de[k]:(i + 1) * de[k]]
+                pr, v_, lo_ = lot.p[k][lig], valeurs[k][lig], logits[k][lig]
+                la = pr > 0.5
+                hub = huber(v_[la], x_[la]) if bool(la.any()) else torch.tensor(0.0)
+                bce = (lo_.clamp(min=0) - lo_ * pr + torch.log1p(torch.exp(-lo_.abs()))).mean()
+                noeuds.append(float(hub) + 0.5 * float(bce))
+            for r in res.notees:
+                me = m20[RELATIONS[r][1]][lot.ei[r][1]]
+                if bool(me.any()):
+                    aretes.append(float(huber(fleches[r][me], lot.ea[r][me][:, i * dr[r]:(i + 1) * dr[r]])))
+            return sum(noeuds) / len(noeuds) + (sum(aretes) / len(aretes) if aretes else 0.0)
+        l_v2, l_v1 = a_la_main(o20[TETES[0]], 0), a_la_main(o20[TETES[1]], 1)
+        ecart_b = abs(perte20 - 0.5 * (l_v2 + l_v1))
+        if ecart_b > 1e-5 * max(1.0, abs(perte20)) or not (l_v1 > 0 and l_v2 > 0 and abs(l_v1 - l_v2) > 1e-6):
+            soucis20.append(f"perte {perte20} au lieu de ½ ({l_v2} + {l_v1})")
+        with torch.random.fork_rng():
+            copie20 = Reconstructeur(dims, "complet", m_u2)
+        copie20.load_state_dict(res.state_dict())
+        perte_masquee(copie20, lot, m20).backward()
+        grad = {t: sum(float(p.grad.abs().sum()) for mod in copie20.decodeurs(t) for p in mod.parameters()
+                       if p.grad is not None) for t in TETES}
+        if not all(x > 0 for x in grad.values()):
+            soucis20.append(f"gradient des têtes {grad}")
+
+        # (c) le déterminisme : 1 contre 3 processus (modèle final et plis, graine 0)
+        taches20 = _taches(normales_p20, dims, "complet", 0, 2, m_u2)
+        graphes20 = {id(f["donnees"]): convertir(f["donnees"], DEUX_ECHELLES) for f in normales_p20}
+        avant20, emp20 = PROCESSUS, {}
+        try:
+            for n in (1, 3):
+                globals()["PROCESSUS"] = n
+                emp20[n] = [empreinte(e) for e, _ in entrainer_tous(taches20, graphes20)]
+        finally:
+            globals()["PROCESSUS"] = avant20
+        ok_c = emp20[1] == emp20[3] == list(ed.empreintes.values()) and len(set(emp20[1])) == len(taches20)
+        if not ok_c:
+            soucis20.append("1 et 3 processus : autres empreintes")
+
+        # (d) chaque tête lit son échelle : un nœud masqué seul, à la main
+        f1 = petit[-1]["donnees"]
+        eb, ea20 = etape1(petit, fige, "complet", 0, 2, va), etape1(petit, fige, "complet", 0, 2, vc)
+        sorties_t = {TETES[0]: eb.sortie(f1), TETES[1]: ea20.sortie(f1)}
+        gd1 = convertir(f1, DEUX_ECHELLES)
+        cibles = {TETES[0]: convertir(f1, False), TETES[1]: convertir(f1, True)}
+        pire_d, n_d = 0.0, 0
+        for k in SORTES:
+            for i in (sorted({0, gd1.n[k] - 1}) if gd1.n[k] else []):
+                mi = {kk: torch.zeros(gd1.n[kk], dtype=torch.bool) for kk in SORTES}
+                mi[k][i] = True
+                with torch.no_grad():
+                    oi = res(gd1, mi)
+                for t in TETES:
+                    c_, s_t = cibles[t], sorties_t[t]
+                    v_, lo_, fl_ = oi[t]
+                    att = (c_.x[k][i] - v_[k][i]).numpy().astype(float)
+                    att[c_.p[k][i].numpy() < 0.5] = np.nan
+                    ab = float((c_.p[k][i] - torch.sigmoid(lo_[k][i])).sum())
+                    obs = s_t.res_n[k][i]
+                    if not np.array_equal(np.isnan(att), np.isnan(obs[:-1])):
+                        soucis20.append(f"tête {t} {k} {i} : absents")
+                    rel = lambda a, b: np.nan_to_num(np.abs(a - b) / np.maximum(1.0, np.abs(a)), nan=0.0)
+                    pire_d = max(pire_d, float(rel(att, obs[:-1]).max(initial=0.0)), float(rel(np.array(ab), obs[-1])))
+                    for r in res.notees:
+                        if RELATIONS[r][1] != k:
+                            continue
+                        for e in (gd1.ei[r][1] == i).nonzero().flatten().tolist():
+                            pire_d = max(pire_d, float(rel((c_.ea[r][e] - fl_[r][e]).numpy().astype(float),
+                                                           s_t.res_e[r][e]).max(initial=0.0)))
+                    n_d += 1
+        if pire_d > 1e-4 or not n_d:
+            soucis20.append(f"résidus des têtes recalculés à la main : écart {pire_d:.1e}")
+        if np.allclose(sorties_t[TETES[0]].res_n["instance"], sorties_t[TETES[1]].res_n["instance"], equal_nan=True):
+            soucis20.append("les deux têtes ont les mêmes résidus")
+
+        # (e) l'alarme = la tête brute par identité, le classement = la tête asinh par sorte, recalculés à part
+        choix_a, choix_c = choix_exemplaire(va), CHOIX_VERSIONS[version]
+        if choix_a != CHOIX_VERSIONS[COMBINEES["v12"]["alarme"]] or choix_c != CHOIX_VERSIONS[COMBINEES["v12"]["classement"]] \
+                or va != m_u2 + TETE_BRUTE or vc != m_u2 + TETE_ASINH or not par_identite(va) or par_identite(vc):
+            soucis20.append(f"choix {nom_choix(choix_a)} et {nom_choix(choix_c)}, exemplaires {va} et {vc}")
+        garde20 = [f for f in petit if f["jeu"] == "apprentissage" and f["etiquette"] not in juge.ECARTEES]
+        pannes20 = [f for f in garde20 if f["etiquette"] == "panne"]
+        n20, differe_s, differe_c = 0, 0, 0
+        for v in VARIANTES:
+            base = etape1(petit, fige, v, 0, 2, m_u2)
+
+            def tenues_de(t: str) -> dict:
+                return {c: [(f["id"], residus(VueTete(base.plis[c], t), f["donnees"])) for f in base.normales
+                            if f["campagne"] == c] for c in base.campagnes}
+
+            def calage_de(tenues: dict, camps: list, ident: bool) -> Calage:
+                return Calage([s_ for c in camps for _, s_ in tenues[c]], v, base.modele.notees, base.version,
+                              par_identite=ident)
+            tb, ta = tenues_de(TETES[0]), tenues_de(TETES[1])
+            cal_b, cal_a = calage_de(tb, base.campagnes, True), calage_de(ta, base.campagnes, False)
+            if not cal_b.par_identite or not any(cal_b.ident_n.values()) or cal_a.par_identite \
+                    or any(cal_a.ident_n.values()) or any(cal_a.ident_e.values()):
+                soucis20.append(f"{v} : calages des têtes")
+            tenus_att = [(c, i, noter_noeuds(s_, calage_de(tb, [c2 for c2 in base.campagnes if c2 != c], True),
+                                             choix_a)[1]) for c in base.campagnes for i, s_ in tb[c]]
+            s_t20 = [x for _, _, x in tenus_att]
+            sb_f = {f["id"]: residus(VueTete(base.modele, TETES[0]), f["donnees"]) for f in petit}
+            sa_f = {f["id"]: residus(VueTete(base.modele, TETES[1]), f["donnees"]) for f in petit}
+            protos = tn.Prototypes([profil(sb_f[f["id"]], cal_b) for f in pannes20],
+                                   [f["cause"] for f in pannes20]) if pannes20 else None
+            for reglage in tn.REGLAGES:
+                for budget in (None, "règle"):
+                    mu = GNN(petit, fige, graine=0, variante=v, epoques=2, version=version, reglage=reglage,
+                             budget=budget)
+                    ea2, ec2 = mu.etape1_alarme, mu.etape1
+                    if not (isinstance(ea2, TeteBrute) and isinstance(ec2, TeteAsinh) and ea2.origine is base
+                            and ec2.origine is base and ea2.modele.reseau is base.modele
+                            and ec2.modele.reseau is base.modele and ea2.calage.par_identite
+                            and not ec2.calage.par_identite and mu.choix_alarme == choix_a and mu.choix == choix_c
+                            and mu.combinee and ea2.empreintes == ec2.empreintes == base.empreintes):
+                        soucis20.append(f"{v} {reglage} {budget} : les exemplaires ne sont pas les deux têtes du réseau")
+                    seuil_att = _q95(s_t20) if budget is None else \
+                        seuil_budget(s_t20, budget_mis_a_l_echelle(budget, len(s_t20)))
+                    if mu.tenus != tenus_att or mu.seuil != seuil_att or mu.seuil_propre != _q95(s_t20):
+                        soucis20.append(f"{v} {reglage} {budget} : scores tenus ou seuils ≠ tête brute par identité")
+                    for f in petit:
+                        ru = mu.repondre(f["donnees"])
+                        n20 += 1
+                        s_att = noter_noeuds(sb_f[f["id"]], cal_b, choix_a)[1]
+                        sc_att, sc_s, _ = noter_noeuds(sa_f[f["id"]], cal_a, choix_c)
+                        if ru["_S"] != s_att or ru["alarme"] != bool(s_att > seuil_att):
+                            soucis20.append(f"{v} {reglage} {budget} {f['id']} : S ou alarme ≠ tête brute par identité")
+                        if ru["scores"] != sc_att or ru["_S_classement"] != sc_s:
+                            soucis20.append(f"{v} {reglage} {budget} {f['id']} : classement ≠ tête asinh par sorte")
+                        if reglage == "avec exemples" and ru["alarme"] and protos is not None \
+                                and ru["_sans_rejet"] != protos.plus_proche(profil(sb_f[f["id"]], cal_b))[0]:
+                            soucis20.append(f"{v} {reglage} {budget} {f['id']} : prototype ≠ tête brute par identité")
+                        if reglage == "sans exemples" and budget is None:
+                            differe_s += noter_noeuds(sa_f[f["id"]], cal_a, choix_a)[1] != s_att
+                            differe_c += noter_noeuds(sb_f[f["id"]], cal_b, choix_c)[0] != sc_att
+        if not differe_s or not differe_c:
+            soucis20.append("l'autre tête donnerait partout le même S ou les mêmes scores")
+
+        # (f) un seul réseau : ses empreintes, ses modèles « sans c ni c' » (lus par gnn_exemples, sur SON module
+        # gnn : lancé en script, ce fichier est __main__, et gnn_exemples en a sa propre copie, gx.gnn)
+        emp_u2 = empreintes(petit, fige, 1, 2, version, ("complet",), avec_exemples=True)
+        emp_12 = empreintes(petit, fige, 1, 2, "v12", ("complet",), avec_exemples=True)
+        n_plis20 = len(ed.campagnes)
+        ebx = gx.gnn.etape1(petit, fige, "complet", 0, 2, va)
+        pp = gx.paires(ebx, normales_p20)
+        if {sha for k, sha in emp_u2.items() if "(alarme, avec exemples)" not in k} != set(ed.empreintes.values()) \
+                or len(emp_u2) != 1 + n_plis20 + n_plis20 * (n_plis20 - 1) // 2 \
+                or set(emp_u2.values()) & set(emp_12.values()) \
+                or not all(f" exemplaire {m_u2} (" in k and k.startswith(f"{version} ") for k in emp_u2):
+            soucis20.append(f"empreintes : {len(emp_u2)} pour u2")
+        if not (pp.modeles and all(isinstance(mm, gx.gnn.VueTete) and mm.tete == TETES[0] and mm.reseau.version == m_u2
+                                   and mm.reseau.tetes for mm in pp.modeles.values())
+                and all(t_[6] == m_u2 for t_ in gx._taches_paires(ebx, normales_p20))
+                and all(pp.monde(c)[0].par_identite for c in ebx.campagnes)
+                and ebx.empreintes == ed.empreintes):
+            soucis20.append("les modèles « sans c ni c' » ne sont pas des réseaux doubles vus par la tête brute")
+
+        # (g) les noms
+        nu = [n for n, _, _ in methodes(fige, 2, version)]
+        n12 = [n for n, _, _ in methodes(fige, 2, "v12")]
+        autres = {n for w in UNIQUES if w != version for n, _, _ in methodes(fige, 2, w)}
+        if nu != [PREFIXES[version] + n[len("GNN"):] for n in n12] or tuple(nu[:4]) != noms_decision(version) \
+                or dc.VARIANTES_GNN.get(version) != PREFIXES[version] or set(nu) & autres \
+                or any(n.startswith(PREFIXES[w] + ",") or n.startswith(PREFIXES[w] + " sans")
+                       for w in UNIQUES if w != version for n in nu):
+            soucis20.append(f"noms : {nu[:4]}")
+
+        # (c, suite) tout réappris à neuf, puis les caches remis (comme T17)
+        net20 = lambda r: {k: r[k] for k in ("alarme", "cause", "scores", "_S", "_S_classement")}
+        m_avant = GNN(petit, fige, graine=0, epoques=2, version=version, reglage="sans exemples")
+        rep_avant = {f["id"]: net20(m_avant.repondre(f["donnees"])) for f in petit}
+        sauve = dict(_CACHE)
+        try:
+            _CACHE.clear()
+            preparer(petit, fige, graines=1, variantes=("complet",), epoques=2, version=version)
+            ed_neuf = etape1(petit, fige, "complet", 0, 2, m_u2)
+            m_neuf = GNN(petit, fige, graine=0, epoques=2, version=version, reglage="sans exemples")
+            garder20 += [ed_neuf, m_neuf]
+            neuf20 = ed_neuf is not ed and ed_neuf.empreintes == ed.empreintes \
+                and m_neuf.etape1.origine is ed_neuf and m_neuf.etape1_alarme.origine is ed_neuf \
+                and all(net20(m_neuf.repondre(f["donnees"])) == rep_avant[f["id"]] for f in petit)
+        finally:
+            _CACHE.clear()
+            _CACHE.update(sauve)
+        if not neuf20:
+            soucis20.append("réappris à neuf : autres empreintes ou autres réponses")
+        resultats["T20 u2 : réseau double, alarme tête brute, classement tête asinh"] = (
+            not soucis20,
+            f"(a) entrée brute + asinh bout à bout, encodeur instance {res.enc['instance'].in_features} entrées, "
+            f"2 têtes aux décodeurs dupliqués ; {n_par} paramètres (v1 {n_v['v1']}, v2 {n_v['v2']}) ; (b) perte "
+            f"{perte20:.6f} = ½ (L_v2 {l_v2:.6f} + L_v1 {l_v1:.6f}), écart {ecart_b:.1e}, gradient sur les deux têtes ; "
+            f"(c) 1 et 3 processus : mêmes empreintes {emp20[1] == emp20[3]} ({len(taches20)} entraînements), réappris "
+            f"à neuf : mêmes empreintes et réponses {neuf20} ; (d) {n_d} nœuds masqués seuls : résidus des deux têtes "
+            f"contre leur échelle à {pire_d:.1e} près ; (e) {n20} réponses ({len(VARIANTES)} variantes × 2 réglages × 2 "
+            f"seuils × {len(petit)} fenêtres) : S, alarme, seuils, prototype = tête brute par identité "
+            f"({nom_choix(choix_a)}), scores = tête asinh par sorte ({nom_choix(choix_c)}), recalculés à part ; l'autre "
+            f"tête : autre S sur {differe_s}, autres scores sur {differe_c}/{len(VARIANTES) * len(petit)} fenêtres ; "
+            f"(f) {len(emp_u2)} empreintes, celles du réseau double, aucune de v12 ; (g) noms « {nu[0]} »…"
+            + (f" ; {len(soucis20)} soucis, dont {soucis20[0]}" if soucis20 else ""))
+
     # T18 : GNN_PROCESSUS ne change aucun modèle : les mêmes tâches (modèle final et plis du petit
     # jeu, graines 0 et 1) en 1 processus puis en max(2, PROCESSUS), mêmes empreintes, et celles de
     # l'étape 1 déjà apprise (graine 0).
@@ -2387,9 +2969,12 @@ def _en_tete(t: GNN, variantes_infos: list) -> list[str]:
         cal = e1.calage
         tau = cal.tau(choix["bout"])
         duree = [i["duree"] for i in e1.infos]
-        source = _source_choix(choix, t.version) if choix == t.choix else \
-            f"le choix de {e1.exemplaire}, {_source_choix(choix, e1.version)}" if not isinstance(e1, ParIdentite) else \
-            f"le choix de l'alarme de v12 (§18), {_source_choix(choix, COMBINEES['v12']['alarme'])}"
+        if isinstance(e1, Tete) and choix != t.choix:        # u2 (§19) : la tête brute, sous le choix de l'alarme de v12
+            source = f"le choix de l'alarme de v12 (§19), {_source_choix(choix, COMBINEES['v12']['alarme'])}"
+        else:
+            source = _source_choix(choix, t.version) if choix == t.choix else \
+                f"le choix de {e1.exemplaire}, {_source_choix(choix, e1.version)}" if not isinstance(e1, ParIdentite) \
+                else f"le choix de l'alarme de v12 (§18), {_source_choix(choix, COMBINEES['v12']['alarme'])}"
         out += [f"# étape 1 ({role}) version {e1.exemplaire} ({e1.variante}, graine {e1.graine}) : "
                 f"{e1.infos[0]['parametres']} paramètres, {e1.epoques} époques, {e1.infos[0]['fenetres']} normales "
                 f"d'apprentissage, {len(e1.campagnes)} plis ; empreinte du modèle final {e1.empreinte[:16]}",
@@ -2407,6 +2992,12 @@ def _en_tete(t: GNN, variantes_infos: list) -> list[str]:
         elif isinstance(e1, ParSorte):
             out.append(f"#   calage PAR SORTE des résidus de l'exemplaire {e1.version} (§17) : le même modèle et les "
                        f"mêmes résidus tenus que l'alarme, médiane et échelle par (sorte, colonne) et (relation, colonne)")
+        elif isinstance(e1, Tete):
+            out.append(f"#   calage PAR SORTE des résidus de la tête {e1.TETE} du réseau {e1.version} (§19) : ses résidus "
+                       f"tenus hors pli, médiane et échelle par (sorte, colonne) et (relation, colonne), comme en version 1")
+        if isinstance(e1, Tete):
+            out.append(f"#   (§19 : la tête {e1.TETE} du réseau {e1.version}, le même entraînement que l'autre tête ; ses "
+                       f"résidus contre SA cible, l'échelle {'brute (comme v2)' if e1.TETE == TETES[0] else 'asinh (comme v1)'})")
         if isinstance(e1, ParIdentite):
             out.append(f"#   (§18 : le modèle {e1.version} du classement, ses mêmes résidus tenus, calés par identité "
                        f"comme en version 2)")
@@ -2598,7 +3189,7 @@ def main(argv: list[str]) -> int:
     if mode == "test" and not scelle_ouvert():
         print(f"REFUS  SCELLÉ FERMÉ : l'étiquette « {ETIQUETTE_SCELLE} » n'existe pas ; --test est refusé.")
         return 1
-    if mode == "test" and not scelle_ouvert(version):     # toute version (§17–§19) : gnn-fige-2 aussi
+    if mode == "test" and not scelle_ouvert(version):     # toute version, u2 compris (§17–§19) : gnn-fige-2 aussi
         print(f"REFUS  SCELLÉ FERMÉ pour la version {version} : {'; '.join(raisons_scelle_2(version))} ; "
               f"--test est refusé.")
         return 1

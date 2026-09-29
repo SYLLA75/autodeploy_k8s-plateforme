@@ -5,8 +5,8 @@ AVANT C et D.
     ./.venv/bin/python decision_c.py --garde [--machines X1,X2] [options]
     ./.venv/bin/python decision_c.py --ouvrir <campagne C> --jumeaux <campagne D> [options]
     ./.venv/bin/python decision_c.py --empreintes [options]
-    ./.venv/bin/python decision_c.py --empreintes --variante u|u1 [options]
-    ./.venv/bin/python decision_c.py --ouvrir <campagne C> --jumeaux <campagne D> --variante u|u1 [options]
+    ./.venv/bin/python decision_c.py --empreintes --variante u|u1|u2 [options]
+    ./.venv/bin/python decision_c.py --ouvrir <campagne C> --jumeaux <campagne D> --variante u|u1|u2 [options]
 
 Les règles sont celles du journal : « Ce qui décidera sur C » (27 sept.), « Ce qui
 décidera sur D », la décision 2 précisée et la table de l'axe (d) (28 sept.,
@@ -80,16 +80,17 @@ réglage. La décision 1 et la ligne 0 de l'axe (d) restent communes.
   calculée), écrites dans graphe_en/gnn-empreintes.txt, à commiter dans le commit
   de gnn-fige (§8 étape 8) : --ouvrir les relit par git à l'étiquette.
 
---variante u|u1 : la SECONDE LECTURE (GNN_SPEC.md §17, §18, §19), pour UNE variante
-  « GNN unique » (gnn.py, version u ou u1), figée à l'étiquette gnn-fige-2 avant tout
-  regard sur la première. Exception écrite au §17 à « C et D lus une seule fois ».
-  RÈGLE FINALE (§19, qui remplace les règles de choix de §17 et §18, et sa mise à jour
-  de 16 h 10) : le modèle retenu parmi v12, u, u1 et u2 est choisi par l'utilisateur au
-  vu des seuls résultats de validation, le choix et son heure écrits au journal avant
-  toute lecture de C et D pour une variante unique ; si c'est une variante unique, UNE
-  seule seconde lecture, pour elle, et ses verdicts sont ceux du modèle retenu ; si
-  c'est v12, aucune seconde lecture. Ce code ne choisit rien : il refuse une deuxième
-  seconde lecture, de quelque variante que ce soit. Ci-dessous <v> vaut u ou u1.
+--variante u|u1|u2 : la SECONDE LECTURE (GNN_SPEC.md §17, §18, §19), pour UNE variante
+  « GNN unique » (gnn.py, version u, u1 ou u2), figée à l'étiquette gnn-fige-2 avant tout
+  regard sur la première. Exception écrite au §17 à « C et D lus une seule fois ». RÈGLE
+  FINALE du §19 (qui remplace les règles de choix de §17 et §18, et sa mise à jour de
+  16 h 10) : le modèle retenu parmi v12, u, u1 et u2 est choisi par l'utilisateur sur les
+  seuls résultats de validation, le choix et son heure écrits au journal avant toute
+  lecture de C et D pour une variante unique ; si c'est v12, aucune seconde lecture ;
+  sinon UNE seule seconde lecture, pour lui seul, et ses verdicts sont ceux du modèle
+  retenu (§19, point 2), avec les mêmes règles. Ce code ne choisit rien : il refuse une
+  deuxième seconde lecture, de quelque variante que ce soit. Ci-dessous <v> vaut u, u1
+  ou u2.
     --empreintes --variante <v> écrit graphe_en/gnn-empreintes-<v>.txt (gnn.empreintes
                                 de la version <v>, avec le nom de la machine), à
                                 commiter dans le commit de gnn-fige-2 ;
@@ -112,9 +113,10 @@ réglage. La décision 1 et la ligne 0 de l'axe (d) restent communes.
                                 lu : sa taille et son sha256 vont dans l'en-tête), ou
                                 si une seconde lecture de C ou de D existe déjà, de
                                 quelque variante que ce soit (decision-*-u.txt,
-                                decision-*-u1.txt). Les seules entrées du GNN sont
-                                celles de <v> (« GNN unique, sans exemples »… pour u,
-                                « GNN unique u1, sans exemples »… pour u1 :
+                                decision-*-u1.txt, decision-*-u2.txt). Les seules
+                                entrées du GNN sont celles de <v> (« GNN unique, sans
+                                exemples »… pour u, « GNN unique u1, sans exemples »…
+                                pour u1, « GNN unique u2, sans exemples »… pour u2 :
                                 gnn.methodes de la version <v>) ; les témoins, la règle
                                 et ses versions machine sont recalculés (identiques à la
                                 première lecture). L'en-tête dit en plus les commits de
@@ -135,7 +137,7 @@ Options :
   --runs <dossier>       où sont les runs (défaut runs)
   --graines <n>          nombre de graines, à partir de 0 (défaut 5 ; à --ouvrir, 5 seulement)
   --machines <X1,X2>     avec --garde : les machines X de D (couples_d.py)
-  --variante u|u1        avec --ouvrir ou --empreintes : la seconde lecture (§17, §18)
+  --variante u|u1|u2     avec --ouvrir ou --empreintes : la seconde lecture (§17 à §19)
   --no-install           n'installe jamais scikit-learn
   --help                 ce texte
 
@@ -182,12 +184,12 @@ GNN_SANS_ARETE = "GNN sans aucune arête"
 GRAINES_ECRITES = 5          # graines 0 à 4, écrites avant C et D (J 1237, 1315, 1553)
 FICHIER_EMPREINTES = "gnn-empreintes.txt"   # dans graphe_en/, commité avec gnn-fige (§8 étape 8)
 PLANCHER_D = "a priori, machines seules"   # le plancher de D (J 1551-1552)
-# La seconde lecture (GNN_SPEC.md §17, §18) : UNE variante « GNN unique » (u ou u1), figée à
-# gnn-fige-2 après gnn-fige et avant tout regard sur la première lecture. Ses noms commencent par
-# « GNN unique » (u) ou « GNN unique u1 » (gnn.PREFIXES) ; ses empreintes sont dans
+# La seconde lecture (GNN_SPEC.md §17, §18, §19) : UNE variante « GNN unique » (u, u1 ou u2), figée
+# à gnn-fige-2 après gnn-fige et avant tout regard sur la première lecture. Ses noms commencent par
+# « GNN unique » (u), « GNN unique u1 » ou « GNN unique u2 » (gnn.PREFIXES) ; ses empreintes sont dans
 # graphe_en/gnn-empreintes-<variante>.txt. Une seule seconde lecture, quelle que soit la variante.
-VARIANTES_GNN = {"u": "GNN unique", "u1": "GNN unique u1"}
-SECTIONS_GNN = {"u": "§17", "u1": "§18"}
+VARIANTES_GNN = {"u": "GNN unique", "u1": "GNN unique u1", "u2": "GNN unique u2"}
+SECTIONS_GNN = {"u": "§17", "u1": "§18", "u2": "§19"}
 ETIQUETTE_SCELLE_2 = "gnn-fige-2"
 # Ce qui peut changer dans graphe_en/ entre gnn-fige et gnn-fige-2 (relecture B, constat 2) : le code
 # du GNN et de la lecture, et les empreintes des variantes uniques.
@@ -455,13 +457,13 @@ def commit_de(etiquette: str) -> str:
 
 def scelle_2_mal_pose(variante: str) -> list[str]:
     """
-    La seconde lecture (§17, §18), gnn-fige et gnn-fige-2 existant, gnn-fige ancêtre de
+    La seconde lecture (§17 à §19), gnn-fige et gnn-fige-2 existant, gnn-fige ancêtre de
     gnn-fige-2 : ce qui empêche encore de lire.
       - gnn-fige-2 posée sur le commit même de gnn-fige (pas APRÈS lui) ;
       - §18, une seule seconde lecture : gnn-fige-2 doit porter graphe_en/gnn-empreintes-<variante>.txt
         et AUCUNE autre graphe_en/gnn-empreintes-*.txt (sinon deux variantes pourraient être lues) ;
       - relecture B, constat 2 : entre gnn-fige et gnn-fige-2, graphe_en/ ne change que dans
-        gnn.py, gnn_exemples.py, gnn_banc.py, decision_c.py et les gnn-empreintes-<u|u1>.txt.
+        gnn.py, gnn_exemples.py, gnn_banc.py, decision_c.py et les gnn-empreintes-<u|u1|u2>.txt.
     """
     scelle = etiquette_scelle(variante)
     c1, c2 = commit_de(ETIQUETTE_SCELLE), commit_de(scelle)
@@ -516,7 +518,7 @@ def en_tete_seconde_lecture(variante: str, premiere: Path) -> list[str]:
 
 def controle_du_code(jumeaux_yaml: Path | None = None, variante: str | None = None) -> list[str]:
     """Ce qui empêche d'ouvrir C et D : le scellé fermé, ou un code qui a changé depuis son étiquette.
-    Avec une variante (§17, §18) : gnn-fige ET gnn-fige-2, gnn-fige-2 posée après gnn-fige et ne
+    Avec une variante (§17 à §19) : gnn-fige ET gnn-fige-2, gnn-fige-2 posée après gnn-fige et ne
     portant que les empreintes de cette variante, graphe_en/ limité entre les deux étiquettes
     (scelle_2_mal_pose), et le code comparé à gnn-fige-2."""
     scelle = etiquette_scelle(variante)
@@ -1083,7 +1085,7 @@ def rapport(mode: str, c: str | None, campagnes: Path, runs: Path, graines: int,
             return 1
         premiere = campagnes / f"decision-{c}-{d}.txt"
         if variante is not None and (not premiere.is_file() or premiere.stat().st_size == 0):
-            # §17 : la seconde lecture vient après la première (v12, la référence) ; seules son
+            # §17 : la seconde lecture vient après la première (v12, déjà lue) ; seules son
             # existence et sa taille sont regardées ici, jamais son contenu (relecture B, constat 4).
             print(f"la première lecture (decision-{c}-{d}.txt) n'est pas écrite, ou est vide : la seconde lecture "
                   f"(variante {variante}, {SECTIONS_GNN[variante]}) ne vient qu'après elle ; rien n'est lu.")
@@ -1137,12 +1139,15 @@ def rapport(mode: str, c: str | None, campagnes: Path, runs: Path, graines: int,
     print("# Décision sur la base lente — écrit par graphe_en/decision_c.py, ne pas éditer à la main.")
     print(f"# règles : notes/JOURNAL.md, 27 sept. ; graines 0 à {graines - 1} pour ce qui tire au hasard")
     if variante is not None:
-        print(f"# SECONDE LECTURE (GNN_SPEC.md §17, §18, §19) : la variante « {VARIANTES_GNN[variante]} » "
-              f"({variante}) seule, figée à {etiquette_scelle(variante)} ; règle finale (§19 et sa mise à jour de "
-              f"16 h 10) : la seconde lecture n'est faite que pour le modèle retenu, choisi par l'utilisateur au vu "
-              f"des seuls résultats de validation (choix et heure écrits au journal avant toute lecture de C et D "
-              f"pour une variante unique) ; ses verdicts sont ceux du modèle retenu, avec les mêmes règles ; "
-              f"témoins et règle recalculés")
+        # §19, RÈGLE FINALE (remplace les règles de choix de §17 et §18) et sa mise à jour de 16 h 10 : la
+        # seconde lecture est celle du MODÈLE RETENU, choisi par l'utilisateur sur la validation seule avant
+        # toute lecture ; ses verdicts sont ceux du modèle retenu (point 2), quelle que soit la variante.
+        sections = ", ".join(sorted({"§17", SECTIONS_GNN[variante], "§19"}))
+        print(f"# SECONDE LECTURE (GNN_SPEC.md {sections}, règle finale, mise à jour de 16 h 10) : la variante "
+              f"« {VARIANTES_GNN[variante]} » ({variante}) seule, figée à {etiquette_scelle(variante)} : le modèle "
+              f"retenu, choisi par l'utilisateur parmi v12, u, u1 et u2 au vu des seuls résultats de validation (choix "
+              f"et heure écrits au journal avant toute lecture de C et D pour une variante unique) ; ses verdicts sont "
+              f"ceux du modèle retenu (§19, point 2), avec les mêmes règles ; témoins et règle recalculés")
         if mode == "ouvrir":
             print("\n".join(en_tete_seconde_lecture(variante, campagnes / f"decision-{c}-{d}.txt")))
     if gnn:
@@ -1283,13 +1288,13 @@ def main(argv: list[str]) -> int:
         une_fois = gnn
     elif variante is None:
         cible, une_fois = campagnes / f"decision-{c}-{d}.txt", True
-    else:   # la seconde lecture (§17, §18) : son propre fichier, une seule seconde lecture
+    else:   # la seconde lecture (§17 à §19) : son propre fichier, une seule seconde lecture
         cible, une_fois = campagnes / f"decision-{c}-{d}-{variante}.txt", True
     if mode != "ouvrir":
         deja = [cible] if cible.exists() else []
     elif variante is None:
         deja = sorted(set(campagnes.glob(f"decision-{c}-*.txt")) | set(campagnes.glob(f"decision-*-{d}.txt")))
-    else:   # §18 : UNE seule seconde lecture, quelle que soit la variante (u ou u1)
+    else:   # §18, §19 : UNE seule seconde lecture, quelle que soit la variante (u, u1 ou u2)
         deja = sorted({x for w in VARIANTES_GNN for x in (set(campagnes.glob(f"decision-{c}-*-{w}.txt"))
                                                           | set(campagnes.glob(f"decision-*-{d}-{w}.txt")))})
     if une_fois and deja:

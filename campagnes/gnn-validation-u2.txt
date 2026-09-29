@@ -1,0 +1,223 @@
+# campagnes lues : saine-08, charge-03, blocage-02, lenteur-01, hote-01, saine-09, blocage-03, hote-02, charge-04, lenteur-02
+# VALIDATION : coupure répétée dans l'apprentissage (juge.validation), vrai test jamais lu
+# Le GNN — écrit par graphe_en/gnn.py, ne pas éditer à la main.
+# version u2 de l'étape 1 (écarts E-1, §11, et E-5, §15) : GNN unique u2 (§19) : UN réseau double (masque, chaque colonne chiffrée deux fois en entrée (brute et asinh), deux têtes de reconstruction, perte ½ (L_v2 + L_v1)) ; alarme = sa tête brute (double:brute), résidus calés PAR IDENTITÉ, choix B2/H0/V1 (celui de l'alarme de v12) ; classement = sa tête asinh (double:asinh), résidus calés PAR SORTE, choix B5/H2/V0 (celui du classement de v12) ; un seul entraînement
+# graines 0 à 4 ; 150 époques ; variantes en plus du complet : aucune ; témoins recalculés
+# 55 entraînements en 111 s de temps réel (7 processus au plus, un fil chacun)
+# étape 1 (alarme) version double:brute (complet, graine 0) : 80628 paramètres, 150 époques, 121 normales d'apprentissage, 10 plis ; empreinte du modèle final 18f47219a1ba28d3
+#   durée d'un entraînement : modèle final 16.5 s, plis 7.4–15.4 s (un fil chacun) ; perte du modèle final 0.833 → 0.173
+#   post-traitement B2/H0/V1 (le choix de l'alarme de v12 (§19), fixé par campagnes/gnn-banc-validation-v2.txt, 5 graines, 150 époques, règle de l'écart E-3 (§13) ; min(F_C, F_D, F_R) 0.000 < 0,5 : NON FIGÉ) ; κ : calls 2.51, publishes 1.82, consumes 1.81, queries 2.23 ; τ : instance 3.89, queue 4.20, host 2.27
+#   calage par identité (temoin_noeud.identite, temoin_noeud.echelles) : 66 identités de nœud et 44 de flèche ont leur normal ; les autres retombent sur le calage par sorte
+#   (§19 : la tête brute du réseau double, le même entraînement que l'autre tête ; ses résidus contre SA cible, l'échelle brute (comme v2))
+# étape 1 (classement) version double:asinh (complet, graine 0) : 80628 paramètres, 150 époques, 121 normales d'apprentissage, 10 plis ; empreinte du modèle final 18f47219a1ba28d3
+#   durée d'un entraînement : modèle final 16.5 s, plis 7.4–15.4 s (un fil chacun) ; perte du modèle final 0.833 → 0.173
+#   post-traitement B5/H2/V0 (celui du classement de v12 (§19 : B5/H2/V0, fixé par campagnes/gnn-banc-validation.txt), appliqué aux résidus de la tête asinh du réseau double calés PAR SORTE ; l'alarme vient de sa tête brute calée PAR IDENTITÉ, sous le choix de l'alarme de v12 B2/H0/V1 ; B/H/V fixés, le banc ne choisit pas) ; κ : calls 2.68, publishes 1.85, consumes 1.79, queries 2.64 ; τ : instance 3.69, queue 4.15, host 2.58
+#   calage PAR SORTE des résidus de la tête asinh du réseau double (§19) : ses résidus tenus hors pli, médiane et échelle par (sorte, colonne) et (relation, colonne), comme en version 1
+#   (§19 : la tête asinh du réseau double, le même entraînement que l'autre tête ; ses résidus contre SA cible, l'échelle asinh (comme v1))
+# alarme (double:brute) au-dessus de 5.416 (95e centile de 121 scores tenus hors pli ; 6 au-dessus)
+#   budgets mis à l'échelle (N = 121 au lieu de 249) : tableau 13/249 → 6/121 (θ 5.416), score par nœud, sans 13/249 → 6/121 (θ 5.416), score par nœud, avec 25/249 → 12/121 (θ 3.745), règle 21/249 → 10/121 (θ 4.124)
+#   étape 2 : 4 prototypes (blocage, charge, hote, lenteur) sur 92 dimensions ; rejet au-dessus de 19.18 (8 injections mises de côté, 134 fenêtres bien classées)
+#   scores tenus au-dessus du seuil, par campagne : blocage-02 0/2, blocage-03 1/3, charge-03 0/3, charge-04 0/3, hote-01 0/16, hote-02 2/16, lenteur-01 0/2, lenteur-02 0/2, saine-08 1/24, saine-09 2/50
+#   GNN, sans exemples, budget de la règle : 10/121 → alarme au-dessus de 4.124 (10 scores tenus au-dessus)
+
+== 1. tableau de bord (validation ; fausses alertes sur 102 minutes normales non vues, puis sur 26 de saine-09)
+tableau équitable  (5 graines)
+    détection 153/153 ; fausses alertes 2/102 [2–4] ; f.a. saine-09 0/26 ; cause 150/153 [149–151]
+    top-1 115/115 ; top-3 115/115 ; top-1 blocage 38/38 ; top-1 hôte 39/39
+    top-1 lenteur 38/38 ; top-1 nouveau 39/39 ; injections cause 8/8 ; injections top-1 6/6
+score par nœud, sans exemples  (1 graine)
+    détection 151/153 ; fausses alertes 7/102 ; f.a. saine-09 2/26 ; cause 0/153
+    top-1 40/115 ; top-3 107/115 ; top-1 blocage 1/38 ; top-1 hôte 39/39
+    top-1 lenteur 0/38 ; top-1 nouveau 20/39 ; injections cause 0/8 ; injections top-1 2/6
+score par nœud, avec exemples  (5 graines)
+    détection 153/153 ; fausses alertes 18/102 [13–28] ; f.a. saine-09 2/26 ; cause 152/153
+    top-1 114/115 ; top-3 115/115 ; top-1 blocage 37/38 ; top-1 hôte 39/39
+    top-1 lenteur 38/38 ; top-1 nouveau 38/39 ; injections cause 8/8 ; injections top-1 6/6
+règle littérale, sans exemples  (1 graine)
+    détection 153/153 ; fausses alertes 2/102 ; f.a. saine-09 0/26 ; cause 150/153
+    top-1 114/115 ; top-3 114/115 ; top-1 blocage 38/38 ; top-1 hôte 38/39
+    top-1 lenteur 38/38 ; top-1 nouveau 39/39 ; injections cause 8/8 ; injections top-1 6/6
+règle littérale, avec exemples  (1 graine)
+    détection 153/153 ; fausses alertes 2/102 ; f.a. saine-09 0/26 ; cause 152/153
+    top-1 114/115 ; top-3 114/115 ; top-1 blocage 38/38 ; top-1 hôte 38/39
+    top-1 lenteur 38/38 ; top-1 nouveau 39/39 ; injections cause 8/8 ; injections top-1 6/6
+règle cause commune, sans exemples  (1 graine)
+    détection 153/153 ; fausses alertes 2/102 ; f.a. saine-09 0/26 ; cause 150/153
+    top-1 114/115 ; top-3 114/115 ; top-1 blocage 38/38 ; top-1 hôte 38/39
+    top-1 lenteur 38/38 ; top-1 nouveau 39/39 ; injections cause 8/8 ; injections top-1 6/6
+règle cause commune, avec exemples  (1 graine)
+    détection 153/153 ; fausses alertes 2/102 ; f.a. saine-09 0/26 ; cause 152/153
+    top-1 114/115 ; top-3 114/115 ; top-1 blocage 38/38 ; top-1 hôte 38/39
+    top-1 lenteur 38/38 ; top-1 nouveau 39/39 ; injections cause 8/8 ; injections top-1 6/6
+a priori (ne lit rien)  (1 graine)
+    détection 0/153 ; fausses alertes 0/102 ; f.a. saine-09 0/26 ; cause 0/153
+    top-1 57/115 ; top-3 76/115 ; top-1 blocage 19/38 ; top-1 hôte 0/39
+    top-1 lenteur 38/38 ; top-1 nouveau 0/39 ; injections cause 0/8 ; injections top-1 3/6
+GNN, sans exemples  (5 graines)
+    détection 150/153 [149–153] ; fausses alertes 6/102 [6–9] ; f.a. saine-09 2/26 ; cause 0/153
+    top-1 39/115 [39–49] ; top-3 76/115 [47–78] ; top-1 blocage 0/38 ; top-1 hôte 39/39
+    top-1 lenteur 0/38 [0–10] ; top-1 nouveau 20/39 ; injections cause 0/8 ; injections top-1 2/6
+GNN, sans exemples, budget de la règle  (5 graines)
+    détection 153/153 [152–153] ; fausses alertes 14/102 [13–15] ; f.a. saine-09 2/26 ; cause 0/153
+    top-1 39/115 [39–49] ; top-3 76/115 [47–78] ; top-1 blocage 0/38 ; top-1 hôte 39/39
+    top-1 lenteur 0/38 [0–10] ; top-1 nouveau 20/39 ; injections cause 0/8 ; injections top-1 2/6
+GNN, étape 1 + prototypes (avant E-2)  (5 graines)
+    détection 150/153 [149–153] ; fausses alertes 6/102 [6–9] ; f.a. saine-09 2/26 ; cause 150/153 [144–152]
+    top-1 39/115 [39–49] ; top-3 76/115 [47–78] ; top-1 blocage 0/38 ; top-1 hôte 39/39
+    top-1 lenteur 0/38 [0–10] ; top-1 nouveau 20/39 ; injections cause 8/8 ; injections top-1 2/6
+
+== 2. fausses alertes au fil du temps (fenêtres normales du test ; médiane sur les graines)
+  1 = tableau équitable                     
+  2 = score par nœud, sans exemples         
+  3 = score par nœud, avec exemples         
+  4 = règle littérale, sans exemples        
+  5 = règle littérale, avec exemples        
+  6 = règle cause commune, sans exemples    
+  7 = règle cause commune, avec exemples    
+  8 = a priori (ne lit rien)                
+  9 = GNN, sans exemples                    
+  10 = GNN, sans exemples, budget de la règle
+  11 = GNN, étape 1 + prototypes (avant E-2) 
+campagne            fen.        1        2        3        4        5        6        7        8        9       10       11
+saine-08    fin       12        0        0        0        0        0        0        0        0        0        0        0   (13/09 02:57 UTC)
+charge-03   avant     10        1        2        2        1        1        1        1        0        2        2        2   (13/09 04:15 UTC)
+blocage-02  avant      7        0        0        0        0        0        0        0        0        0        1        0   (13/09 06:55 UTC)
+lenteur-01  avant      6        0        0        0        0        0        0        0        0        0        1        0   (13/09 09:12 UTC)
+hote-01     avant      9        0        0        0        0        0        0        0        0        0        0        0   (13/09 11:26 UTC)
+hote-01     après     14        0        2       11        0        0        0        0        0        2        4        2   (13/09 11:57 UTC)
+saine-09    fin       26        0        2        2        0        0        0        0        0        2        2        2   (24/09 18:27 UTC)
+blocage-03  avant      7        0        1        1        0        0        0        0        0        1        1        1   (25/09 11:54 UTC)
+hote-02     avant      9        0        1        2        0        0        0        0        0        1        2        1   (25/09 14:07 UTC)
+hote-02     après     13        0        0        1        0        0        0        0        0        0        0        0   (25/09 14:39 UTC)
+charge-04   avant      8        0        0        0        0        0        0        0        0        0        1        0   (25/09 16:25 UTC)
+lenteur-02  avant      7        1        1        1        1        1        1        1        0        1        2        1   (25/09 18:41 UTC)
+
+== note détaillée du GNN, sans exemples, graine 0
+== GNN, sans exemples, graine 0
+détection      150/153 (98 %) fenêtres de panne avec alarme
+fausses alertes non vues : 6/102 (6 %)   saine-08 0/12, charge-03 1/10, blocage-02 0/7, lenteur-01 0/6, hote-01 2/23, blocage-03 1/7, hote-02 1/22, charge-04 0/8, lenteur-02 1/7
+fausses alertes vues (saine-09) : 2/26 (8 %)   saine-09 2/26
+cause          0/153 (0 %) fenêtres de panne bien nommées
+fautif                                                top-1            top-3     top-1 alarme     top-3 alarme
+  causes apprises                             46/115 (40 %)    75/115 (65 %)    46/115 (40 %)    75/115 (65 %)
+  blocage                                        0/38 (0 %)       0/38 (0 %)       0/38 (0 %)       0/38 (0 %)
+  hote                                        39/39 (100 %)    39/39 (100 %)    39/39 (100 %)    39/39 (100 %)
+  lenteur                                       7/38 (18 %)     36/38 (95 %)      7/38 (18 %)     36/38 (95 %)
+  série 1                                      20/57 (35 %)     36/57 (63 %)     20/57 (35 %)     36/57 (63 %)
+  série 2                                      26/58 (45 %)     39/58 (67 %)     26/58 (45 %)     39/58 (67 %)
+  fautif déjà vu                               26/76 (34 %)     55/76 (72 %)     26/76 (34 %)     55/76 (72 %)
+  fautif nouveau                               20/39 (51 %)     20/39 (51 %)     20/39 (51 %)     20/39 (51 %)
+par injection  (trouvée si la majorité de ses fenêtres de test le sont ; a = avec alarme)
+  blocage-02   injection 2  blocage   19 fenêtres  détectée oui  cause non  top-1 non  top-3 non  top-1 a non  top-3 a non
+  blocage-03   injection 2  blocage   19 fenêtres  détectée oui  cause non  top-1 non  top-3 non  top-1 a non  top-3 a non
+  charge-03    injection 2  charge    19 fenêtres  détectée oui  cause non  top-1 —  top-3 —  top-1 a —  top-3 a —
+  charge-04    injection 2  charge    19 fenêtres  détectée oui  cause non  top-1 —  top-3 —  top-1 a —  top-3 a —
+  hote-01      injection 2  hote      19 fenêtres  détectée oui  cause non  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  hote-02      injection 2  hote      20 fenêtres  détectée oui  cause non  top-1 oui  top-3 oui  top-1 a oui  top-3 a oui
+  lenteur-01   injection 2  lenteur   19 fenêtres  détectée oui  cause non  top-1 non  top-3 oui  top-1 a non  top-3 a oui
+  lenteur-02   injection 2  lenteur   19 fenêtres  détectée oui  cause non  top-1 non  top-3 oui  top-1 a non  top-3 a oui
+  total : détectée 8/8, cause 0/8, top-1 2/6, top-3 4/6, top-1 a 2/6, top-3 a 4/6
+désigné en premier, par cause (fenêtres de panne du test)
+  blocage  queue:food_delivery 30, instance:ts-delivery-service 4, host:workers0 4
+  charge   host:workers0 37, host:workers5 1
+  hote     le fautif 39
+  lenteur  host:workers0 15, instance:tsdb-mysql-0 12, le fautif 7, host:workers6 2
+
+# GNN, sans exemples, sur 5 graines : chaque nombre de la note
+mesure                                                   min  médiane     max   sur
+detection                                                149      150     153   153
+fausses alertes non vues                                   6        6       9   102
+fausses alertes vues (saine-09)                            2        2       2    26
+cause                                                      0        0       0   153
+top-1 causes apprises                                     39       39      49   115
+top-3 causes apprises                                     47       76      78   115
+top-1 avec alarme causes apprises                         39       39      49   115
+top-3 avec alarme causes apprises                         47       76      78   115
+top-1 blocage                                              0        0       0    38
+top-3 blocage                                              0        0       1    38
+top-1 avec alarme blocage                                  0        0       0    38
+top-3 avec alarme blocage                                  0        0       1    38
+top-1 hote                                                39       39      39    39
+top-3 hote                                                39       39      39    39
+top-1 avec alarme hote                                    39       39      39    39
+top-3 avec alarme hote                                    39       39      39    39
+top-1 lenteur                                              0        0      10    38
+top-3 lenteur                                              8       37      38    38
+top-1 avec alarme lenteur                                  0        0      10    38
+top-3 avec alarme lenteur                                  8       37      38    38
+top-1 série 1                                             19       19      26    57
+top-3 série 1                                             21       37      38    57
+top-1 avec alarme série 1                                 19       19      26    57
+top-3 avec alarme série 1                                 21       37      38    57
+top-1 série 2                                             20       20      26    58
+top-3 série 2                                             26       39      40    58
+top-1 avec alarme série 2                                 20       20      26    58
+top-3 avec alarme série 2                                 26       39      40    58
+top-1 fautif déjà vu                                      19       19      29    76
+top-3 fautif déjà vu                                      27       56      57    76
+top-1 avec alarme fautif déjà vu                          19       19      29    76
+top-3 avec alarme fautif déjà vu                          27       56      57    76
+top-1 fautif nouveau                                      20       20      20    39
+top-3 fautif nouveau                                      20       20      21    39
+top-1 avec alarme fautif nouveau                          20       20      20    39
+top-3 avec alarme fautif nouveau                          20       20      21    39
+injections, détectée                                       8        8       8     8
+injections, cause                                          0        0       0     8
+injections, top-1                                          2        2       2     6
+injections, top-3                                          2        4       4     6
+injections, top-1 a                                        2        2       2     6
+injections, top-3 a                                        2        4       4     6
+
+== 3. répétition « panne jamais vue » (une cause connue retirée de l'apprentissage)
+
+blocage retirée de l'apprentissage : 76 fenêtres de test, 4 injections
+  tableau équitable                       détection 76/76 ; « inconnue » 15/76 [3–36] ; top-1 0/76 ; top-3 0/76
+  score par nœud, sans exemples           détection 74/76 ; « inconnue » 74/76 ; top-1 1/76 ; top-3 76/76
+  score par nœud, avec exemples           détection 76/76 ; « inconnue » 76/76 ; top-1 1/76 ; top-3 76/76
+  règle littérale, sans exemples          détection 76/76 ; top-1 76/76 ; top-3 76/76 ; « inconnue » sans objet
+  règle littérale, avec exemples          détection 76/76 ; top-1 76/76 ; top-3 76/76 ; « inconnue » sans objet
+  règle cause commune, sans exemples      détection 76/76 ; top-1 76/76 ; top-3 76/76 ; « inconnue » sans objet
+  règle cause commune, avec exemples      détection 76/76 ; top-1 76/76 ; top-3 76/76 ; « inconnue » sans objet
+  a priori (ne lit rien)                  détection 0/76 ; « inconnue » 0/76 ; top-1 0/76 ; top-3 76/76
+  GNN, sans exemples                      détection 73/76 [73–76] ; « inconnue » 73/76 [73–76] ; top-1 0/76 ; top-3 0/76 [0–2]
+  GNN, sans exemples, budget de la règle  détection 76/76 [75–76] ; « inconnue » 76/76 [75–76] ; top-1 0/76 ; top-3 0/76 [0–2]
+  GNN, étape 1 + prototypes (avant E-2)   détection 73/76 [73–76] ; « inconnue » 0/76 [0–5] ; top-1 0/76 ; top-3 0/76 [0–2]
+
+charge retirée de l'apprentissage : 75 fenêtres de test, 4 injections
+  tableau équitable                       détection 75/75 ; « inconnue » 15/75 [1–38]
+  score par nœud, sans exemples           détection 72/75 ; « inconnue » 72/75
+  score par nœud, avec exemples           détection 75/75 ; « inconnue » 19/75
+  règle littérale, sans exemples          détection 75/75 ; « inconnue » sans objet
+  règle littérale, avec exemples          détection 75/75 ; « inconnue » sans objet
+  règle cause commune, sans exemples      détection 75/75 ; « inconnue » sans objet
+  règle cause commune, avec exemples      détection 75/75 ; « inconnue » sans objet
+  a priori (ne lit rien)                  détection 0/75 ; « inconnue » 0/75
+  GNN, sans exemples                      détection 71/75 [70–75] ; « inconnue » 71/75 [70–75]
+  GNN, sans exemples, budget de la règle  détection 75/75 ; « inconnue » 75/75
+  GNN, étape 1 + prototypes (avant E-2)   détection 71/75 [70–75] ; « inconnue » 1/75 [0–12]
+
+hote retirée de l'apprentissage : 78 fenêtres de test, 4 injections
+  tableau équitable                       détection 0/78 ; « inconnue » 0/78 ; top-1 0/78 ; top-3 0/78
+  score par nœud, sans exemples           détection 78/78 ; « inconnue » 78/78 ; top-1 78/78 ; top-3 78/78
+  score par nœud, avec exemples           détection 78/78 ; « inconnue » 78/78 ; top-1 78/78 ; top-3 78/78
+  règle littérale, sans exemples          détection 78/78 ; top-1 77/78 ; top-3 77/78 ; « inconnue » sans objet
+  règle littérale, avec exemples          détection 78/78 ; top-1 77/78 ; top-3 77/78 ; « inconnue » sans objet
+  règle cause commune, sans exemples      détection 78/78 ; top-1 77/78 ; top-3 77/78 ; « inconnue » sans objet
+  règle cause commune, avec exemples      détection 78/78 ; top-1 77/78 ; top-3 77/78 ; « inconnue » sans objet
+  a priori (ne lit rien)                  détection 0/78 ; « inconnue » 0/78 ; top-1 0/78 ; top-3 0/78
+  GNN, sans exemples                      détection 78/78 ; « inconnue » 78/78 ; top-1 78/78 ; top-3 78/78
+  GNN, sans exemples, budget de la règle  détection 78/78 ; « inconnue » 78/78 ; top-1 78/78 ; top-3 78/78
+  GNN, étape 1 + prototypes (avant E-2)   détection 78/78 ; « inconnue » 78/78 ; top-1 78/78 ; top-3 78/78
+
+lenteur retirée de l'apprentissage : 76 fenêtres de test, 4 injections
+  tableau équitable                       détection 76/76 ; « inconnue » 76/76 ; top-1 0/76 ; top-3 0/76
+  score par nœud, sans exemples           détection 76/76 ; « inconnue » 76/76 ; top-1 0/76 ; top-3 68/76
+  score par nœud, avec exemples           détection 76/76 ; « inconnue » 76/76 ; top-1 0/76 ; top-3 68/76
+  règle littérale, sans exemples          détection 76/76 ; top-1 76/76 ; top-3 76/76 ; « inconnue » sans objet
+  règle littérale, avec exemples          détection 76/76 ; top-1 76/76 ; top-3 76/76 ; « inconnue » sans objet
+  règle cause commune, sans exemples      détection 76/76 ; top-1 76/76 ; top-3 76/76 ; « inconnue » sans objet
+  règle cause commune, avec exemples      détection 76/76 ; top-1 76/76 ; top-3 76/76 ; « inconnue » sans objet
+  a priori (ne lit rien)                  détection 0/76 ; « inconnue » 0/76 ; top-1 76/76 ; top-3 76/76
+  GNN, sans exemples                      détection 76/76 ; « inconnue » 76/76 ; top-1 0/76 [0–40] ; top-3 75/76 [10–76]
+  GNN, sans exemples, budget de la règle  détection 76/76 ; « inconnue » 76/76 ; top-1 0/76 [0–40] ; top-3 75/76 [10–76]
+  GNN, étape 1 + prototypes (avant E-2)   détection 76/76 ; « inconnue » 0/76 ; top-1 0/76 [0–40] ; top-3 75/76 [10–76]

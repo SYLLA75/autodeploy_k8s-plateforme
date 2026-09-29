@@ -1,8 +1,8 @@
 """
 Le banc de pannes fabriquées du GNN, et le choix de la grille B/H/V.
 
-    ./.venv/bin/python gnn_banc.py [--graines n] [--epoques e] [--version v12|v1|v2|v3|u|u1]
-    ./.venv/bin/python gnn_banc.py --verifier [--version v12|v1|v2|v3|u|u1]
+    ./.venv/bin/python gnn_banc.py [--graines n] [--epoques e] [--version v12|v1|v2|v3|u|u1|u2]
+    ./.venv/bin/python gnn_banc.py --verifier [--version v12|v1|v2|v3|u|u1|u2]
 
 Phase E. Écrit d'après notes/GNN_SPEC.md §7 (le banc) et §3.5 (le choix), avec
 la signature de l'écart 3 du journal (J 1989-1996). Importe gnn.py sans le
@@ -73,8 +73,9 @@ Options :
                          notation, du parallélisme et du choix), sur un petit jeu
                          et 2 époques
   --version <v>          la version de l'étape 1 (gnn.TOUTES_VERSIONS, §11 : chacune
-                         fixe SON choix B/H/V ; v12 : celui de v1, §15 ; u et
-                         u1 : le même, §17, §18) ; défaut celui de gnn.py (v12)
+                         fixe SON choix B/H/V ; v12 : celui de v1, §15 ; u,
+                         u1 et u2 : le même, §17, §18, §19) ; défaut celui de
+                         gnn.py (v12)
   --graines <n>          graines 0 à n−1 (défaut 5)
   --epoques <e>          époques d'apprentissage (défaut 150)
   --campaigns <dossier>  le dossier des dossiers de campagne (défaut ../campagnes)
@@ -99,6 +100,14 @@ u1 (la seconde variante « GNN unique », §18) : la grille, les familles et G_v
   la sortie dit si ce banc le redonne, et les critères 1 et 3 de §15 (repris par §18).
   L'alarme est celle du même modèle v1 calé PAR IDENTITÉ (« v1:identite »,
   gnn.ParIdentite) sous B2/H0/V1, donnée à titre d'information.
+
+u2 (la dernière variante « GNN unique », §19, double entrée) : la grille, les familles et G_val
+  sont ceux de la tête asinh du réseau double calée PAR SORTE (« double:asinh », gnn.TeteAsinh) ;
+  B/H/V sont FIXÉS (classement B5/H2/V0, alarme B2/H0/V1) : la grille est RAPPORTÉE SANS
+  CHOISIR (ni le choix de l'écart E-3 ni l'ancien choix du §3.5 ne sont calculés pour l'écrire),
+  avec les critères 1 et 3 de §15 (repris par §19) pour le choix fixé. L'alarme est celle de sa
+  tête brute calée PAR IDENTITÉ (« double:brute », gnn.TeteBrute), donnée à titre d'information.
+  Dans les processus, chaque tête est le réseau chargé une fois, vu par sa tête (gnn.VueTete).
 
 Écrit <campagnes>/gnn-banc-validation.txt (v1 ; gnn-banc-validation-v2.txt…
 pour les autres versions). Code de sortie 0 ; 1 si une campagne
@@ -400,9 +409,10 @@ def _init_processus(brut: bytes) -> None:
     gnn._un_fil()
     _ETAT = gnn._des_octets(brut)
     gnn.charger_echelle(_ETAT["fige"])
-    _ETAT["charges"] = {g: gnn.charger(sd, _ETAT["dims"], "complet", _ETAT["version"])
+    # u2 (§19) : le réseau double, vu par la tête de l'exemplaire (gnn.vue_tete ; None : le modèle tel quel).
+    _ETAT["charges"] = {g: gnn.vue_tete(gnn.charger(sd, _ETAT["dims"], "complet", _ETAT["version"]), _ETAT.get("tete"))
                         for g, (sd, _) in _ETAT["modeles"].items()}
-    _ETAT["charges_alarme"] = {g: gnn.charger(sd, _ETAT["dims"], "complet", v)
+    _ETAT["charges_alarme"] = {g: gnn.vue_tete(gnn.charger(sd, _ETAT["dims"], "complet", v), _ETAT.get("tete_alarme"))
                                for g, (sd, _, v, _c) in (_ETAT.get("alarmes") or {}).items()}
 
 
@@ -459,12 +469,20 @@ def noter_tout(etapes: dict, fige: dict, banc: list[dict], val: list[dict], file
     versions = {e1.version for e1 in etapes.values()}
     if len(versions) != 1:
         raise ValueError(f"une seule version de l'étape 1 par notation : {sorted(versions)}")
+    # u2 (§19) : une tête du réseau double s'envoie comme son réseau et le nom de la tête (gnn.reseau_de, tete_de).
+    tetes = {gnn.tete_de(e1.modele) for e1 in etapes.values()}
+    tetes_a = {gnn.tete_de(e1a.modele) for e1a, _ in (alarmes or {}).values()}
+    if len(tetes) != 1 or len(tetes_a) > 1:
+        raise ValueError(f"une seule tête par notation : {sorted(map(str, tetes))}, {sorted(map(str, tetes_a))}")
     etat = {"fige": fige, "dims": gnn.dimensions(fige), "base": dc.cles_base(fige), "version": versions.pop(),
             "banc": [f["donnees"] for f in banc], "val": [f["donnees"] for f in val],
             "val_fautifs": [f["fautifs"] for f in val], "files": files, "pressions": pressions,
-            "modeles": {g: ({k: v for k, v in e1.modele.state_dict().items()}, e1.calage) for g, e1 in etapes.items()},
-            "alarmes": {g: ({k: v for k, v in e1a.modele.state_dict().items()}, e1a.calage, e1a.version, dict(ch))
-                        for g, (e1a, ch) in (alarmes or {}).items()}}
+            "modeles": {g: ({k: v for k, v in gnn.reseau_de(e1.modele).state_dict().items()}, e1.calage)
+                        for g, e1 in etapes.items()},
+            "alarmes": {g: ({k: v for k, v in gnn.reseau_de(e1a.modele).state_dict().items()}, e1a.calage, e1a.version,
+                            dict(ch))
+                        for g, (e1a, ch) in (alarmes or {}).items()},
+            "tete": tetes.pop(), "tete_alarme": tetes_a.pop() if tetes_a else None}
     taches = [(g, elements[i:i + LOT_TACHE]) for g in sorted(etapes) for i in range(0, len(elements), LOT_TACHE)]
     debut = time.perf_counter()
     with ProcessPoolExecutor(max_workers=min(gnn.PROCESSUS, len(taches)),
@@ -789,8 +807,15 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques: int, version: st
             agr = _agreger(res[g], groupes, k, n_val)
             for c in COLONNES_E3:
                 parts[nom][c].append(sum(v[0] for gr, v in agr.items() if colonne_e3(gr, base) == c) / tot_e3[c])
-    choix_ancien, etat, lignes_choix = choisir(g_val, t1, total)
-    choix, mins_e3, lignes_e3 = choisir_e3(g_val, t1, parts)
+    # u2 (§19) : B/H/V fixés, la grille est rapportée SANS CHOISIR : ni choisir_e3 ni choisir ; G_val (critère 1
+    # de §15) et le min des familles se lisent directement sur la grille.
+    sans_choix = bool(gnn.UNIQUES.get(version, {}).get("banc_sans_choix"))
+    if sans_choix:
+        etat = {nom: (all(n == 0 for n in g_val[nom]), None) for nom in NOMS}
+        mins_e3 = {nom: min(_med(parts[nom][f]) for f in FAMILLES_E3) for nom in NOMS}
+    else:
+        choix_ancien, etat, lignes_choix = choisir(g_val, t1, total)
+        choix, mins_e3, lignes_e3 = choisir_e3(g_val, t1, parts)
     n_inj = sum(1 for v in dc.par_injection(val).values() if not v[0]["jamais_vue"])
     n_app = len(_apprises(val))
     tot_col = {c: sum(n for g, n in par_groupe.items() if _colonne(g) == c) for c in COLONNES}
@@ -805,7 +830,8 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques: int, version: st
     for nom in NOMS:
         c1, raisons = etat[nom]
         gv = "/".join(str(n) for n in g_val[nom]) + (" ok" if c1 else " NON")
-        print(f"{nom:<12}{gv:>10}{_case(t1[nom]):>12}{('ok' if not raisons else 'NON'):>9}{_case(total[nom]):>14}"
+        crit2 = "—" if raisons is None else ("ok" if not raisons else "NON")      # u2 : aucun choix, pas de critère 2
+        print(f"{nom:<12}{gv:>10}{_case(t1[nom]):>12}{crit2:>9}{_case(total[nom]):>14}"
               + "".join(f"{_case(par_col[nom][c]):>18}" for c in COLONNES))
 
     print(f"\n== 1 bis. les familles de l'écart E-3 (§13) : part des cas au rang 1, médiane des graines [min–max]")
@@ -824,43 +850,66 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques: int, version: st
               + "".join(f"{_part(parts[nom][c]):>18}" for c in FAMILLES_E3) + f"{mins_e3[nom]:>7.3f}"
               + "".join(f"{_part(parts[nom][c]):>18}" for c in COLONNES_E3[3:]))
 
-    print("\n== 2. le choix de l'écart E-3 (§13, dans l'ordre) : c'est le CHOIX")
-    print("\n".join(lignes_e3))
-    print(f"CHOIX = {json.dumps(choix, ensure_ascii=False)}"
-          + ("" if graines >= 5 else f"   (sur {graines} graine(s) : indicatif, à refaire sur 5)")
-          + (f"   (le choix que ce banc donnerait à l'exemplaire {vc} ; celui de {version} est fixé par "
-             f"{gnn.UNIQUES[version]['section'] if version in gnn.UNIQUES else '§15'}, ci-dessous)" if va != vc else ""))
-    if version in FIXEES:
-        fixe = gnn.CHOIX_VERSIONS[version]
-        nf = gnn.nom_choix(fixe)
+    if sans_choix:
+        choix = gnn.CHOIX_VERSIONS[version]
+        nf = gnn.nom_choix(choix)
         fc, fd, fr = (_med(parts[nf][c]) for c in FAMILLES_E3)
-        print(f"\n== 2 ter. {version} ({FIXEES[version]}) : le CHOIX du classement est FIXÉ, {nf} (celui de "
-              + (f"l'exemplaire {vc}" if version in gnn.COMBINEES else
-                 f"l'exemplaire v1 de v12, appliqué à l'exemplaire {vc}" if vc != gnn.COMBINEES["v12"]["classement"]
-                 else f"l'exemplaire {vc} de v12, le même")
-              + f") ; ce banc lui donnerait {gnn.nom_choix(choix)}"
-              + (" : le même" if gnn.nom_choix(choix) == nf else " : AUTRE, à expliquer"))
+        print(f"\n== 2. {version} ({FIXEES[version]}) : B/H/V FIXÉS, aucun choix : la grille ci-dessus est rapportée "
+              f"sans choisir (§19). Classement {nf} sur l'exemplaire {vc} (la tête asinh calée par sorte ; le choix du "
+              f"classement de v12) ; alarme {gnn.nom_choix(gnn.choix_exemplaire(va))} sur l'exemplaire {va} (la tête "
+              f"brute calée par identité ; le choix de l'alarme de v12)")
         print(f"critère 1 (G_val tient pour les {graines} graines) : injections qui accusent la base, par graine "
               f"{'/'.join(str(x) for x in g_val[nf])} → {'tenu' if all(x == 0 for x in g_val[nf]) else 'NON TENU'}")
         print(f"critère 3 (banc : F_C ≥ 0,5 et F_D ≥ 0,5, médianes des graines) : F_C {_part(parts[nf]['F_C'])}, "
               f"F_D {_part(parts[nf]['F_D'])} → {'tenu' if fc >= 0.5 and fd >= 0.5 else 'NON TENU'} ; F_R "
               f"{_part(parts[nf]['F_R'])} (rapporté : faiblesse connue) ; Y {_part(parts[nf]['Y'])} ; « entrant » "
               f"ts-order-service {_part(parts[nf]['ent. order'])} ; top-1 de validation {_case(t1[nf])}/{n_app}")
-        choix = fixe
+        print(f"CHOIX = {json.dumps(choix, ensure_ascii=False)}   (fixé par §19, non choisi par ce banc)"
+              + ("" if graines >= 5 else f"   (sur {graines} graine(s) : à refaire sur 5)"))
+    else:
+        print("\n== 2. le choix de l'écart E-3 (§13, dans l'ordre) : c'est le CHOIX")
+        print("\n".join(lignes_e3))
+        print(f"CHOIX = {json.dumps(choix, ensure_ascii=False)}"
+              + ("" if graines >= 5 else f"   (sur {graines} graine(s) : indicatif, à refaire sur 5)")
+              + (f"   (le choix que ce banc donnerait à l'exemplaire {vc} ; celui de {version} est fixé par "
+                 f"{gnn.UNIQUES[version]['section'] if version in gnn.UNIQUES else '§15'}, ci-dessous)" if va != vc else ""))
+        if version in FIXEES:
+            fixe = gnn.CHOIX_VERSIONS[version]
+            nf = gnn.nom_choix(fixe)
+            fc, fd, fr = (_med(parts[nf][c]) for c in FAMILLES_E3)
+            print(f"\n== 2 ter. {version} ({FIXEES[version]}) : le CHOIX du classement est FIXÉ, {nf} (celui de "
+                  + (f"l'exemplaire {vc}" if version in gnn.COMBINEES else
+                     f"l'exemplaire v1 de v12, appliqué à l'exemplaire {vc}" if vc != gnn.COMBINEES["v12"]["classement"]
+                     else f"l'exemplaire {vc} de v12, le même")
+                  + f") ; ce banc lui donnerait {gnn.nom_choix(choix)}"
+                  + (" : le même" if gnn.nom_choix(choix) == nf else " : AUTRE, à expliquer"))
+            print(f"critère 1 (G_val tient pour les {graines} graines) : injections qui accusent la base, par graine "
+                  f"{'/'.join(str(x) for x in g_val[nf])} → {'tenu' if all(x == 0 for x in g_val[nf]) else 'NON TENU'}")
+            print(f"critère 3 (banc : F_C ≥ 0,5 et F_D ≥ 0,5, médianes des graines) : F_C {_part(parts[nf]['F_C'])}, "
+                  f"F_D {_part(parts[nf]['F_D'])} → {'tenu' if fc >= 0.5 and fd >= 0.5 else 'NON TENU'} ; F_R "
+                  f"{_part(parts[nf]['F_R'])} (rapporté : faiblesse connue) ; Y {_part(parts[nf]['Y'])} ; « entrant » "
+                  f"ts-order-service {_part(parts[nf]['ent. order'])} ; top-1 de validation {_case(t1[nf])}/{n_app}")
+            choix = fixe
 
-    print("\n== 2 bis. pour comparaison : l'ancien choix du §3.5 (remplacé par le §13)")
-    print("\n".join(lignes_choix))
-    for nom in NOMS:
-        if etat[nom][1]:
-            print(f"  {nom} écartée au critère 2 : {' ; '.join(etat[nom][1])}")
-    print(f"ancien choix §3.5 = {json.dumps(choix_ancien, ensure_ascii=False)} (min(F_C, F_D, F_R) "
-          f"{mins_e3[gnn.nom_choix(choix_ancien)]:.3f})")
+        print("\n== 2 bis. pour comparaison : l'ancien choix du §3.5 (remplacé par le §13)")
+        print("\n".join(lignes_choix))
+        for nom in NOMS:
+            if etat[nom][1]:
+                print(f"  {nom} écartée au critère 2 : {' ; '.join(etat[nom][1])}")
+        print(f"ancien choix §3.5 = {json.dumps(choix_ancien, ensure_ascii=False)} (min(F_C, F_D, F_R) "
+              f"{mins_e3[gnn.nom_choix(choix_ancien)]:.3f})")
 
-    nom_c, nom_a, nom_p = gnn.nom_choix(choix), gnn.nom_choix(choix_ancien), gnn.nom_choix(MINIMAUX)
-    titres = ((nom_c, f"le choix, {gnn.UNIQUES[version]['section']}" if version in gnn.UNIQUES
-               else "le choix, §15" if version in gnn.COMBINEES else "le choix, §13"),
-              (nom_a, "l'ancien choix, §3.5"), (nom_p, "le plus simple"))
-    for numero, nom in zip(("3", "3 bis", "3 ter"), dict.fromkeys((nom_c, nom_a, nom_p))):
+    if sans_choix:   # u2 (§19) : le détail du seul choix fixé
+        nom_c = gnn.nom_choix(choix)
+        titres = ((nom_c, f"le choix fixé, {gnn.UNIQUES[version]['section']}"),)
+        a_detailler = (nom_c,)
+    else:
+        nom_c, nom_a, nom_p = gnn.nom_choix(choix), gnn.nom_choix(choix_ancien), gnn.nom_choix(MINIMAUX)
+        titres = ((nom_c, f"le choix, {gnn.UNIQUES[version]['section']}" if version in gnn.UNIQUES
+                   else "le choix, §15" if version in gnn.COMBINEES else "le choix, §13"),
+                  (nom_a, "l'ancien choix, §3.5"), (nom_p, "le plus simple"))
+        a_detailler = (nom_c, nom_a, nom_p)
+    for numero, nom in zip(("3", "3 bis", "3 ter"), dict.fromkeys(a_detailler)):
         k = NOMS.index(nom)
         role = " ; ".join(t for n, t in titres if n == nom)
         print(f"\n== {numero}. le détail de {nom} ({role}), graine 0 : "
