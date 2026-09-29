@@ -750,3 +750,9 @@ u2 prend les deux, dans UN seul réseau, UN seul entraînement. C'est la seule r
    journal).
 4. AUCUNE autre variante, quoi qu'il arrive.
 **Machine** : gpu pour u, u1, u2 (validation, banc, empreintes, gel, seconde lecture).
+
+**Mise à jour du §19 (29 sept., 16 h 10, décision de l'utilisateur, avant tout chiffre de u1 et de u2 et avant tout regard
+sur la première ouverture) :** le modèle retenu parmi v12, u, u1 et u2 est choisi par l'utilisateur, au vu des seuls
+résultats de validation (examen blanc) ; le choix et son heure sont écrits au journal AVANT toute lecture de C et D pour
+une variante unique et avant tout regard sur la première ouverture. Le reste du §19 est inchangé (une seule seconde
+lecture, aucune autre variante, machine gpu).
