@@ -2384,3 +2384,13 @@ Fichier decision-base-01-jumeaux-02.txt (vms0, sha256 4a2ec3c385fbc0af…). Verd
 - Fausses alertes sur les 120 minutes normales du test (axe a) : GNN 6/120 [6–7] sans exemples, 7/120 au budget de la
   règle, 9/120 [7–28] avec exemples ; règles 10/120 ; tableau 9/120 ; score par nœud 5/120 (sans), 28/120 (avec).
 - G et G_D tiennent pour toutes les entrées GNN.
+
+## 2026-09-29 — Gel de u1 (gnn-fige-2) et seconde lecture lancée sur gpu
+
+- 19:33–19:44 (gpu) : `decision_c --empreintes --variante u1 --graines 5` (GNN_PROCESSUS=30), code e97367d.
+- gnn-fige-2 = 9525aa4 (poussée) ; `git diff e97367d gnn-fige-2` : seulement gnn-empreintes-u1.txt et ce journal, aucun
+  code.
+- Copiés sur gpu APRÈS le gel, sans lecture : graph/ et run.log des runs 20260928-021822 (base-01) et 20260928-174321
+  (jumeaux-02), empreinte d'ensemble 30d16b13ed865476 identique à vms0 ; decision-base-01-jumeaux-02.txt (4a2ec3c3…),
+  pour le seul contrôle d'existence exigé par decision_c.
+- 19:45 (gpu, tmux lecture-u1) : `decision_c --ouvrir base-01 --jumeaux jumeaux-02 --variante u1 --graines 5`.
