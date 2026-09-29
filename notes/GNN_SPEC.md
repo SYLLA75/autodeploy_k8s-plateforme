@@ -680,3 +680,23 @@ de ce qui décide ne reste hors de la spec. Aucun n'a été réglé sur C, D ou 
 5. **Ce que coûte le classement v1** (à dire au rapport) : sans exemples, l'exemplaire v2 seul trouvait 76/115 fautifs
    au top-1 de validation (lenteur 37/38) ; v12 en trouve 38/115 (lenteur 0/38). C'est le prix de F_C 0,77 et F_D 0,87.
    Les critères 3 et 4 de §15 ne tiennent qu'à la MÉDIANE des graines (une graine : F_C 0,12 ; une autre : top-1 113/115).
+
+---
+
+## 17. Variante pré-enregistrée « GNN unique » (29 sept., décidée par l'utilisateur, écrite AVANT tout calcul et AVANT tout regard sur la première ouverture)
+
+**Pourquoi.** v12 utilise deux exemplaires entraînés à part (v2 pour l'alarme, v1 pour le fautif). La différence qui
+compte pour le fautif est surtout le CALAGE des résidus (par sorte contre par identité), qui se fait après le modèle.
+Question à trancher par la mesure : un seul modèle suffit-il ?
+**La variante « u » (GNN unique)** : UN exemplaire, celui de v2 (masque, sans asinh, mêmes normales, mêmes graines) ; ses
+résidus sont calés deux fois : par identité → alarme (exactement comme v12) ; PAR SORTE → classement du fautif avec les
+règles B5/H2/V0 (comme l'exemplaire v1 de v12). Réglage « avec exemples » : parties apprises sur les écarts par identité
+et le plongement de ce même modèle, rejet E-4, repli sur son classement par sorte. Aucun autre changement.
+**Critères** : exactement ceux de §15 (G_val 5 graines ; détection au budget de la règle ≥ 150/153 ; banc F_C ≥ 0,5 et
+F_D ≥ 0,5 ; avec exemples top-1 ≥ 114/115, détection ≥ 150/153, « inconnue » majoritaire par cause retirée), rapportés
+quel que soit le résultat.
+**Lecture de C et D.** Personne ne regarde les résultats de la première ouverture (v12, tmux « ouverture » sur vms0) avant
+l'étiquette gnn-fige-2 (variante u figée). Exception écrite ici à « C et D lus une seule fois » : une seconde lecture, pour
+la seule variante u, figée avant tout regard sur la première. v12, figée en premier, reste la variante de référence des
+décisions pré-enregistrées ; les verdicts de u sont rapportés à côté, avec les mêmes règles. Calculs lourds sur une
+machine dédiée (vms1, SLICES), de la validation jusqu'à sa lecture de C et D (empreintes reproductibles sur la même machine).

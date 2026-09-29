@@ -2247,3 +2247,10 @@ Faiblesses à dire : fausses alertes (sans exemples 7/102, avec exemples 14/102,
 le GNN sans exemples trouve le fautif 38/115 (règle : 114/115 ; blocage et lenteur 0/38) ; blocage et lenteur retirés :
 repli sans fautif (0/76) ; production, alarme sur 2 minutes : fausses alertes divisées par 1,75 à 3,5, 1 min de retard ;
 les règles restent meilleures (0 fausse alerte). Rien n'est figé : gel à la décision de l'utilisateur.
+
+## 2026-09-29 — E.8 : gel de v12 (étiquette gnn-fige, commit sur vms0), ouverture lancée ; variante « GNN unique » pré-enregistrée
+
+Chaîne tmux « ouverture » sur vms0 : empreintes 06:42 → 09:48 UTC, gel (commit + étiquette gnn-fige dans le dépôt de
+vms0, à rapatrier), puis ouverture de base-01 et jumeaux-02 et vrai test, en cours. Décision de l'utilisateur : tester une
+variante à UN seul modèle (GNN_SPEC.md §17), figée avant tout regard sur les résultats de la première ouverture. Personne
+ne lit la première ouverture avant gnn-fige-2.
