@@ -2348,3 +2348,15 @@ u2 : 80 628 paramètres ; calculs 16:51 → 17:24 (~/gnn-u2, md5 545c5721 4a6a58
 - Avec exemples : détection 153/153 ; fausses alertes 16/102 [9–55] ; cause 152/153 [145–153] ; top-1 115/115
   [107–115] ; « inconnue » 58/76, 75/75, 78/78, 75/76.
 - Critères de §15 : 1 non (de justesse), 2 oui, 3 non (F_C ; F_D oui), 4 oui.
+
+## 2026-09-29 — Choix de l'utilisateur (19:32) : v12 ET u1 lues sur C et D, décidé AVANT tout regard sur la première ouverture
+
+- Vérification indépendante (4 angles + arbitre, validation seule) : aucune alternative raisonnable testable aujourd'hui ne
+  bat probablement v12 ; moyenne des 5 graines : base fabriquée 0,29 → 0,75 sur gpu, rien d'autre ne bouge ; fusion
+  des classements de u et v12 (moyenne) : F_C 0,87 mais F_D 0,36, écartée. Correction : graine 1 F_C = 0,12, pas 0.
+- Chances contre les témoins (2 analyses + juge, validation seule) : aucune variante nettement meilleure que v12 ; u1 de
+  justesse, confiance faible (même classement que v12 ; seule à ne pas perdre l'axe (a) des fausses alertes, 1/102 ;
+  mais alarme sourde aux lenteurs). u et u2 perdraient D (cas workers5 + leurre à 400 ms : 0/128).
+- DÉCISION (19:32) : u1 est figée (gnn-fige-2) et lue une fois sur C et D sur gpu ; la première ouverture (v12) n'est
+  ouverte qu'après le lancement de la lecture de u1. Les DEUX résultats seront présentés côte à côte, quel qu'en soit le
+  sens. u et u2 restent des résultats de validation (ablation), non lus sur C et D.
