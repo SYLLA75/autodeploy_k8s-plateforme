@@ -2306,3 +2306,12 @@ git log -1 (lectures) alors que la consigne disait aucune commande git.
   chiffre de u1 et avant tout regard sur la première ouverture : modèle retenu = u2 s'il tient les 4 critères, sinon
   u1, sinon v12 ; une seule seconde lecture (pour le modèle retenu s'il est unique) ; aucune autre variante. La
   compression « partielle » est écartée (réglage à tâtons).
+
+## 2026-09-29 — Première ouverture (v12) terminée, NON LUE
+
+- 16:08 (vms0) : `decision_c --ouvrir base-01 --jumeaux jumeaux-02 --graines 5` fini, code 0 ; vrai test fini à 14:42.
+  Fichiers écrits dans ~/autodeploy_k8s-plateforme/campagnes/ sur vms0, NON LUS (seules leur taille et leur empreinte
+  sont relevées, pour prouver qu'ils ne changeront pas) : decision-base-01-jumeaux-02.txt (221 972 octets, sha256
+  4a2ec3c385fbc0af…), gnn-exemples-v12.txt (37 991 octets, sha256 2c6e95f30c425745…). Ils restent fermés jusqu'au choix
+  du modèle retenu et au gel (§19).
+- 16:10 : décision de l'utilisateur : le modèle retenu sera choisi par lui sur l'examen blanc seul (spec fbb98e3).
