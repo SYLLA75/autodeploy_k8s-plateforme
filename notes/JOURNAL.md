@@ -2360,3 +2360,11 @@ u2 : 80 628 paramètres ; calculs 16:51 → 17:24 (~/gnn-u2, md5 545c5721 4a6a58
 - DÉCISION (19:32) : u1 est figée (gnn-fige-2) et lue une fois sur C et D sur gpu ; la première ouverture (v12) n'est
   ouverte qu'après le lancement de la lecture de u1. Les DEUX résultats seront présentés côte à côte, quel qu'en soit le
   sens. u et u2 restent des résultats de validation (ablation), non lus sur C et D.
+
+## 2026-09-29 — Ouverture de la première lecture (v12) à 19:40, à la demande de l'utilisateur
+
+Code de u1 commité et poussé AVANT l'ouverture : e97367d (gnn.py a33ad4fa, gnn_exemples.py a998e03b, gnn_banc.py
+19afc4e0, decision_c.py 0a1256d8). L'entraînement final de u1 (decision_c --empreintes --variante u1, gpu) tourne depuis
+19:33 avec ce code. Le commit de gel (gnn-fige-2) n'ajoutera QUE graphe_en/gnn-empreintes-u1.txt : vérifiable par
+`git diff e97367d gnn-fige-2`. Fichier ouvert : decision-base-01-jumeaux-02.txt (sha256 4a2ec3c385fbc0af…, inchangé
+depuis 16:08).
