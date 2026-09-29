@@ -2337,3 +2337,14 @@ git log -1 (lectures) alors que la consigne disait aucune commande git.
   57/76 [14–73], 75/75, 78/78, 76/76 → critère 4 tenu. Meilleur « avec exemples » à ce jour en fausses alertes (v12 14,
   u 15 ; les règles 2), parce que l'alarme du GNN, faible, sonne peu et que la forêt rattrape la détection ; une graine
   à 15.
+
+## 2026-09-29 — u2 fini (validation, gpu ; code encore en relecture)
+
+u2 : 80 628 paramètres ; calculs 16:51 → 17:24 (~/gnn-u2, md5 545c5721 4a6a58a0 f7edc07a b7d97c64).
+- Banc : G_val NON tenu (graine 0 : 1 injection accuse la base ; les 4 autres 0) ; F_C 0,18 [0,12–0,70], F_D 0,62
+  [0,60–0,72], F_R 0,19 [0,00–0,54] ; top-1 de validation 39 [39–49].
+- Sans exemples : détection 150/153 [149–153] (153/153 au budget de la règle) ; fausses alertes 6/102 [6–9] (14/102 au
+  budget) ; top-1 39/115 [39–49], top-3 76/115 [47–78] ; panne jamais vue : 76/76, 75/75, 78/78, 76/76 détectées.
+- Avec exemples : détection 153/153 ; fausses alertes 16/102 [9–55] ; cause 152/153 [145–153] ; top-1 115/115
+  [107–115] ; « inconnue » 58/76, 75/75, 78/78, 75/76.
+- Critères de §15 : 1 non (de justesse), 2 oui, 3 non (F_C ; F_D oui), 4 oui.
