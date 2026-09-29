@@ -721,3 +721,32 @@ graines), c'est u1 qui est figé (gnn-fige-2) et lu sur C et D comme « GNN uniq
 §17. Pas de troisième variante. Personne ne regarde la première ouverture (v12) avant gnn-fige-2.
 **Machine** : toute la variante unique (u et u1 : validation, banc, empreintes, gel, lecture de C et D) se fait sur
 la machine gpu (et non vms1 comme écrit au §17), les empreintes n'étant pas identiques au bit près d'une machine à l'autre.
+
+## 19. Dernière variante « GNN unique » u2 (double entrée) et RÈGLE FINALE (29 sept., 15 h 45, décidée par l'utilisateur, écrite AVANT tout calcul de u2, AVANT tout chiffre de u1 et AVANT tout regard sur la première ouverture)
+
+**Pourquoi.** Le banc de u (§18) montre que le conflit est dans l'ENTRÉE du modèle : l'alarme a besoin de l'échelle
+brute (v2), la désignation du fautif de l'échelle compressée asinh (v1). u et u1 prennent chacun une seule échelle ;
+u2 prend les deux, dans UN seul réseau, UN seul entraînement. C'est la seule réponse de fond : une compression
+« partielle » serait du réglage à tâtons, écarté.
+**La variante « u2 »** : même architecture, même masque, mêmes normales, mêmes graines, mêmes hyperparamètres que v1/v2
+(H = 32, 2 couches, 150 époques, Adam 3e-3, wd 1e-4, lot 16). Seuls changent :
+- ENTRÉE : chaque colonne chiffrée (état, contexte, flèche) est donnée DEUX fois, telle quelle (comme v2) et en asinh
+  (comme v1) ; bits de présence et de masque inchangés (une fois) ;
+- SORTIE : deux têtes de reconstruction, une par échelle (mêmes décodeurs dupliqués) ;
+- PERTE : L_u2 = ½ (L_v2 + L_v1), chacune la perte complète de sa version calculée sur sa tête (la présence, identique
+  dans les deux, compte donc une fois) ; aucun poids nouveau ;
+- LECTURE : résidus de la tête brute → calage PAR IDENTITÉ (méthode v2) → alarme, post-traitement B2/H0/V1, seuils comme
+  v12 ; résidus de la tête asinh → calage PAR SORTE (méthode v1) → classement, B5/H2/V0 ; « avec exemples » : parties
+  apprises sur les écarts par identité de la tête brute et le plongement de ce réseau, rejet E-4, repli sur son
+  classement par sorte. Aucun réglage nouveau (B/H/V fixés ; le banc rapporte la grille sans choisir).
+**Critères** : ceux de §15, médiane des 5 graines, validation seule.
+**RÈGLE FINALE (remplace les règles de choix de §17 et §18) :**
+1. Le MODÈLE RETENU est u2 s'il tient les quatre critères ; sinon u1 s'il les tient ; sinon v12. Il est fixé sur la
+   validation seule, AVANT toute lecture de C et D pour une variante unique et avant tout regard sur la première
+   ouverture, et ne change plus ensuite, quels que soient les résultats sur C et D.
+2. Si le modèle retenu est u2 ou u1 : gel (gnn-fige-2), UNE seule seconde lecture de C et D pour lui, sur gpu ; ses
+   verdicts sont ceux du modèle retenu. Si c'est v12 : aucune seconde lecture ; v12, déjà lue, est le modèle retenu.
+3. La première ouverture (v12) n'est regardée qu'après gnn-fige-2 (ou, si v12 est retenue, après ce constat écrit au
+   journal).
+4. AUCUNE autre variante, quoi qu'il arrive.
+**Machine** : gpu pour u, u1, u2 (validation, banc, empreintes, gel, seconde lecture).
