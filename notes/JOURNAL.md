@@ -2394,3 +2394,10 @@ Fichier decision-base-01-jumeaux-02.txt (vms0, sha256 4a2ec3c385fbc0af…). Verd
   (jumeaux-02), empreinte d'ensemble 30d16b13ed865476 identique à vms0 ; decision-base-01-jumeaux-02.txt (4a2ec3c3…),
   pour le seul contrôle d'existence exigé par decision_c.
 - 19:45 (gpu, tmux lecture-u1) : `decision_c --ouvrir base-01 --jumeaux jumeaux-02 --variante u1 --graines 5`.
+
+## 2026-09-29 — Seconde lecture (u1) ARRÊTÉE à 20:02, à la demande de l'utilisateur
+
+Arrêtée avant d'avoir écrit decision-base-01-jumeaux-02-u1.txt : u1 n'a PAS de résultat sur C et D (à dire tel quel).
+Raison donnée par l'utilisateur : u1 classe comme v12 et donnerait très probablement le même résultat ; priorité à la
+correction de l'échec sur C. À partir d'ici, C et D sont OUVERTES : tout ce qui est réglé en les regardant est du
+développement, et devra être jugé sur de NOUVELLES campagnes scellées (une base lente et un jumeaux).
