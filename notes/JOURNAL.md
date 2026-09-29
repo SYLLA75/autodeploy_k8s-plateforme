@@ -2294,3 +2294,15 @@ git log -1 (lectures) alors que la consigne disait aucune commande git.
   identité), §18 commité et poussé (afd6dfe) AVANT tout calcul de u1 et avant tout regard sur la première ouverture.
   Règle : u1 lu sur C et D s'il tient les 4 critères, sinon u ; une seule seconde lecture.
 - 15:20 : codage de u1 + corrections du scellé (workflow : codeur, 3 relecteurs, correcteur), tests sur gpu seulement.
+
+## 2026-09-29 — E.11 : résultats de u (validation) ; u2 (double entrée) et règle finale (§19)
+
+- 15:22 (gpu) : u fini. Critères de §15 : 1 tenu (G_val, 5 graines) ; 2 tenu (détection 153/153) ; 3 NON TENU (F_C 0,67,
+  F_D 0,31) ; 4 tenu (avec exemples top-1 115/115 [96–115], détection 153/153, cause 146/153 [134–152] ; « inconnue »
+  75/76, 75/75, 78/78, 75/76). Fausses alertes : sans exemples 7/102, avec exemples 15/102 (v12 : 7 et 14). Top-1 sans
+  exemples 38/115 (comme v12). u = v12 sur les vraies pannes de la validation ; il perd la machine fabriquée.
+- 15:40 : l'utilisateur refuse la multiplication des variantes. Décision : u2 (un réseau, les deux échelles en entrée,
+  deux têtes) est la DERNIÈRE ; règle finale écrite au §19 (commit edda603, 15:45) avant tout calcul de u2, avant tout
+  chiffre de u1 et avant tout regard sur la première ouverture : modèle retenu = u2 s'il tient les 4 critères, sinon
+  u1, sinon v12 ; une seule seconde lecture (pour le modèle retenu s'il est unique) ; aucune autre variante. La
+  compression « partielle » est écartée (réglage à tâtons).
