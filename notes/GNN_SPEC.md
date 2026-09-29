@@ -700,3 +700,24 @@ l'étiquette gnn-fige-2 (variante u figée). Exception écrite ici à « C et D 
 la seule variante u, figée avant tout regard sur la première. v12, figée en premier, reste la variante de référence des
 décisions pré-enregistrées ; les verdicts de u sont rapportés à côté, avec les mêmes règles. Calculs lourds sur une
 machine dédiée (vms1, SLICES), de la validation jusqu'à sa lecture de C et D (empreintes reproductibles sur la même machine).
+
+## 18. Seconde variante pré-enregistrée « GNN unique » u1 (29 sept., 15 h 15, décidée par l'utilisateur, écrite AVANT tout calcul de u1 et AVANT tout regard sur la première ouverture)
+
+**Constat (validation seule).** Banc de u (§17, `campagnes/gnn-banc-validation-u.txt`, sur gpu) : G_val tient
+(5 graines) ; avec B5/H2/V0, F_C 0,67 [0,54–0,99], F_D 0,31 [0,30–0,34] → critère 3 NON TENU ; sur les 30
+combinaisons B/H/V, aucune n'a F_C ≥ 0,5 et F_D ≥ 0,5 (F_D au plus 0,49, alors F_C 0,00). Ce n'est donc pas le
+post-traitement : c'est le modèle v2 (sans asinh). Or E-1 (§11) a changé DEUX choses à la fois de v1 à v2 (asinh retiré
+ET calage par identité) : on ne sait pas laquelle a réparé l'alarme. L'autre GNN unique naturel n'a jamais été mesuré.
+**La variante « u1 »** : UN exemplaire, celui de v1 (masque, asinh, calage par sorte, mêmes normales, mêmes graines,
+mêmes empreintes que l'exemplaire du classement de v12). Ses résidus sont calés deux fois : PAR IDENTITÉ
+(`temoin_noeud.identite`, exactement la méthode de v2, plancher et repli par sorte compris) → alarme, avec le
+post-traitement de l'alarme de v12 (B2/H0/V1) et ses seuils calculés de la même façon, sans nouveau réglage ; PAR SORTE
+avec B5/H2/V0 → classement du fautif (c'est exactement le classement de v12). Réglage « avec exemples » : parties
+apprises sur les écarts par identité et le plongement de ce même modèle v1, rejet E-4, repli sur son classement par
+sorte. Symétrique de u : u1 = v12 dont l'alarme vient du modèle v1 au lieu du modèle v2. Aucun autre changement.
+**Critères** : exactement ceux de §15, rapportés quel que soit le résultat (u et u1 tous deux, validation seule).
+**Règle de choix, UNE seule seconde lecture de C et D :** si u1 tient les quatre critères de §15 (médiane des 5
+graines), c'est u1 qui est figé (gnn-fige-2) et lu sur C et D comme « GNN unique » ; sinon c'est u, comme prévu au
+§17. Pas de troisième variante. Personne ne regarde la première ouverture (v12) avant gnn-fige-2.
+**Machine** : toute la variante unique (u et u1 : validation, banc, empreintes, gel, lecture de C et D) se fait sur
+la machine gpu (et non vms1 comme écrit au §17), les empreintes n'étant pas identiques au bit près d'une machine à l'autre.
