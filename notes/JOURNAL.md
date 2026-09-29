@@ -2254,3 +2254,12 @@ Chaîne tmux « ouverture » sur vms0 : empreintes 06:42 → 09:48 UTC, gel (com
 vms0, à rapatrier), puis ouverture de base-01 et jumeaux-02 et vrai test, en cours. Décision de l'utilisateur : tester une
 variante à UN seul modèle (GNN_SPEC.md §17), figée avant tout regard sur les résultats de la première ouverture. Personne
 ne lit la première ouverture avant gnn-fige-2.
+- **Machine « gpu » (SLICES / imec) pour la variante u** : 32 cœurs, 62 Go, Ubuntu 24.04, Python 3.12 ; dépôt cloné
+  (~/gnn-u, commit d603643, étiquettes présentes) ; environnement aux versions exactes de vms0 (torch 2.14.0+cpu, PyG
+  2.8.0.post1, scikit-learn 1.9.1, numpy 2.5.3) ; graphes des 10 campagnes des séries et scaler.json (53b6728f) copiés,
+  jamais base-01 ni jumeaux-02. Contrôle : même gnn.py (ee579c89), --verifier v2 passe partout, mais l'empreinte d'un
+  même entraînement diffère (gpu fd4fdd44…, vms0 4a9b4294…) : les nombres ne sont pas identiques au bit près d'un
+  processeur à l'autre. Donc, comme écrit au §17 : TOUS les calculs de la variante u (validation, banc, empreintes, gel,
+  lecture de C et D) sur gpu ; v12 reste calculée sur vms0. La comparaison v12 / u reste équitable (même protocole), mais
+  les deux ne sont pas calculées sur la même machine : à dire.
+- Rapatriement du gel de v12 : commit 4e4eaef et étiquette gnn-fige récupérés de vms0, fusionnés (d603643), poussés.
