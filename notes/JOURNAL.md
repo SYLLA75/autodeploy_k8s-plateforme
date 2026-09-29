@@ -2368,3 +2368,19 @@ Code de u1 commité et poussé AVANT l'ouverture : e97367d (gnn.py a33ad4fa, gnn
 19:33 avec ce code. Le commit de gel (gnn-fige-2) n'ajoutera QUE graphe_en/gnn-empreintes-u1.txt : vérifiable par
 `git diff e97367d gnn-fige-2`. Fichier ouvert : decision-base-01-jumeaux-02.txt (sha256 4a2ec3c385fbc0af…, inchangé
 depuis 16:08).
+
+## 2026-09-29 — Résultats de la première lecture (v12) sur C et D (lus à 19:40)
+
+Fichier decision-base-01-jumeaux-02.txt (vms0, sha256 4a2ec3c385fbc0af…). Verdicts écrits par decision_c :
+- C sans exemples : PERDU. La règle cause commune TROUVE (F 3/3, sonne et met la base première à la minute 0–1) ; le GNN
+  ne met jamais la base première (F 0/3, 0 graine sur 5), comme toutes ses variantes de retrait et tous les autres
+  témoins (tableau, score par nœud, règle littérale : 0/3). Axes : (a) égal, (b) perdu, (c) perdu, (d) égal.
+- C avec exemples : ÉGAL (aucune version avec exemples de la règle ne trouve ; le GNN non plus).
+- D sans exemples : ÉGAL (axe d, ligne 2). « GNN, sans exemples » TROUVE workers5 : F 4/4 [3–4], 5 graines sur 5 ; la règle
+  cause commune + machine aussi (4/4) ; tous les autres témoins 0/4. Fausses alertes pendant D : GNN 1/61 [1–2], règle
+  13/61. Retraits : « GNN sans aucune arête » 0/4, « GNN un seul type sans canal » 0/4, score par nœud (sans graphe) 0/4 ;
+  les retraits d'une seule relation trouvent encore (3 à 5 graines sur 5) : le graphe est ce qui trouve la machine.
+- D avec exemples : PERDU (ligne 3 : la règle avec exemples trouve X, « GNN, avec exemples » 0/4).
+- Fausses alertes sur les 120 minutes normales du test (axe a) : GNN 6/120 [6–7] sans exemples, 7/120 au budget de la
+  règle, 9/120 [7–28] avec exemples ; règles 10/120 ; tableau 9/120 ; score par nœud 5/120 (sans), 28/120 (avec).
+- G et G_D tiennent pour toutes les entrées GNN.
