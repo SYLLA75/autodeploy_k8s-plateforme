@@ -2263,3 +2263,34 @@ ne lit la première ouverture avant gnn-fige-2.
   lecture de C et D) sur gpu ; v12 reste calculée sur vms0. La comparaison v12 / u reste équitable (même protocole), mais
   les deux ne sont pas calculées sur la même machine : à dire.
 - Rapatriement du gel de v12 : commit 4e4eaef et étiquette gnn-fige récupérés de vms0, fusionnés (d603643), poussés.
+
+## 2026-09-29 — E.9 : variante u codée ; relecture et calculs déplacés sur gpu
+
+Code u (gnn.py, gnn_exemples.py, gnn_banc.py, decision_c.py ; md5 02ce33eb, dbd3a233, 1dbbd4a9, 04c0894c) écrit par un
+agent, tests légers sur vms0 (~/gnn-dev, nice, 2 processus au plus) : tous les --verifier passent pour v12 et u ; v12, v1,
+v2, v3 donnent les mêmes empreintes et les mêmes réponses qu'avant (52 lignes identiques) ; decision_c sur campagnes
+factices 36/36, sans --variante sortie et fichier identiques à l'ancien. Ce que fait u : le même modèle v2 que l'alarme de
+v12 (mêmes empreintes, mêmes seuils), ses résidus recalés par sorte (B5/H2/V0) pour le classement ; « avec exemples » :
+parties apprises et rejet E-4 de v12, seul le repli change. Choix ajouté par l'agent (à juger) : la lecture u refuse si
+decision-base-01-jumeaux-02.txt n'existe pas (existence seule, jamais le contenu). Écart : l'agent a lancé git status et
+git log -1 (lectures) alors que la consigne disait aucune commande git.
+- 14:51 : relecture arrêtée avant ses tests sur vms0 (demande de l'utilisateur : ne pas charger vms0) ; code copié sur gpu
+  (md5 identiques). Relecture par 2 agents sur gpu, chacun dans sa copie (fidélité au §17 ; scellé et honnêteté).
+- 14:52 : sur gpu (tmux « u »), --verifier u des trois scripts puis banc, validation (avec répétition) et avec exemples,
+  5 graines, 150 époques, en parallèle avec la relecture pour gagner du temps. Si la relecture change le code, ces calculs
+  seront refaits ; rien n'est gelé avant.
+- À dire à la comparaison : l'alarme de u est celle de v12 sur une même machine ; sur gpu elle peut différer un peu de
+  celle calculée sur vms0 (nombres non identiques au bit près).
+
+## 2026-09-29 — E.10 : banc de u (critère 3 non tenu) ; seconde variante unique u1 pré-enregistrée (§18)
+
+- 14:58 (gpu) : banc de u, 5 graines, 150 époques : G_val tient ; F_C 0,67 [0,54–0,99], F_D 0,31 [0,30–0,34] → critère 3
+  NON TENU ; F_R 0,00. Aucune des 30 combinaisons B/H/V n'a F_C et F_D ≥ 0,5 : c'est le modèle sans asinh, pas le
+  réglage. Dans le cas « machine + leurre », u accuse le leurre (workers1).
+- 15:03 : relecture du scellé de u (agent B) : 1 point bloquant (--test de u ouvert avant gnn-fige-2) et 7 mineurs ;
+  relecture de fidélité de u (agent A) arrêtée avant son rapport (à refaire avec u1).
+- 15:13 : question de l'utilisateur (« est-ce un problème de réglage ? ») → réponse : non pour le post-traitement, mais
+  E-1 a changé deux choses à la fois ; décision de l'utilisateur : tester u1 (modèle v1 avec asinh, alarme calée par
+  identité), §18 commité et poussé (afd6dfe) AVANT tout calcul de u1 et avant tout regard sur la première ouverture.
+  Règle : u1 lu sur C et D s'il tient les 4 critères, sinon u ; une seule seconde lecture.
+- 15:20 : codage de u1 + corrections du scellé (workflow : codeur, 3 relecteurs, correcteur), tests sur gpu seulement.
