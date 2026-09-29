@@ -1,10 +1,11 @@
 """
 Le GNN « avec exemples » : les mêmes droits que le témoin 2 (écart E-2).
 
-    ./.venv/bin/python gnn_exemples.py --verifier [--version v12|v1|v2|v3]
+    ./.venv/bin/python gnn_exemples.py --verifier [--version v12|v1|v2|v3|u|u1]
     ./.venv/bin/python gnn_exemples.py --validation [--graines n] [--epoques e] [--version v]
                                        [--sans-temoins] [--sans-repetition] [--variantes a,b|toutes]
-    ./.venv/bin/python gnn_exemples.py --test [mêmes options]   refusé sans l'étiquette gnn-fige
+    ./.venv/bin/python gnn_exemples.py --test [mêmes options]   refusé sans les étiquettes gnn-fige
+                                                                et gnn-fige-2, pour toute version
 
 Phase E. Écrit d'après notes/GNN_SPEC.md, §12 (écart E-2, décidé par
 l'utilisateur, écrit avant tout calcul), avec §5 (profils, prototypes, rejet) et
@@ -100,6 +101,21 @@ LE GNN COMBINÉ v12 (écart E-5, §15 ; la version par défaut de gnn.py) : les
   logit (E-4, §14, « E-3 » ci-dessus) ; le repli est le classement de l'exemplaire
   v1 sous B5/H2/V0 ; l'alarme est la forêt OU l'alarme de l'exemplaire v2.
 
+LA VARIANTE « GNN UNIQUE » u (§17) : les parties apprises (forêt, régression du
+  fautif, prototypes) lisent les écarts PAR IDENTITÉ et le plongement de l'exemplaire
+  v2 (sous son choix B2/H0/V1) : ce sont exactement celles de v12 (même exemplaire) ;
+  le rejet est celui du logit (E-4) ; le repli est le classement de CE MÊME modèle,
+  ses résidus calés PAR SORTE (gnn.ParSorte) sous B5/H2/V0 ; l'alarme est la forêt OU
+  l'alarme de l'exemplaire v2. u ne diffère donc de v12 que par le classement du repli.
+
+LA SECONDE VARIANTE « GNN UNIQUE » u1 (§18) : les parties apprises (forêt, régression du
+  fautif, prototypes) lisent les écarts PAR IDENTITÉ et le plongement de l'exemplaire v1
+  (gnn.ParIdentite, « v1:identite », sous B2/H0/V1, le choix de l'alarme de v12) ; le
+  monde sans c du double croisement (seuil de la forêt) est calé de même, par identité,
+  sur les modèles v1 « sans c ni c' » ; le rejet est celui du logit (E-4) ; le repli est
+  le classement de CE MÊME modèle calé par sorte sous B5/H2/V0 : le repli même de v12 ;
+  l'alarme est la forêt OU l'alarme de l'exemplaire v1 calé par identité.
+
 LE BUDGET DE LA RÈGLE (« GNN, avec exemples, budget de la règle », pour decision_c) :
   les deux alarmes calées ENSEMBLE sur les mêmes normales mises de côté (scores
   tenus de l'étape 1, probabilités du double croisement) : chacune à son k-ième
@@ -112,19 +128,24 @@ LA PRODUCTION (§15, rapportée à part, ne change aucune décision) : l'alarme
 
 LE SCELLÉ : juge.lire n'est appelé qu'avec fautifs.SERIES ; tout se règle et se
   note sur juge.validation (jamais « hors ») ; --test est refusé tant que
-  l'étiquette gnn-fige n'existe pas.
+  l'étiquette gnn-fige n'existe pas, puis, pour TOUTE version (§17–§19 : le vrai test
+  de v12 montre l'alarme de u et le classement de u1), tant que gnn-fige-2 n'est pas
+  bien posée (gnn.scelle_ouvert, gnn.raisons_scelle_2 : le scellé de gnn.py).
 
 Options :
   --verifier             les contrôles X1 à X12 (forme, déterminisme, aucun nom,
                          repli, croisement, scellé, double croisement, aucun seuil
-                         ne lit le test, v12 = parties v2 et repli v1, budget de
-                         la règle, mesure de production), sur toute la validation
+                         ne lit le test, v12 = parties v2 et repli v1 ; u =
+                         parties de v12 et repli v2 par sorte ; u1 = parties
+                         v1 par identité et repli de v12, budget de la
+                         règle, mesure de production), sur toute la validation
                          à 2 époques
   --validation           le tableau de bord sur juge.validation, avec les témoins
                          et la répétition « panne jamais vue » ; écrit
                          <campagnes>/gnn-exemples-validation.txt (-v2, -v3 selon la
                          version)
-  --test                 le vrai test : refusé sans l'étiquette gnn-fige
+  --test                 le vrai test : refusé sans les étiquettes gnn-fige et
+                         gnn-fige-2, pour toute version (LE SCELLÉ)
   --graines <n>          graines 0 à n−1 (défaut 5)
   --epoques <e>          époques de l'étape 1 (défaut : celui de gnn.py)
   --version <v>          la version de l'étape 1 (gnn.VERSIONS ; défaut : celle de
@@ -166,7 +187,7 @@ HERE = Path(__file__).resolve().parent
 SORTES = gnn.SORTES
 NOM = "GNN, avec exemples"
 FILS = 4                 # fils de la forêt (des fils, pas des processus ; sans effet sur le résultat)
-PROCESSUS = 4            # entraînements de l'étape 1 en parallèle : au plus 6 processus avec celui-ci et le suivi des ressources
+PROCESSUS = gnn.PROCESSUS   # entraînements de l'étape 1 en parallèle (GNN_PROCESSUS, défaut 4 : au plus 6 processus avec celui-ci et le suivi des ressources)
 CAUSES_NON_APPRISES = ("normale", "inconnue")
 REJETS = ("E-3", "§5")
 RANG_PAIRES = 500        # rangs des modèles « sans c ni c' » : graine × 1009 + 500 + i, jamais celui d'un pli
@@ -213,7 +234,11 @@ def _asinh(modele) -> bool:
 
 
 def _par_identite(version: str) -> bool:
-    """Un exemplaire au moins est-il calé par identité (v2, v3 ; v12 par son alarme v2) ?"""
+    """Un exemplaire au moins est-il calé par identité (v2, v3 ; v12 et u par leur alarme v2 ;
+    u1 par son alarme « v1:identite ») ? L'exemplaire « v2:sorte » de u est calé par sorte."""
+    f = getattr(gnn, "par_identite", None)
+    if f is not None:
+        return any(f(v) for v in _exemplaires(version))
     versions = getattr(gnn, "VERSIONS", None)
     return bool(versions and any(versions[v].get("identite") for v in _exemplaires(version)))
 
@@ -381,6 +406,18 @@ def _cle_e1(e1, normales: list[dict]) -> tuple:
     return (e1.version, e1.variante, e1.graine, e1.epoques, frozenset(f["id"] for f in normales))
 
 
+def _recale(e1) -> bool:
+    """L'étape 1 est-elle un exemplaire recalé (gnn.Recale : « v1:identite » de u1, §18) ? Ses
+    modèles « sans c ni c' » sont ceux de son modèle (même clé _cle_e1), mais son monde sans c
+    se cale comme elle."""
+    return getattr(e1, "exemplaire", e1.version) != e1.version
+
+
+def _cle_paires(e1, normales: list[dict]) -> tuple:
+    """La clé du monde sans c (Paires) : celle de l'étape 1, plus le nom de l'exemplaire recalé."""
+    return _cle_e1(e1, normales) + ((e1.exemplaire,) if _recale(e1) else ())
+
+
 def _paires_de(e1) -> list[tuple[str, str]]:
     cs = e1.campagnes
     return [(a, b) for i, a in enumerate(cs) for b in cs[i + 1:]]
@@ -463,6 +500,8 @@ class Paires:
             tenues = {c2: [self.residus(c, f) for f in self.normales if f["campagne"] == c2]
                       for c2 in e1.campagnes if c2 != c}
             kw = _kw(gnn.Calage, version=e1.version)
+            if _recale(e1):          # u1 (§18) : le monde sans c calé comme l'exemplaire (par identité)
+                kw["par_identite"] = e1.calage.par_identite
             notees = e1.modele.notees
             final = gnn.Calage([s for v in tenues.values() for s in v], e1.variante, notees, **kw)
             sans = {c2: gnn.Calage([s for c3, v in tenues.items() if c3 != c2 for s in v], e1.variante, notees, **kw)
@@ -472,7 +511,7 @@ class Paires:
 
 
 def paires(e1, normales: list[dict]) -> Paires:
-    cle = _cle_e1(e1, normales)
+    cle = _cle_paires(e1, normales)
     if cle not in _PAIRES:
         _PAIRES[cle] = Paires(e1, normales)
     return _PAIRES[cle]
@@ -837,7 +876,8 @@ def verifier(campagnes: Path, runs: Path, version: str | None) -> int:
                 mauvais.append(f["id"])
     resultats["X4 repli sur l'étape 1"] = (not mauvais, f"{n_repli} réponses « normale », « inconnue » ou pas "
                                                          f"sûres classées par l'étape 1 (exemplaire "
-                                                         f"{a.base.etape1.version}, {gnn.nom_choix(a.base.choix)}), "
+                                                         f"{getattr(a.base.etape1, 'exemplaire', a.base.etape1.version)}, "
+                                                         f"{gnn.nom_choix(a.base.choix)}), "
                                                          f"{n_appris} par la régression "
                                                          f"(seuil de confiance {a.seuil_confiance:.2f})"
                                            + (f" ; {len(mauvais)} fausses, dont {mauvais[0]}" if mauvais else ""))
@@ -893,7 +933,85 @@ def verifier(campagnes: Path, runs: Path, version: str | None) -> int:
     # que le GNN avec exemples de la version v2 — et le repli est le classement de
     # l'exemplaire v1 sous B5/H2/V0 (les scores de gnn.GNN en version v1).
     va, vc = _exemplaires(version)
-    if va != vc:
+    if va != vc and v in getattr(gnn, "UNIQUES", {}) and vc.endswith(gnn.PAR_SORTE):
+        # X10 (u, §17) : les parties apprises sont celles de v12 (le même exemplaire v2, le même
+        # lecteur) — mêmes seuils, même régression, mêmes réponses hors repli que le GNN avec
+        # exemples v12 — et le repli est le classement des résidus de CE modèle calés PAR SORTE
+        # sous B5/H2/V0, recalculé ici à part (gnn.Calage, par_identite=False).
+        a12 = GNNExemples(fen, fige, graine=0, version="v12", epoques=epo)
+        e1 = a.e1
+        cal = gnn.Calage([s for c in e1.campagnes for _, s in e1.tenues[c]], e1.variante, e1.modele.notees,
+                         e1.version, par_identite=False)
+        choix_u = gnn.CHOIX_VERSIONS[v]
+        memes_parts = ((a12.seuil_detecteur, a12.seuil_confiance, a12.seuil_rejet) ==
+                       (a.seuil_detecteur, a.seuil_confiance, a.seuil_rejet)
+                       and np.array_equal(a12.fautif.coef_, a.fautif.coef_) and a.e1 is a12.e1
+                       and a.lecteur is a12.lecteur and a.probas == a12.probas)
+        soucis10, n_repli, autre = [], 0, 0
+        for f in test:
+            ru, r12 = reps[f["id"]], a12.repondre(f["donnees"])
+            for k in ("alarme", "cause", "_p", "_S", "_alarme_etape1", "_detecte", "_confiance", "_sur", "_repli"):
+                if ru[k] != r12[k]:
+                    soucis10.append(f"{f['id']} : {k}")
+            if ru["_repli"]:
+                n_repli += 1
+                attendu = gnn.noter_noeuds(e1.sortie(f["donnees"]), cal, choix_u)[0]
+                autre += attendu != r12["scores"]
+            else:
+                attendu = r12["scores"]
+            if ru["scores"] != attendu:
+                soucis10.append(f"{f['id']} : scores ({'repli' if ru['_repli'] else 'régression'})")
+        resultats["X10 u = parties apprises de v12, repli v2 par sorte"] = (
+            memes_parts and not soucis10,
+            f"seuils, régression, probabilités et lecteur identiques à v12 {memes_parts} ; {len(test)} réponses : "
+            f"alarme, cause, probabilité, confiance identiques à v12, scores = régression ou, au repli ({n_repli}), "
+            f"les résidus {e1.version} calés par sorte sous {gnn.nom_choix(choix_u)} (autres que le repli de v12 sur "
+            f"{autre})" + (f" ; {len(soucis10)} soucis, dont {soucis10[0]}" if soucis10 else ""))
+    elif va != vc and v in getattr(gnn, "UNIQUES", {}):
+        # X10 (u1, §18) : les parties apprises lisent CE modèle v1 (l'objet même de l'exemplaire du
+        # classement de v12 : son plongement), ses résidus calés PAR IDENTITÉ (gnn.Calage,
+        # par_identite=True, recalculé ici à part : profil + S que voit la forêt, S de l'alarme de
+        # l'étape 1) sous B2/H0/V1 ; le monde sans c est calé par identité, sur des modèles v1
+        # « sans c ni c' » ; l'alarme de l'étape 1 est celle de gnn.GNN u1 ; le repli est le
+        # classement de v12 (l'exemplaire v1 sous B5/H2/V0 : gnn.GNN v1 sans exemples). Et le calage
+        # compte : le profil par sorte diffère sur au moins une fenêtre.
+        e1v = gnn.etape1(fen, fige, "complet", 0, epo, vc)
+        c1 = gnn.GNN(fen, fige, graine=0, reglage="sans exemples", epoques=epo, version=vc)
+        cu = gnn.GNN(fen, fige, graine=0, reglage="sans exemples", epoques=epo, version=v)
+        e1 = a.e1
+        cal = gnn.Calage([s for c in e1v.campagnes for _, s in e1v.tenues[c]], e1v.variante, e1v.modele.notees,
+                         e1v.version, par_identite=True)
+        choix_a = gnn.choix_exemplaire(va)
+        normales_app = gnn._normales(fen)
+        memes_parts = (e1 is not e1v and e1.modele is e1v.modele and e1.plis is e1v.plis and e1.calage.par_identite
+                       and getattr(e1, "exemplaire", None) == va and a.choix == choix_a and a.base.etape1 is e1v
+                       and a.base.choix == c1.choix and all(a.paires.monde(c)[0].par_identite for c in e1.campagnes)
+                       and all(t_[6] == vc for t_ in _taches_paires(e1, normales_app))
+                       and all(m.version == vc for m in a.paires.modeles.values()))
+        soucis10, n_repli, autre = [], 0, 0
+        for f in test:
+            r, rc, ru = reps[f["id"]], c1.repondre(f["donnees"]), cu.repondre(f["donnees"])
+            sortie = e1v.sortie(f["donnees"])
+            s_att = gnn.noter_noeuds(sortie, cal, choix_a)[1]
+            if r["_S"] != s_att or r["_S"] != ru["_S"] or r["_alarme_etape1"] != ru["alarme"]:
+                soucis10.append(f"{f['id']} : S ou alarme de l'étape 1")
+            if a.lecteur.lignes(f["donnees"])[4] != gnn.profil(sortie, cal) + [s_att]:
+                soucis10.append(f"{f['id']} : vue de la forêt")
+            autre += gnn.profil(sortie, e1v.calage) != gnn.profil(sortie, cal)
+            if r["_repli"]:
+                n_repli += 1
+                if r["scores"] != rc["scores"]:
+                    soucis10.append(f"{f['id']} : scores du repli ≠ v12")
+        if not autre:
+            soucis10.append("le profil par sorte est partout celui par identité")
+        resultats["X10 u1 = parties apprises v1 par identité, repli de v12"] = (
+            memes_parts and not soucis10,
+            f"modèle, plis, plongement de l'exemplaire {vc} de v12, calage par identité, {gnn.nom_choix(choix_a)}, monde "
+            f"sans c par identité sur des modèles {vc} : {memes_parts} ; {len(test)} réponses : S, alarme de l'étape 1 "
+            f"et vue de la forêt = résidus {vc} calés par identité (recalculés à part) ; au repli ({n_repli}), les "
+            f"scores de l'exemplaire {vc} de v12 sous {gnn.nom_choix(c1.choix)} ; profil par sorte autre sur "
+            f"{autre}/{len(test)} fenêtres" + (f" ; {len(soucis10)} soucis, dont {soucis10[0]}" if soucis10 else ""))
+    elif va != vc:
         e2 = GNNExemples(fen, fige, graine=0, version=va, epoques=epo)
         c1 = gnn.GNN(fen, fige, graine=0, reglage="sans exemples", epoques=epo, version=vc)
         memes_parts = ((e2.seuil_detecteur, e2.seuil_confiance, e2.seuil_rejet) ==
@@ -938,13 +1056,21 @@ def verifier(campagnes: Path, runs: Path, version: str | None) -> int:
         f"dépasserait {trop} ; seuils étape 1 {s1:.3f}, forêt {sf:.3f} ; {len(test)} réponses : ne diffèrent que "
         f"par l'alarme {not diff11}" + (f" ; fausses : {diff11[:3]}" if diff11 else ""))
 
-    # X7 : le mode test est refusé sans gnn-fige.
-    if gnn.scelle_ouvert():
-        resultats["X7 test refusé sans gnn-fige"] = (True, "l'étiquette existe ici : refus non éprouvé")
+    # X7 : le mode test est refusé sans gnn-fige, puis, pour TOUTE version (§17–§19 : le vrai test de
+    # v12 montre l'alarme de u et le classement de u1), sans gnn-fige-2 bien posée (gnn.raisons_scelle_2).
+    nom7 = "X7 test refusé sans gnn-fige" if not gnn.scelle_ouvert() else "X7 test refusé sans gnn-fige-2"
+    if gnn.scelle_ouvert(v):
+        resultats[nom7] = (True, f"gnn-fige et gnn-fige-2 (bien posée pour {v}) existent ici : refus non éprouvé")
     else:
+        try:
+            gnn.exiger_scelle(v)
+            x7 = False
+        except juge.Refus:
+            x7 = True
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            code = main(["gnn_exemples.py", "--test", "--graines", "1", "--epoques", "1"])
-        resultats["X7 test refusé sans gnn-fige"] = (code == 1, f"--test rend le code {code}")
+            code = main(["gnn_exemples.py", "--test", "--graines", "1", "--epoques", "1", "--version", v])
+        resultats[nom7] = (x7 and code == 1, f"gnn.exiger_scelle refuse : {x7} ; --test --version {v} rend le "
+                                             f"code {code}")
 
     # X12 : la mesure de production (§15). Deux alarmes fabriquées, sans modèle : A sonne sur
     # les fenêtres de panne seules, B aussi sur la minute à cheval du début. Le retard se compte
@@ -1183,13 +1309,15 @@ def _en_tete(t: GNNExemples) -> list[str]:
     b25 = gnn.budget_mis_a_l_echelle("score par nœud, avec", n) if hasattr(gnn, "budget_mis_a_l_echelle") else None
     s1, sf, k, union, b21 = t.seuils_au_budget("règle")
     lignes = [
-        f"# version {t.version} ; exemplaire de l'alarme et des parties apprises : étape 1 version {e1.version} "
+        f"# version {t.version} ; exemplaire de l'alarme et des parties apprises : étape 1 version "
+        f"{getattr(e1, 'exemplaire', e1.version)} "
         f"({e1.variante}, graine {e1.graine}) : {e1.epoques} époques, {len(e1.campagnes)} plis ; empreinte "
         f"{e1.empreinte[:16]} ; post-traitement {gnn.nom_choix(t.choix)} (celui de gnn.py pour cette version)"]
     if t.combinee:
         c = b.etape1
-        lignes.append(f"#   exemplaire du classement (le repli) : étape 1 version {c.version} ; empreinte "
-                      f"{c.empreinte[:16]} ; post-traitement {gnn.nom_choix(b.choix)} (écart E-5, §15)")
+        lignes.append(f"#   exemplaire du classement (le repli) : étape 1 version {getattr(c, 'exemplaire', c.version)} ; "
+                      f"empreinte {c.empreinte[:16]} ; post-traitement {gnn.nom_choix(b.choix)} "
+                      f"({'§17 : le même modèle, calé par sorte' if isinstance(c, getattr(gnn, 'ParSorte', ())) else '§18 : le même modèle, le classement de v12' if t.version in getattr(gnn, 'UNIQUES', {}) else 'écart E-5, §15'})")
     return lignes + [
         f"#   budget de la règle ({b21}/{n}) : les deux alarmes calées ensemble, chacune à son {k}e score tenu "
         f"(étape 1 au-dessus de {s1:.3f}, forêt au-dessus de {sf:.3f}) ; elles sonnent ensemble sur {union}/{n} "
@@ -1258,7 +1386,7 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques, version, variant
         return 1
     try:
         if not validation:
-            gnn.exiger_scelle()
+            gnn.exiger_scelle(_version(version))
         gnn.charger_echelle(fige)
         fen = juge.lire(fautifs_module.SERIES, campagnes, runs)
     except juge.Refus as e:
@@ -1420,6 +1548,10 @@ def main(argv: list[str]) -> int:
         return 0
     if mode == "test" and not gnn.scelle_ouvert():
         print(f"REFUS  SCELLÉ FERMÉ : l'étiquette « {gnn.ETIQUETTE_SCELLE} » n'existe pas ; --test est refusé.")
+        return 1
+    if mode == "test" and not gnn.scelle_ouvert(_version(version)):     # toute version (§17–§19)
+        print(f"REFUS  SCELLÉ FERMÉ pour la version {_version(version)} : "
+              f"{'; '.join(gnn.raisons_scelle_2(_version(version)))} ; --test est refusé.")
         return 1
     validation = mode != "test"
     sortie = io.StringIO()

@@ -1,0 +1,310 @@
+# Le banc de pannes fabriquées du GNN et le choix de la grille B/H/V — écrit par graphe_en/gnn_banc.py, ne pas éditer à la main.
+# campagnes lues : saine-08, charge-03, blocage-02, lenteur-01, hote-01, saine-09, blocage-03, hote-02, charge-04, lenteur-02
+# VALIDATION seule (juge.validation) : modèles appris sur ses normales d'apprentissage ; vrai test (« hors ») jamais lu ; ni C, ni D, ni leurs essais
+# graines 0 à 4 ; 150 époques ; étape 1 « complet », version u1 (GNN unique u1 (§18) : UN exemplaire v1 (masque, asinh, calage par sorte) ; alarme = ses résidus calés PAR IDENTITÉ (v1:identite, la méthode de v2), choix B2/H0/V1 (celui de l'alarme de v12) ; classement = les mêmes résidus calés par sorte, choix B5/H2/V0 (le classement de v12) ; aucun modèle de plus)
+# étape 1 du classement (v1) : 65258 paramètres, 121 normales d'apprentissage, 10 plis ; empreintes des modèles finals : graine 0 4432da546d3a69dc, graine 1 e5a4e23410af21a6, graine 2 4c7857c1905ce453, graine 3 cfcc3b4d4511d9a0, graine 4 83a1758af650419b
+# étape 1 de l'alarme (v1:identite, B2/H0/V1) : empreintes des modèles finals : graine 0 4432da546d3a69dc, graine 1 e5a4e23410af21a6, graine 2 4c7857c1905ce453, graine 3 cfcc3b4d4511d9a0, graine 4 83a1758af650419b ; seuils propre / budget de la règle : graine 0 2.904 / 2.728, graine 1 2.496 / 2.366, graine 2 2.467 / 2.309, graine 3 3.303 / 3.219, graine 4 3.554 / 3.437
+# fenêtres du banc : 128 normales jeu == « test » de la validation (saine-08 12, charge-03 10, blocage-02 7, lenteur-01 6, hote-01 23, saine-09 26, blocage-03 7, hote-02 22, charge-04 8, lenteur-02 7)
+# file pleine : la ligne food_delivery de 38 fenêtres de panne lenteur d'apprentissage (lenteur-01, lenteur-02 ; tas de 58 à 855), la i-ème pour la fenêtre de rang i modulo 38
+# leurre Y = workers1 (règle de couples_d, journal écart 4) ; pressions portées aux médianes de la machine fautive de 39 fenêtres hote d'apprentissage : cpu_pressure 0.6614, memory_pressure 0, io_pressure 3.177e-05 ; fenêtres où Y porte un pod exclu par la règle : 26
+# X : workers0 (réplique dans 128 fenêtres), workers2 (réplique dans 128 fenêtres), workers5 (réplique dans 128 fenêtres) ; cibles « entrant » (au moins 3 pods sources) : instance:ts-order-service (128 fenêtres), instance:tsdb-mysql-0 (128 fenêtres) ; « sortant » : chaque réplique
+# 7296 fenêtres fabriquées (5504 dans le critère, 1792 à 400 ms hors critère ; le cas Y ne dépend ni de X ni de d : compté une fois) ; plus 281 fenêtres du test de la validation pour G_val et le top-1
+# durées : apprentissage 96 s (55 entraînements, 7 processus au plus) ; notation 128 s de temps réel, 856 s de calcul (23 ms par fenêtre et 30 combinaisons)
+
+== 1. la grille (médiane des graines [min–max] ; graine 0 seule si une graine)
+G_val : injections de test des causes connues (8) où la base est première dans une majorité stricte des fenêtres, par graine ; top-1 : fenêtres de panne à cause apprise (115), sans alarme ; banc : cas au rang 1 hors 400 ms (sur 5504)
+combinaison      G_val       top-1  crit. 2          banc            M/1152            R/1152          M+Y/1152             Y/128       entrant/768      sortant/1152   400 (hors)/1792
+B1/H0/V0    0/0/0/0/0 ok  36 [36–37]       ok1463 [1347–1564]                 0     696 [681–719]                 0     121 [120–122]     619 [483–733]          3 [3–47]     618 [517–711]
+B2/H0/V0    0/0/0/0/0 ok  36 [36–37]       ok 145 [127–264]                 0           2 [1–2]                 0     121 [120–122]           3 [0–7]        17 [3–138]      195 [20–317]
+B3/H0/V0    0/0/0/0/0 ok  36 [36–37]       ok 129 [126–177]                 0           2 [1–2]                 0     122 [120–122]           0 [0–2]          3 [3–53]         1 [1–184]
+B4/H0/V0    6/4/4/2/3 NON  16 [11–23]      NON1430 [1245–1537]                 0     574 [439–664]                 0     112 [109–114]     740 [660–753]          3 [3–30]     587 [519–697]
+B5/H0/V0    0/0/0/0/0 ok  37 [36–37]       ok975 [827–1431]                 0       67 [28–547]                 0     121 [111–123]     741 [621–746]       23 [11–163]     452 [281–581]
+B1/H1/V0    0/0/0/0/0 ok  36 [35–37]       ok1767 [832–2014]     494 [148–675]     349 [331–534]     494 [147–675]     112 [107–115]      100 [29–224]          3 [3–28]     702 [378–926]
+B2/H1/V0    0/0/0/0/0 ok  37 [36–37]       ok2344 [1942–2375]   1081 [908–1124]           2 [1–2]   1081 [908–1124]     121 [114–123]           0 [0–2]          9 [3–57]     836 [768–876]
+B3/H1/V0    0/0/0/0/0 ok  37 [36–37]       ok1968 [1671–2138]    927 [780–1010]           2 [1–2]    927 [778–1012]     109 [105–111]                 0          3 [3–31]     745 [685–843]
+B4/H1/V0    4/0/2/1/1 NON   13 [8–33]      NON 841 [540–967]        29 [0–105]     329 [251–458]        50 [0–136]     105 [101–106]     267 [154–287]          3 [3–20]     363 [221–483]
+B5/H1/V0    0/0/0/0/0 ok          38       ok2575 [2534–2859]  1116 [1030–1132]       28 [13–416]  1114 [1031–1132]     115 [110–120]     250 [115–289]         15 [7–61]    912 [890–1080]
+B1/H2/V0    0/0/0/0/0 ok  36 [36–37]       ok2434 [1385–2547]     527 [179–755]     651 [624–666]     521 [176–748]     121 [120–122]     336 [266–649]          3 [3–36]    989 [537–1198]
+B2/H2/V0    0/0/0/0/0 ok  37 [36–38]       ok2002 [1670–2093]     893 [773–979]           2 [1–2]     895 [771–982]     120 [115–122]           1 [0–2]         15 [3–89]     932 [769–968]
+B3/H2/V0    0/0/0/0/0 ok  37 [36–38]       ok1931 [1738–2174]    905 [811–1026]           2 [1–2]    902 [803–1017]     119 [115–121]           0 [0–1]          3 [3–41]     721 [646–852]
+B4/H2/V0    6/2/4/2/3 NON  16 [11–35]      NON1241 [870–1520]        30 [0–176]     540 [402–595]        51 [0–209]     112 [109–113]     421 [356–672]          3 [3–24]     545 [354–692]
+B5/H2/V0    0/0/0/0/0 ok          38       ok2842 [2541–3010]   1017 [997–1109]       64 [19–494]   1018 [997–1109]     121 [111–122]     357 [261–696]       22 [11–112]  1029 [1017–1155]
+B1/H0/V1    1/1/3/1/1 NON  36 [36–40]       ok900 [532–1367]                 0      365 [70–508]                 0     121 [120–122]     409 [241–620]         3 [1–137]      127 [80–204]
+B2/H0/V1    0/0/0/0/0 ok  36 [36–37]       ok1181 [875–1400]        60 [6–158]      391 [92–645]        60 [6–158]     122 [121–123]      122 [99–151]     466 [245–499]     695 [674–828]
+B3/H0/V1    4/4/3/1/1 NON  36 [36–38]       ok926 [546–1399]                 0      389 [83–540]                 0     122 [120–122]     412 [241–620]         3 [1–117]      129 [81–205]
+B4/H0/V1    6/5/6/3/3 NON  16 [11–23]      NON645 [461–1304]                 0      137 [25–471]                 0     112 [109–114]     345 [256–622]          1 [0–99]      104 [80–208]
+B5/H0/V1    0/1/0/0/0 NON  37 [36–38]       ok1640 [1499–1944]           0 [0–2]     670 [579–775]           0 [0–2]     122 [112–123]     489 [309–669]     417 [229–497]     685 [672–807]
+B1/H1/V1    0/0/0/0/0 ok  37 [35–39]       ok1451 [531–1902]     494 [148–675]      245 [26–306]     494 [147–675]     112 [107–115]      135 [93–182]          3 [1–76]     446 [208–709]
+B2/H1/V1    0/0/0/0/0 ok  37 [36–37]       ok2712 [2123–2946]   1081 [908–1124]      240 [41–343]   1081 [908–1124]     121 [114–123]        28 [16–36]     199 [130–313]  1072 [1034–1215]
+B3/H1/V1    0/1/1/0/0 NON  37 [36–39]       ok2141 [1998–2554]    927 [780–1010]      279 [40–328]    927 [778–1012]     109 [105–111]       91 [86–122]          3 [1–75]     766 [724–794]
+B4/H1/V1    4/0/2/1/2 NON   13 [8–33]      NON 560 [217–848]        29 [0–105]       122 [8–241]        50 [0–136]     105 [101–106]     161 [108–222]          1 [0–65]       91 [32–188]
+B5/H1/V1    0/0/0/0/0 ok  38 [38–39]       ok3090 [2917–3308]  1116 [1030–1132]     353 [233–577]  1114 [1031–1132]     115 [110–120]     232 [123–258]     216 [144–307]  1120 [1025–1268]
+B1/H2/V1    1/0/1/1/1 NON  37 [36–40]       ok1786 [722–2382]     527 [179–755]      345 [66–477]     521 [176–748]     121 [120–122]     255 [177–460]         3 [1–127]     574 [216–717]
+B2/H2/V1    0/0/0/0/0 ok  37 [36–38]       ok2625 [1958–3092]     893 [773–979]      319 [66–567]     895 [771–982]     121 [116–123]        41 [39–53]     352 [188–428]  1271 [1170–1332]
+B3/H2/V1    1/1/1/0/0 NON  37 [36–40]       ok2458 [2165–3198]    905 [811–1026]      354 [79–493]    902 [803–1017]     119 [115–121]     175 [128–470]         3 [1–104]     729 [687–832]
+B4/H2/V1    6/2/4/3/3 NON  16 [11–35]      NON630 [316–1248]        30 [0–176]      132 [22–441]        51 [0–209]     112 [109–113]     254 [185–492]          1 [0–91]      140 [47–240]
+B5/H2/V1    0/1/0/0/0 NON  38 [38–39]       ok3487 [3167–3743]   1017 [997–1109]     622 [438–711]   1018 [997–1109]     122 [112–123]     327 [226–506]     359 [215–441]  1362 [1231–1416]
+
+== 1 bis. les familles de l'écart E-3 (§13) : part des cas au rang 1, médiane des graines [min–max]
+F_C : « entrant dans » instance:tsdb-mysql-0, d = 75, 150, 300 (384 cas) ; F_D : M et M+Y, X = workers0, workers2, workers5 (2304) ; F_R : R et « sortant » (2304) ; min : min(F_C, F_D, F_R) des médianes. À titre d'information, hors critère : Y (128), « entrant » ts-order-service (384), et les trois familles à 400 ms
+combinaison  G_val  top-1               F_C               F_D               F_R    min                 Y        ent. order           400 F_C           400 F_D           400 F_R
+B1/H0/V0        ok     36  0.99 [0.99–0.99]              0.00  0.31 [0.30–0.32]  0.000  0.95 [0.94–0.95]  0.62 [0.26–0.92]  0.99 [0.99–1.00]              0.00  0.49 [0.46–0.70]
+B2/H0/V0        ok     36              0.00              0.00  0.01 [0.00–0.06]  0.000  0.95 [0.94–0.95]  0.01 [0.00–0.02]              0.00              0.00  0.25 [0.03–0.41]
+B3/H0/V0        ok     36              0.00              0.00  0.00 [0.00–0.02]  0.000  0.95 [0.94–0.95]  0.00 [0.00–0.01]              0.00              0.00  0.00 [0.00–0.24]
+B4/H0/V0       NON     16              1.00              0.00  0.25 [0.19–0.29]  0.000  0.88 [0.85–0.89]  0.93 [0.72–0.96]              1.00              0.00  0.43 [0.36–0.58]
+B5/H0/V0        ok     37              1.00              0.00  0.09 [0.02–0.25]  0.000  0.95 [0.87–0.96]  0.93 [0.62–0.94]              1.00              0.00  0.26 [0.04–0.43]
+B1/H1/V0        ok     36              0.00  0.43 [0.13–0.59]  0.16 [0.14–0.23]  0.000  0.88 [0.84–0.90]  0.26 [0.08–0.58]              0.00  0.52 [0.24–0.88]  0.32 [0.25–0.39]
+B2/H1/V0        ok     37              0.00  0.94 [0.79–0.98]  0.00 [0.00–0.03]  0.000  0.95 [0.89–0.96]  0.00 [0.00–0.01]              0.00  1.00 [0.99–1.00]  0.09 [0.01–0.14]
+B3/H1/V0        ok     37              0.00  0.80 [0.68–0.88]  0.00 [0.00–0.01]  0.000  0.85 [0.82–0.87]              0.00              0.00  0.97 [0.89–0.99]  0.00 [0.00–0.11]
+B4/H1/V0       NON     13              0.00  0.03 [0.00–0.10]  0.15 [0.11–0.20]  0.000  0.82 [0.79–0.83]  0.70 [0.40–0.75]              0.00  0.07 [0.00–0.17]  0.28 [0.21–0.35]
+B5/H1/V0        ok     38              0.00  0.97 [0.89–0.98]  0.04 [0.01–0.19]  0.000  0.90 [0.86–0.94]  0.65 [0.30–0.75]              0.00              1.00  0.10 [0.03–0.30]
+B1/H2/V0        ok     36  0.29 [0.10–0.82]  0.45 [0.15–0.65]  0.29 [0.27–0.30]  0.286  0.95 [0.94–0.95]  0.48 [0.15–0.87]  0.14 [0.10–0.52]  0.61 [0.23–0.88]  0.45 [0.43–0.62]
+B2/H2/V0        ok     37              0.00  0.78 [0.67–0.85]  0.01 [0.00–0.04]  0.000  0.94 [0.90–0.95]  0.00 [0.00–0.01]              0.00  1.00 [0.99–1.00]  0.22 [0.01–0.26]
+B3/H2/V0        ok     37              0.00  0.78 [0.70–0.89]  0.00 [0.00–0.02]  0.000  0.93 [0.90–0.95]  0.00 [0.00–0.00]              0.00  0.90 [0.84–0.96]  0.00 [0.00–0.19]
+B4/H2/V0       NON     16  0.29 [0.10–0.84]  0.04 [0.00–0.17]  0.24 [0.18–0.27]  0.035  0.88 [0.85–0.88]  0.83 [0.55–0.91]  0.14 [0.10–0.54]  0.07 [0.00–0.24]  0.40 [0.34–0.52]
+B5/H2/V0        ok     38  0.29 [0.12–0.91]  0.88 [0.87–0.96]  0.07 [0.01–0.23]  0.068  0.95 [0.87–0.95]  0.77 [0.39–0.90]  0.15 [0.12–0.81]              1.00  0.23 [0.04–0.36]
+B1/H0/V1       NON     36  0.45 [0.01–0.97]              0.00  0.16 [0.03–0.27]  0.000  0.95 [0.94–0.95]  0.62 [0.43–0.68]  0.33 [0.00–0.95]              0.00  0.00 [0.00–0.00]
+B2/H0/V1        ok     36  0.01 [0.00–0.16]  0.05 [0.01–0.14]  0.37 [0.15–0.49]  0.005  0.95 [0.95–0.96]  0.28 [0.23–0.32]  0.01 [0.00–0.23]  0.07 [0.01–0.17]  0.82 [0.67–0.85]
+B3/H0/V1       NON     36  0.45 [0.01–0.97]              0.00  0.17 [0.04–0.29]  0.000  0.95 [0.94–0.95]  0.62 [0.44–0.68]  0.33 [0.00–0.95]              0.00  0.00 [0.00–0.00]
+B4/H0/V1       NON     16  0.45 [0.01–0.97]              0.00  0.06 [0.01–0.25]  0.000  0.88 [0.85–0.89]  0.64 [0.32–0.66]  0.33 [0.00–0.95]              0.00              0.00
+B5/H0/V1       NON     37  0.45 [0.01–0.97]  0.00 [0.00–0.00]  0.50 [0.36–0.50]  0.000  0.95 [0.88–0.96]  0.80 [0.70–0.88]  0.33 [0.00–0.95]              0.00  0.74 [0.67–0.75]
+B1/H1/V1        ok     37              0.00  0.43 [0.13–0.59]  0.13 [0.01–0.15]  0.000  0.88 [0.84–0.90]  0.35 [0.24–0.47]              0.00  0.52 [0.24–0.88]  0.00 [0.00–0.00]
+B2/H1/V1        ok     37              0.00  0.94 [0.79–0.98]  0.18 [0.07–0.26]  0.000  0.95 [0.89–0.96]  0.07 [0.04–0.09]              0.00  1.00 [0.99–1.00]  0.39 [0.34–0.57]
+B3/H1/V1       NON     37              0.00  0.80 [0.68–0.88]  0.14 [0.02–0.16]  0.000  0.85 [0.82–0.87]  0.24 [0.22–0.32]              0.00  0.97 [0.89–0.99]  0.00 [0.00–0.00]
+B4/H1/V1       NON     13              0.00  0.03 [0.00–0.10]  0.05 [0.00–0.13]  0.000  0.82 [0.79–0.83]  0.42 [0.28–0.58]              0.00  0.07 [0.00–0.17]              0.00
+B5/H1/V1        ok     38              0.00  0.97 [0.89–0.98]  0.23 [0.19–0.38]  0.000  0.90 [0.86–0.94]  0.60 [0.32–0.67]              0.00              1.00  0.38 [0.28–0.55]
+B1/H2/V1       NON     37  0.18 [0.00–0.76]  0.45 [0.15–0.65]  0.15 [0.03–0.25]  0.151  0.95 [0.94–0.95]  0.46 [0.28–0.56]  0.10 [0.00–0.37]  0.61 [0.23–0.88]  0.00 [0.00–0.00]
+B2/H2/V1        ok     37  0.01 [0.00–0.04]  0.78 [0.67–0.85]  0.29 [0.11–0.43]  0.005  0.95 [0.91–0.96]  0.10 [0.07–0.14]  0.01 [0.00–0.07]  1.00 [0.99–1.00]  0.64 [0.51–0.71]
+B3/H2/V1       NON     37  0.19 [0.00–0.82]  0.78 [0.70–0.89]  0.15 [0.04–0.26]  0.155  0.93 [0.90–0.95]  0.33 [0.26–0.40]  0.10 [0.00–0.43]  0.90 [0.84–0.96]  0.00 [0.00–0.00]
+B4/H2/V1       NON     16  0.18 [0.00–0.77]  0.04 [0.00–0.17]  0.06 [0.01–0.23]  0.035  0.88 [0.85–0.88]  0.51 [0.30–0.62]  0.10 [0.00–0.37]  0.07 [0.00–0.24]              0.00
+B5/H2/V1       NON     38  0.18 [0.00–0.76]  0.88 [0.87–0.96]  0.44 [0.32–0.46]  0.182  0.95 [0.88–0.96]  0.69 [0.41–0.77]  0.12 [0.00–0.45]              1.00  0.62 [0.52–0.69]
+
+== 2. le choix de l'écart E-3 (§13, dans l'ordre) : c'est le CHOIX
+règle 1 (G_val tient pour chaque graine) : 17 combinaisons sur 30 (B1/H0/V0, B2/H0/V0, B3/H0/V0, B5/H0/V0, B1/H1/V0, B2/H1/V0, B3/H1/V0, B5/H1/V0, B1/H2/V0, B2/H2/V0, B3/H2/V0, B5/H2/V0, B2/H0/V1, B1/H1/V1, B2/H1/V1, B5/H1/V1, B2/H2/V1)
+règle 2 (le plus grand min(F_C, F_D, F_R), médianes des graines) : 0.286, atteint par B1/H2/V0
+règle 3 (à 0.05 près, soit min ≥ 0.236 : le plus grand top-1 de validation) : B1/H2/V0 (min 0.286, top-1 36) → top-1 36
+règle 4 (à égalité, la plus simple) : B1/H2/V0
+seuil d'arrêt du §13 (min(F_C, F_D, F_R) ≥ 0.5) : NON ATTEINT (0.286) : cette version ne peut pas être figée
+CHOIX = {"bout": "B1", "remontee": "H2", "explication": "V0"}   (le choix que ce banc donnerait à l'exemplaire v1 ; celui de u1 est fixé par §18, ci-dessous)
+
+== 2 ter. u1 (variante « GNN unique » u1, §18) : le CHOIX du classement est FIXÉ, B5/H2/V0 (celui de l'exemplaire v1 de v12, le même) ; ce banc lui donnerait B1/H2/V0 : AUTRE, à expliquer
+critère 1 (G_val tient pour les 5 graines) : injections qui accusent la base, par graine 0/0/0/0/0 → tenu
+critère 3 (banc : F_C ≥ 0,5 et F_D ≥ 0,5, médianes des graines) : F_C 0.29 [0.12–0.91], F_D 0.88 [0.87–0.96] → NON TENU ; F_R 0.07 [0.01–0.23] (rapporté : faiblesse connue) ; Y 0.95 [0.87–0.95] ; « entrant » ts-order-service 0.77 [0.39–0.90] ; top-1 de validation 38/115
+
+== 2 bis. pour comparaison : l'ancien choix du §3.5 (remplacé par le §13)
+critère 1 (G_val tient pour chaque graine) : 17 combinaisons sur 30
+critère 2 (le top-1 de validation ne perd rien à aucune option) : 17 admissibles (B1/H0/V0, B2/H0/V0, B3/H0/V0, B5/H0/V0, B1/H1/V0, B2/H1/V0, B3/H1/V0, B5/H1/V0, B1/H2/V0, B2/H2/V0, B3/H2/V0, B5/H2/V0, B2/H0/V1, B1/H1/V1, B2/H1/V1, B5/H1/V1, B2/H2/V1)
+critère 3 (le plus de cas du banc au rang 1, médiane des graines) : 3090, atteint par B5/H1/V1
+critère 4 (à égalité, la plus simple) : B5/H1/V1
+  B4/H0/V0 écartée au critère 2 : B : 16 < 36 (B1/H0/V0)
+  B4/H1/V0 écartée au critère 2 : H : 13 < 16 (B4/H0/V0) ; B : 13 < 36 (B1/H1/V0)
+  B4/H2/V0 écartée au critère 2 : B : 16 < 36 (B1/H2/V0)
+  B4/H0/V1 écartée au critère 2 : B : 16 < 36 (B1/H0/V1)
+  B4/H1/V1 écartée au critère 2 : H : 13 < 16 (B4/H0/V1) ; B : 13 < 37 (B1/H1/V1)
+  B4/H2/V1 écartée au critère 2 : B : 16 < 37 (B1/H2/V1)
+ancien choix §3.5 = {"bout": "B5", "remontee": "H1", "explication": "V1"} (min(F_C, F_D, F_R) 0.000)
+
+== 3. le détail de B5/H2/V0 (le choix, §18), graine 0 : au rang 1 / fenêtres, et la réponse la plus souvent première
+  entrant dans T entrant  instance:ts-order-service     d=75    110/128  premier le plus souvent : instance:ts-order-service (35)
+  entrant dans T entrant  instance:ts-order-service     d=150   118/128  premier le plus souvent : instance:ts-order-service (38)
+  entrant dans T entrant  instance:ts-order-service     d=300   118/128  premier le plus souvent : instance:ts-order-service (39)
+  entrant dans T entrant  instance:ts-order-service     d=400   117/128  premier le plus souvent : instance:ts-order-service (39)   [hors critère]
+  entrant dans T entrant  instance:tsdb-mysql-0         d=75    125/128  premier le plus souvent : instance:tsdb-mysql-0 (125)
+  entrant dans T entrant  instance:tsdb-mysql-0         d=150   119/128  premier le plus souvent : instance:tsdb-mysql-0 (119)
+  entrant dans T entrant  instance:tsdb-mysql-0         d=300   106/128  premier le plus souvent : instance:tsdb-mysql-0 (106)
+  entrant dans T entrant  instance:tsdb-mysql-0         d=400   104/128  premier le plus souvent : instance:tsdb-mysql-0 (104)   [hors critère]
+  machine        M        workers0                      d=75    102/128  premier le plus souvent : host:workers0 (102)
+  machine        M        workers0                      d=150   128/128  premier le plus souvent : host:workers0 (128)
+  machine        M        workers0                      d=300   128/128  premier le plus souvent : host:workers0 (128)
+  machine        M        workers0                      d=400   128/128  premier le plus souvent : host:workers0 (128)   [hors critère]
+  machine        M        workers2                      d=75    128/128  premier le plus souvent : host:workers2 (128)
+  machine        M        workers2                      d=150   128/128  premier le plus souvent : host:workers2 (128)
+  machine        M        workers2                      d=300   128/128  premier le plus souvent : host:workers2 (128)
+  machine        M        workers2                      d=400   128/128  premier le plus souvent : host:workers2 (128)   [hors critère]
+  machine        M        workers5                      d=75      0/128  premier le plus souvent : instance:ts-train-service (125)
+  machine        M        workers5                      d=150   127/128  premier le plus souvent : host:workers5 (127)
+  machine        M        workers5                      d=300   128/128  premier le plus souvent : host:workers5 (128)
+  machine        M        workers5                      d=400   128/128  premier le plus souvent : host:workers5 (128)   [hors critère]
+  machine        R        workers0                      d=75      1/128  premier le plus souvent : queue:food_delivery (74)
+  machine        R        workers0                      d=150     1/128  premier le plus souvent : queue:food_delivery (78)
+  machine        R        workers0                      d=300     1/128  premier le plus souvent : queue:food_delivery (91)
+  machine        R        workers0                      d=400     1/128  premier le plus souvent : queue:food_delivery (96)   [hors critère]
+  machine        R        workers2                      d=75      0/128  premier le plus souvent : queue:food_delivery (75)
+  machine        R        workers2                      d=150     7/128  premier le plus souvent : queue:food_delivery (96)
+  machine        R        workers2                      d=300     1/128  premier le plus souvent : queue:food_delivery (113)
+  machine        R        workers2                      d=400     0/128  premier le plus souvent : queue:food_delivery (117)   [hors critère]
+  machine        R        workers5                      d=75      0/128  premier le plus souvent : queue:food_delivery (75)
+  machine        R        workers5                      d=150     6/128  premier le plus souvent : queue:food_delivery (95)
+  machine        R        workers5                      d=300     2/128  premier le plus souvent : queue:food_delivery (113)
+  machine        R        workers5                      d=400     1/128  premier le plus souvent : queue:food_delivery (117)   [hors critère]
+  machine        M+Y      workers0                      d=75    102/128  premier le plus souvent : host:workers0 (102)
+  machine        M+Y      workers0                      d=150   128/128  premier le plus souvent : host:workers0 (128)
+  machine        M+Y      workers0                      d=300   128/128  premier le plus souvent : host:workers0 (128)
+  machine        M+Y      workers0                      d=400   128/128  premier le plus souvent : host:workers0 (128)   [hors critère]
+  machine        M+Y      workers2                      d=75    128/128  premier le plus souvent : host:workers2 (128)
+  machine        M+Y      workers2                      d=150   128/128  premier le plus souvent : host:workers2 (128)
+  machine        M+Y      workers2                      d=300   128/128  premier le plus souvent : host:workers2 (128)
+  machine        M+Y      workers2                      d=400   128/128  premier le plus souvent : host:workers2 (128)   [hors critère]
+  machine        M+Y      workers5                      d=75      0/128  premier le plus souvent : instance:ts-train-service (125)
+  machine        M+Y      workers5                      d=150   127/128  premier le plus souvent : host:workers5 (127)
+  machine        M+Y      workers5                      d=300   128/128  premier le plus souvent : host:workers5 (128)
+  machine        M+Y      workers5                      d=400   128/128  premier le plus souvent : host:workers5 (128)   [hors critère]
+  machine        Y        workers1                              122/128  premier le plus souvent : host:workers1 (122)
+  sortant de T   sortant  réplique de workers0          d=75      1/128  premier le plus souvent : queue:food_delivery (80)
+  sortant de T   sortant  réplique de workers0          d=150     1/128  premier le plus souvent : queue:food_delivery (80)
+  sortant de T   sortant  réplique de workers0          d=300     5/128  premier le plus souvent : queue:food_delivery (60)
+  sortant de T   sortant  réplique de workers0          d=400    11/128  premier le plus souvent : queue:food_delivery (45)   [hors critère]
+  sortant de T   sortant  réplique de workers2          d=75      0/128  premier le plus souvent : queue:food_delivery (75)
+  sortant de T   sortant  réplique de workers2          d=150     0/128  premier le plus souvent : queue:food_delivery (81)
+  sortant de T   sortant  réplique de workers2          d=300     1/128  premier le plus souvent : queue:food_delivery (80)
+  sortant de T   sortant  réplique de workers2          d=400     8/128  premier le plus souvent : queue:food_delivery (73)   [hors critère]
+  sortant de T   sortant  réplique de workers5          d=75      0/128  premier le plus souvent : queue:food_delivery (75)
+  sortant de T   sortant  réplique de workers5          d=150     0/128  premier le plus souvent : queue:food_delivery (81)
+  sortant de T   sortant  réplique de workers5          d=300     3/128  premier le plus souvent : queue:food_delivery (78)
+  sortant de T   sortant  réplique de workers5          d=400     7/128  premier le plus souvent : queue:food_delivery (74)   [hors critère]
+  G_val, graine 0 : la base première dans 0 injections
+
+== 3 bis. le détail de B5/H1/V1 (l'ancien choix, §3.5), graine 0 : au rang 1 / fenêtres, et la réponse la plus souvent première
+  entrant dans T entrant  instance:ts-order-service     d=75     81/128  premier le plus souvent : instance:ts-order-service (27)
+  entrant dans T entrant  instance:ts-order-service     d=150    89/128  premier le plus souvent : instance:ts-order-service (29)
+  entrant dans T entrant  instance:ts-order-service     d=300    88/128  premier le plus souvent : instance:ts-order-service (30)
+  entrant dans T entrant  instance:ts-order-service     d=400    91/128  premier le plus souvent : instance:ts-order-service (30)   [hors critère]
+  entrant dans T entrant  instance:tsdb-mysql-0         d=75      0/128  premier le plus souvent : host:workers4 (128)
+  entrant dans T entrant  instance:tsdb-mysql-0         d=150     0/128  premier le plus souvent : host:workers4 (128)
+  entrant dans T entrant  instance:tsdb-mysql-0         d=300     0/128  premier le plus souvent : host:workers4 (128)
+  entrant dans T entrant  instance:tsdb-mysql-0         d=400     0/128  premier le plus souvent : host:workers4 (128)   [hors critère]
+  machine        M        workers0                      d=75    103/128  premier le plus souvent : host:workers0 (103)
+  machine        M        workers0                      d=150   128/128  premier le plus souvent : host:workers0 (128)
+  machine        M        workers0                      d=300   128/128  premier le plus souvent : host:workers0 (128)
+  machine        M        workers0                      d=400   128/128  premier le plus souvent : host:workers0 (128)   [hors critère]
+  machine        M        workers2                      d=75    128/128  premier le plus souvent : host:workers2 (128)
+  machine        M        workers2                      d=150   128/128  premier le plus souvent : host:workers2 (128)
+  machine        M        workers2                      d=300   128/128  premier le plus souvent : host:workers2 (128)
+  machine        M        workers2                      d=400   128/128  premier le plus souvent : host:workers2 (128)   [hors critère]
+  machine        M        workers5                      d=75     75/128  premier le plus souvent : host:workers5 (75)
+  machine        M        workers5                      d=150   127/128  premier le plus souvent : host:workers5 (127)
+  machine        M        workers5                      d=300   128/128  premier le plus souvent : host:workers5 (128)
+  machine        M        workers5                      d=400   128/128  premier le plus souvent : host:workers5 (128)   [hors critère]
+  machine        R        workers0                      d=75      1/128  premier le plus souvent : queue:food_delivery (48)
+  machine        R        workers0                      d=150    55/128  premier le plus souvent : instance:ts-delivery-service (55)
+  machine        R        workers0                      d=300    65/128  premier le plus souvent : instance:ts-delivery-service (65)
+  machine        R        workers0                      d=400    66/128  premier le plus souvent : instance:ts-delivery-service (66)   [hors critère]
+  machine        R        workers2                      d=75      0/128  premier le plus souvent : queue:food_delivery (50)
+  machine        R        workers2                      d=150    79/128  premier le plus souvent : instance:ts-delivery-service (79)
+  machine        R        workers2                      d=300    94/128  premier le plus souvent : instance:ts-delivery-service (94)
+  machine        R        workers2                      d=400    95/128  premier le plus souvent : instance:ts-delivery-service (95)   [hors critère]
+  machine        R        workers5                      d=75      0/128  premier le plus souvent : queue:food_delivery (50)
+  machine        R        workers5                      d=150    27/128  premier le plus souvent : host:workers5 (65)
+  machine        R        workers5                      d=300    32/128  premier le plus souvent : host:workers5 (77)
+  machine        R        workers5                      d=400    33/128  premier le plus souvent : host:workers5 (78)   [hors critère]
+  machine        M+Y      workers0                      d=75    103/128  premier le plus souvent : host:workers0 (103)
+  machine        M+Y      workers0                      d=150   128/128  premier le plus souvent : host:workers0 (128)
+  machine        M+Y      workers0                      d=300   128/128  premier le plus souvent : host:workers0 (128)
+  machine        M+Y      workers0                      d=400   128/128  premier le plus souvent : host:workers0 (128)   [hors critère]
+  machine        M+Y      workers2                      d=75    128/128  premier le plus souvent : host:workers2 (128)
+  machine        M+Y      workers2                      d=150   128/128  premier le plus souvent : host:workers2 (128)
+  machine        M+Y      workers2                      d=300   128/128  premier le plus souvent : host:workers2 (128)
+  machine        M+Y      workers2                      d=400   128/128  premier le plus souvent : host:workers2 (128)   [hors critère]
+  machine        M+Y      workers5                      d=75     75/128  premier le plus souvent : host:workers5 (75)
+  machine        M+Y      workers5                      d=150   127/128  premier le plus souvent : host:workers5 (127)
+  machine        M+Y      workers5                      d=300   128/128  premier le plus souvent : host:workers5 (128)
+  machine        M+Y      workers5                      d=400   128/128  premier le plus souvent : host:workers5 (128)   [hors critère]
+  machine        Y        workers1                              120/128  premier le plus souvent : host:workers1 (120)
+  sortant de T   sortant  réplique de workers0          d=75      5/128  premier le plus souvent : queue:food_delivery (56)
+  sortant de T   sortant  réplique de workers0          d=150    12/128  premier le plus souvent : queue:food_delivery (51)
+  sortant de T   sortant  réplique de workers0          d=300    44/128  premier le plus souvent : instance:ts-delivery-service (44)
+  sortant de T   sortant  réplique de workers0          d=400    44/128  premier le plus souvent : instance:ts-delivery-service (44)   [hors critère]
+  sortant de T   sortant  réplique de workers2          d=75      0/128  premier le plus souvent : queue:food_delivery (50)
+  sortant de T   sortant  réplique de workers2          d=150    17/128  premier le plus souvent : queue:food_delivery (47)
+  sortant de T   sortant  réplique de workers2          d=300    52/128  premier le plus souvent : instance:ts-delivery-service (52)
+  sortant de T   sortant  réplique de workers2          d=400    61/128  premier le plus souvent : instance:ts-delivery-service (61)   [hors critère]
+  sortant de T   sortant  réplique de workers5          d=75      0/128  premier le plus souvent : queue:food_delivery (50)
+  sortant de T   sortant  réplique de workers5          d=150     3/128  premier le plus souvent : queue:food_delivery (50)
+  sortant de T   sortant  réplique de workers5          d=300    11/128  premier le plus souvent : host:workers5 (48)
+  sortant de T   sortant  réplique de workers5          d=400    22/128  premier le plus souvent : host:workers5 (61)   [hors critère]
+  G_val, graine 0 : la base première dans 0 injections
+
+== 3 ter. le détail de B1/H0/V0 (le plus simple), graine 0 : au rang 1 / fenêtres, et la réponse la plus souvent première
+  entrant dans T entrant  instance:ts-order-service     d=75    111/128  premier le plus souvent : instance:ts-order-service (38)
+  entrant dans T entrant  instance:ts-order-service     d=150   116/128  premier le plus souvent : instance:ts-order-service (38)
+  entrant dans T entrant  instance:ts-order-service     d=300   117/128  premier le plus souvent : instance:ts-order-service (38)
+  entrant dans T entrant  instance:ts-order-service     d=400   118/128  premier le plus souvent : instance:ts-order-service (38)   [hors critère]
+  entrant dans T entrant  instance:tsdb-mysql-0         d=75    127/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  entrant dans T entrant  instance:tsdb-mysql-0         d=150   127/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  entrant dans T entrant  instance:tsdb-mysql-0         d=300   127/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  entrant dans T entrant  instance:tsdb-mysql-0         d=400   127/128  premier le plus souvent : instance:tsdb-mysql-0 (127)   [hors critère]
+  machine        M        workers0                      d=75      0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M        workers0                      d=150     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M        workers0                      d=300     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M        workers0                      d=400     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)   [hors critère]
+  machine        M        workers2                      d=75      0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M        workers2                      d=150     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M        workers2                      d=300     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M        workers2                      d=400     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)   [hors critère]
+  machine        M        workers5                      d=75      0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M        workers5                      d=150     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M        workers5                      d=300     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M        workers5                      d=400     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)   [hors critère]
+  machine        R        workers0                      d=75      1/128  premier le plus souvent : queue:food_delivery (83)
+  machine        R        workers0                      d=150   114/128  premier le plus souvent : instance:ts-delivery-service (114)
+  machine        R        workers0                      d=300   118/128  premier le plus souvent : instance:ts-delivery-service (118)
+  machine        R        workers0                      d=400   118/128  premier le plus souvent : instance:ts-delivery-service (118)   [hors critère]
+  machine        R        workers2                      d=75      0/128  premier le plus souvent : queue:food_delivery (83)
+  machine        R        workers2                      d=150   114/128  premier le plus souvent : instance:ts-delivery-service (114)
+  machine        R        workers2                      d=300   118/128  premier le plus souvent : instance:ts-delivery-service (118)
+  machine        R        workers2                      d=400   118/128  premier le plus souvent : instance:ts-delivery-service (118)   [hors critère]
+  machine        R        workers5                      d=75      0/128  premier le plus souvent : queue:food_delivery (83)
+  machine        R        workers5                      d=150   113/128  premier le plus souvent : instance:ts-delivery-service (113)
+  machine        R        workers5                      d=300   118/128  premier le plus souvent : instance:ts-delivery-service (118)
+  machine        R        workers5                      d=400   118/128  premier le plus souvent : instance:ts-delivery-service (118)   [hors critère]
+  machine        M+Y      workers0                      d=75      0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M+Y      workers0                      d=150     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M+Y      workers0                      d=300     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M+Y      workers0                      d=400     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)   [hors critère]
+  machine        M+Y      workers2                      d=75      0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M+Y      workers2                      d=150     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M+Y      workers2                      d=300     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M+Y      workers2                      d=400     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)   [hors critère]
+  machine        M+Y      workers5                      d=75      0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M+Y      workers5                      d=150     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M+Y      workers5                      d=300     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)
+  machine        M+Y      workers5                      d=400     0/128  premier le plus souvent : instance:tsdb-mysql-0 (127)   [hors critère]
+  machine        Y        workers1                              122/128  premier le plus souvent : host:workers1 (122)
+  sortant de T   sortant  réplique de workers0          d=75      1/128  premier le plus souvent : queue:food_delivery (83)
+  sortant de T   sortant  réplique de workers0          d=150     1/128  premier le plus souvent : queue:food_delivery (83)
+  sortant de T   sortant  réplique de workers0          d=300     1/128  premier le plus souvent : queue:food_delivery (83)
+  sortant de T   sortant  réplique de workers0          d=400     1/128  premier le plus souvent : queue:food_delivery (64)   [hors critère]
+  sortant de T   sortant  réplique de workers2          d=75      0/128  premier le plus souvent : queue:food_delivery (83)
+  sortant de T   sortant  réplique de workers2          d=150     0/128  premier le plus souvent : queue:food_delivery (83)
+  sortant de T   sortant  réplique de workers2          d=300     0/128  premier le plus souvent : queue:food_delivery (83)
+  sortant de T   sortant  réplique de workers2          d=400     0/128  premier le plus souvent : queue:food_delivery (83)   [hors critère]
+  sortant de T   sortant  réplique de workers5          d=75      0/128  premier le plus souvent : queue:food_delivery (83)
+  sortant de T   sortant  réplique de workers5          d=150     0/128  premier le plus souvent : queue:food_delivery (83)
+  sortant de T   sortant  réplique de workers5          d=300     0/128  premier le plus souvent : queue:food_delivery (83)
+  sortant de T   sortant  réplique de workers5          d=400     0/128  premier le plus souvent : queue:food_delivery (83)   [hors critère]
+  G_val, graine 0 : la base première dans 0 injections
+
+== 4. G_val : les injections qui accusent la base, par combinaison qui ne tient pas (graine 0)
+  B4/H0/V0    blocage-02#2, charge-03#2, charge-04#2, hote-02#2, lenteur-01#2, lenteur-02#2
+  B4/H1/V0    charge-03#2, charge-04#2, hote-02#2, lenteur-02#2
+  B4/H2/V0    blocage-02#2, charge-03#2, charge-04#2, hote-02#2, lenteur-01#2, lenteur-02#2
+  B1/H0/V1    lenteur-01#2
+  B3/H0/V1    blocage-02#2, charge-04#2, lenteur-01#2, lenteur-02#2
+  B4/H0/V1    blocage-02#2, charge-03#2, charge-04#2, hote-02#2, lenteur-01#2, lenteur-02#2
+  B4/H1/V1    charge-03#2, charge-04#2, hote-02#2, lenteur-02#2
+  B1/H2/V1    lenteur-01#2
+  B3/H2/V1    blocage-02#2
+  B4/H2/V1    blocage-02#2, charge-03#2, charge-04#2, hote-02#2, lenteur-01#2, lenteur-02#2
+
+== 5. l'alarme de l'exemplaire de l'alarme sur le banc (information, §15) : part des fenêtres où elle sonne, médiane des graines [min–max] ; « et rang 1 » : sonne ET la réponse attendue est première sous le CHOIX ; « sans la file » : la même panne, la ligne de file laissée telle quelle (la file pleine copiée d'une vraie panne lenteur suffit seule à faire sonner l'alarme : ces lignes disent ce que l'alarme voit de la signature réseau) ; M <X> : le cas M seul (sans le leurre, qui fait sonner à lui seul : colonne Y) sur la machine X, d = 75 à 300
+                                                   F_C               F_D               F_R                 Y        ent. order           400 F_C           400 F_D           400 F_R        M workers0        M workers2        M workers5
+seuil propre                                      1.00              1.00  0.34 [0.31–0.35]  1.00 [0.99–1.00]  0.69 [0.02–1.00]              1.00              1.00  0.50 [0.50–0.51]              1.00              1.00              1.00
+seuil propre et rang 1                0.29 [0.12–0.91]  0.88 [0.87–0.96]  0.02 [0.01–0.21]  0.95 [0.87–0.95]  0.33 [0.01–0.87]  0.15 [0.12–0.81]              1.00  0.01 [0.00–0.30]  0.95 [0.93–0.95]              1.00  0.70 [0.66–0.94]
+seuil propre, sans la file                        1.00              1.00  0.34 [0.33–0.35]  1.00 [0.99–1.00]  0.69 [0.02–1.00]              1.00              1.00  0.50 [0.50–0.51]              1.00              1.00              1.00
+budget de la règle                                1.00              1.00  0.34 [0.32–0.35]              1.00  0.89 [0.05–1.00]              1.00              1.00  0.50 [0.50–0.51]              1.00              1.00              1.00
+budget de la règle et rang 1          0.29 [0.12–0.91]  0.88 [0.87–0.96]  0.02 [0.01–0.21]  0.95 [0.87–0.95]  0.38 [0.04–0.89]  0.15 [0.12–0.81]              1.00  0.01 [0.00–0.30]  0.95 [0.93–0.95]              1.00  0.70 [0.66–0.94]
+budget de la règle, sans la file                  1.00              1.00  0.34 [0.33–0.35]              1.00  0.89 [0.05–1.00]              1.00              1.00  0.50 [0.50–0.51]              1.00              1.00              1.00
+validation, seuil propre : détection 74/153 [44–77] ; fausses alertes non vues 1/102 [0–3]
+validation, budget de la règle : détection 74/153 [44–79] ; fausses alertes non vues 1/102 [0–3]
+
+# durée totale 231 s

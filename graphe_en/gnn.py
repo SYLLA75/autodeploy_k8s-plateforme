@@ -1,11 +1,12 @@
 """
 Le GNN : reconstruire le normal de chaque nœud par ses voisins, puis nommer la cause.
 
-    ./.venv/bin/python gnn.py --verifier [--version v12|v1|v2|v3]
+    ./.venv/bin/python gnn.py --verifier [--version v12|v1|v2|v3|u|u1]
     ./.venv/bin/python gnn.py --validation [--graines n] [--epoques e] [--sans-temoins]
-                              [--variantes a,b|toutes] [--repetition] [--version v12|v1|v2|v3]
+                              [--variantes a,b|toutes] [--repetition] [--version v12|v1|v2|v3|u|u1]
     ./.venv/bin/python gnn.py --repetition [mêmes options]
-    ./.venv/bin/python gnn.py --test [mêmes options]       refusé sans l'étiquette gnn-fige
+    ./.venv/bin/python gnn.py --test [mêmes options]       refusé sans les étiquettes gnn-fige
+                                                          et gnn-fige-2, pour toute version
 
 Phase E. Écrit d'après notes/GNN_SPEC.md (§1 à §6, §8 et les amendements du §10),
 jugé par juge.py avec les règles de fautifs.py, comme les témoins. Le banc de
@@ -80,6 +81,43 @@ LE GNN COMBINÉ v12 (écart E-5, §15, écrit avant tout calcul ; VERSION par d�
   puis les variantes (sans exemples) ; empreintes() rend l'empreinte de chaque modèle
   (modèles finaux, plis, et les modèles « sans c ni c' » de l'avec exemples).
 
+LA VARIANTE « GNN UNIQUE » u (§17, écrite avant tout calcul et avant tout regard sur
+  la première ouverture) : UN exemplaire, celui de v2 (masque, sans asinh, mêmes
+  normales, mêmes graines : c'est le modèle même de l'alarme de v12, mêmes caches,
+  mêmes empreintes) ; ses résidus sont calés deux fois :
+    alarme      par identité, exactement comme v12 (même exemplaire, même choix
+                B2/H0/V1, mêmes seuils et budgets) ;
+    classement  PAR SORTE (Calage(..., par_identite=False) : médiane et échelle par
+                (sorte, colonne) et (relation, colonne), comme la version 1, sur les
+                MÊMES résidus tenus hors pli), sous le CHOIX B5/H2/V0 (celui de
+                l'exemplaire v1 de v12). L'exemplaire ainsi calé s'appelle « v2:sorte »
+                (Etape1.par_sorte, classe ParSorte) : rien n'y est appris.
+  Les noms rendus par methodes() sont ceux de v12 avec « GNN unique » au lieu de
+  « GNN » en tête (prefixe, noms_decision) : « GNN unique, sans exemples », « GNN
+  unique, sans exemples, budget de la règle », « GNN unique, avec exemples », « GNN
+  unique, avec exemples, budget de la règle », puis « GNN unique sans aucune
+  arête »… ; decision_c --variante u les attend (decision_c.noms_gnn). Les versions
+  v1, v2, v3, v12 gardent « GNN ».
+
+LA SECONDE VARIANTE « GNN UNIQUE » u1 (§18, symétrique de u, écrite avant tout calcul
+  de u1 et avant tout regard sur la première ouverture) : UN exemplaire, celui de v1
+  (masque, asinh, mêmes normales, mêmes graines : c'est le modèle même du classement de
+  v12, mêmes caches, mêmes empreintes) ; ses résidus sont calés deux fois :
+    alarme      PAR IDENTITÉ (Calage(..., par_identite=True) : exactement la méthode de
+                v2, temoin_noeud.identite et temoin_noeud.echelles, plancher par sorte,
+                repli par sorte pour une identité sans normal, sur les MÊMES résidus
+                tenus hors pli), sous le choix de l'alarme de v12 (B2/H0/V1), seuils et
+                budgets calculés comme ceux de v12. L'exemplaire ainsi calé s'appelle
+                « v1:identite » (Etape1.recale, classe ParIdentite) : rien n'y est appris ;
+    classement  par sorte, sous B5/H2/V0 : l'exemplaire v1 de v12 lui-même, le classement
+                même de v12.
+  Noms : « GNN unique u1, sans exemples »… (decision_c --variante u1).
+
+LES PROCESSUS : GNN_PROCESSUS (variable d'environnement, défaut 4) fixe le nombre
+  d'entraînements en parallèle (PROCESSUS), pour gnn.py, gnn_exemples.py, gnn_banc.py
+  et decision_c.py. Sans effet sur les résultats : chaque tâche a son germe (graine ×
+  1009 + rang), un fil, et les états reviennent dans l'ordre des tâches (T18).
+
 L'ALARME : le plus haut score de nœud de la fenêtre, celui qui sert au classement.
   Seuil propre : 95e centile des scores des normales tenues hors pli ; face à une
   autre méthode, son budget (BUDGETS, sur 249 minutes, mis à l'échelle si N ≠ 249).
@@ -94,26 +132,40 @@ L'ÉTAPE 2 : les profils d'écart signés du modèle final (sans identité), les
 
 LE SCELLÉ : juge.lire n'est appelé qu'avec fautifs.SERIES ; --validation et
   --repetition ne lisent que juge.validation (jamais « hors ») ; --test est refusé
-  tant que l'étiquette gnn-fige n'existe pas.
+  tant que l'étiquette gnn-fige n'existe pas, puis, pour TOUTE version, tant que
+  l'étiquette gnn-fige-2 n'est pas bien posée : après gnn-fige, portant les empreintes
+  d'UNE variante unique (graphe_en/gnn-empreintes-<u|u1>.txt ; pour u et u1, celles de
+  cette variante), avec le scellé de decision_c (scelle_2_mal_pose), graphe_en/ inchangé
+  depuis gnn-fige-2 et aucun .py non suivi. Pourquoi toute version : l'alarme de v12
+  est celle de u, son classement celui de u1, et v1, v2 sont leurs modèles mêmes ; le
+  vrai test de v12 (la première ouverture) n'est regardé qu'après gnn-fige-2 (§17,
+  §18, §19.3). Si v12 est retenue (§19.2), elle a déjà été lue avec le code de gnn-fige :
+  ce code-ci ne la relit pas.
 
 Options :
   --verifier             les contrôles T1 à T4, T6, T7 de la spécification, T12
                          (le calage de la sortie), T13 (l'empreinte), T15 (les
                          empreintes de tous les modèles), T16 (les noms de
-                         decision_c) et, pour v12, T14 (alarme = v2, classement =
-                         v1 B5/H2/V0), sur 20 fenêtres de validation et 2 époques
+                         decision_c), T18 (le nombre de processus ne change rien)
+                         et, pour v12, T14 (alarme = v2, classement = v1 B5/H2/V0),
+                         pour u, T17 (alarme = celle de v12, classement = résidus v2
+                         calés par sorte, noms, un seul exemplaire, déterminisme),
+                         pour u1, T19 (classement = celui de v12, alarme = résidus v1
+                         calés par identité sous B2/H0/V1, noms, un seul exemplaire,
+                         déterminisme), sur 20 fenêtres de validation et 2 époques
   --validation           le tableau de bord sur juge.validation ; écrit
                          <campagnes>/gnn-validation.txt
   --repetition           la répétition « panne jamais vue », dans la validation
-  --test                 le vrai test : refusé sans l'étiquette gnn-fige
+  --test                 le vrai test : refusé sans les étiquettes gnn-fige et
+                         gnn-fige-2 (LE SCELLÉ)
   --graines <n>          graines 0 à n−1 (défaut 5)
   --epoques <e>          époques d'apprentissage (défaut 150)
   --sans-temoins         ne recalcule pas les témoins (seulement « a priori »)
   --variantes <liste>    variantes en plus du complet, séparées par des virgules,
                          ou « toutes »
-  --version <v>          v12 (défaut, le GNN combiné), v1, v2 ou v3 ; les sorties
-                         d'une version autre que v1 portent son nom
-                         (gnn-validation-v12.txt)
+  --version <v>          v12 (défaut, le GNN combiné), v1, v2, v3, u (le GNN
+                         unique, §17) ou u1 (§18) ; les sorties d'une version autre
+                         que v1 portent son nom (gnn-validation-v12.txt, -u.txt, -u1.txt)
   --campaigns <dossier>  le dossier des dossiers de campagne (défaut ../campagnes)
   --runs <dossier>       où sont les runs (défaut runs)
   --help                 ce texte
@@ -130,6 +182,7 @@ import io
 import json
 import math
 import multiprocessing
+import os
 import random
 import statistics
 import subprocess
@@ -152,6 +205,7 @@ import temoin_noeud as tn
 
 HERE = Path(__file__).resolve().parent
 ETIQUETTE_SCELLE = "gnn-fige"
+ETIQUETTE_SCELLE_2 = "gnn-fige-2"      # le gel de la variante unique (u ou u1, §17–§19), après gnn-fige
 SORTES = ("instance", "queue", "host")
 # (source, cible) de chaque relation du gel, dans l'ordre d'edges.RELATIONS.
 RELATIONS = {r: (s, d) for r, (s, d, _) in export_pyg.RELATIONS.items()}
@@ -170,7 +224,20 @@ LR = 3e-3
 WD = 1e-4
 EPOQUES = 150
 LOT = 16
-PROCESSUS = 4            # au plus 4 entraînements en parallèle sur vms0 : 6 processus avec le principal et le suivi des ressources de multiprocessing (spawn)
+
+
+def _processus_de_l_environnement(defaut: int = 4) -> int:
+    """GNN_PROCESSUS, le nombre d'entraînements en parallèle ; `defaut` sans la variable.
+    Sans effet sur les résultats (T18) : seul le temps change."""
+    brut = os.environ.get("GNN_PROCESSUS", "").strip()
+    if not brut:
+        return defaut
+    if not brut.isdigit() or int(brut) < 1:
+        raise ValueError(f"GNN_PROCESSUS={brut!r} : un entier au moins égal à 1 est attendu")
+    return int(brut)
+
+
+PROCESSUS = _processus_de_l_environnement()   # défaut 4 : au plus 4 entraînements en parallèle sur vms0 : 6 processus avec le principal et le suivi des ressources de multiprocessing (spawn)
 CENTILE = 95
 
 # Les budgets de fausses alertes des témoins, sur 249 minutes normales mises de
@@ -214,7 +281,22 @@ GOULOT = 8               # v3 : la dimension du plongement final, lu seul par le
 # l'exemplaire v1 sous le CHOIX B5/H2/V0 que §13 donne à v1. Aucune identité n'entre
 # dans aucun des deux modèles. C'est la version par défaut.
 COMBINEES = {"v12": {"alarme": "v2", "classement": "v1"}}
-TOUTES_VERSIONS = tuple(VERSIONS) + tuple(COMBINEES)
+# La variante « GNN unique » (§17, écrite avant tout calcul et avant tout regard sur la
+# première ouverture) : UN exemplaire, celui de v2 ; ses résidus calés par identité font
+# l'alarme (exactement celle de v12), les mêmes résidus calés PAR SORTE font le classement
+# sous B5/H2/V0 (le choix de l'exemplaire v1 de v12). L'exemplaire calé par sorte porte le
+# nom « v2:sorte » (PAR_SORTE) : le même modèle, un autre calage de la sortie.
+# La seconde variante « GNN unique » u1 (§18, symétrique de u) : UN exemplaire, celui de v1 ;
+# ses résidus calés PAR IDENTITÉ (la méthode de v2, plancher et repli par sorte compris)
+# font l'alarme, sous le choix de l'alarme de v12 (B2/H0/V1) ; les mêmes résidus calés par
+# sorte font le classement sous B5/H2/V0 : exactement le classement de v12. L'exemplaire
+# calé par identité porte le nom « v1:identite » (PAR_IDENTITE).
+PAR_SORTE = ":sorte"
+PAR_IDENTITE = ":identite"
+RECALAGES = {PAR_SORTE: False, PAR_IDENTITE: True}     # suffixe d'un exemplaire recalé -> calage par identité
+UNIQUES = {"u": {"modele": "v2", "alarme": "v2", "classement": "v2" + PAR_SORTE, "section": "§17"},
+           "u1": {"modele": "v1", "alarme": "v1" + PAR_IDENTITE, "classement": "v1", "section": "§18"}}
+TOUTES_VERSIONS = tuple(VERSIONS) + tuple(COMBINEES) + tuple(UNIQUES)
 VERSION = "v12"
 # Ce qui travaille sur UN modèle (Reconstructeur, entrainer, charger, Calage, Etape1,
 # etape1) prend une version de VERSIONS, jamais une combinée ; v1 par défaut, comme avant v12.
@@ -223,21 +305,70 @@ CHOIX_VERSIONS["v12"] = CHOIX_VERSIONS[COMBINEES["v12"]["classement"]]
 CHOIX_SOURCES["v12"] = ("celui de l'exemplaire v1 (§15 : B5/H2/V0, fixé par campagnes/gnn-banc-validation.txt, "
                         "5 graines, 150 époques) ; l'alarme vient de l'exemplaire v2 sous son propre choix "
                         f"{'/'.join(CHOIX_VERSIONS['v2'].values())}")
+CHOIX_VERSIONS["u"] = CHOIX_VERSIONS[COMBINEES["v12"]["classement"]]
+CHOIX_SOURCES["u"] = ("celui de l'exemplaire v1 de v12 (§17 : B5/H2/V0, fixé par campagnes/gnn-banc-validation.txt), "
+                      "appliqué aux résidus de l'exemplaire v2 calés PAR SORTE ; l'alarme vient du même exemplaire "
+                      f"calé par identité, sous son propre choix {'/'.join(CHOIX_VERSIONS['v2'].values())}")
+CHOIX_VERSIONS["u1"] = CHOIX_VERSIONS[COMBINEES["v12"]["classement"]]
+CHOIX_SOURCES["u1"] = ("celui de l'exemplaire v1 de v12 (§18 : B5/H2/V0, fixé par campagnes/gnn-banc-validation.txt) : "
+                       "le même exemplaire, le classement même de v12 ; l'alarme vient de ce modèle calé PAR IDENTITÉ, "
+                       f"sous le choix de l'alarme de v12 {'/'.join(CHOIX_VERSIONS['v2'].values())}")
+# Le début des noms que rend methodes() (decision_c) : « GNN » sauf pour une variante (§17, §18).
+PREFIXES = {"u": "GNN unique", "u1": "GNN unique u1"}
 
 
 def exemplaires(version: str) -> tuple[str, str]:
-    """(version du modèle de l'ALARME, version du modèle du CLASSEMENT) : les deux sont
-    la même pour v1, v2, v3 ; v12 : (v2, v1)."""
+    """(exemplaire de l'ALARME, exemplaire du CLASSEMENT) : les deux sont la même version
+    pour v1, v2, v3 ; v12 : (v2, v1) ; u (§17) : (v2, v2:sorte), le même modèle calé
+    deux fois ; u1 (§18) : (v1:identite, v1), de même."""
     if version in COMBINEES:
         return COMBINEES[version]["alarme"], COMBINEES[version]["classement"]
+    if version in UNIQUES:
+        return UNIQUES[version]["alarme"], UNIQUES[version]["classement"]
     if version in VERSIONS:
         return version, version
     raise ValueError(f"version inconnue : {version}")
 
 
+def modele_de(exemplaire: str) -> str:
+    """La version du modèle appris d'un exemplaire (« v2:sorte » → « v2 », « v1:identite » → « v1 »)."""
+    for suffixe in RECALAGES:
+        if exemplaire.endswith(suffixe):
+            return exemplaire[:-len(suffixe)]
+    return exemplaire
+
+
+def par_identite(exemplaire: str) -> bool:
+    """Les résidus de cet exemplaire sont-ils calés par identité ? Ceux de sa version (v2, v3),
+    ou ceux de son recalage (« :identite » oui, « :sorte » non)."""
+    for suffixe, oui in RECALAGES.items():
+        if exemplaire.endswith(suffixe):
+            return oui
+    return VERSIONS[exemplaire]["identite"]
+
+
+def choix_exemplaire(exemplaire: str) -> dict:
+    """Le CHOIX B/H/V sous lequel un exemplaire note par défaut : celui de sa version ; un
+    exemplaire recalé par sorte (u, §17) : B5/H2/V0, celui de l'exemplaire v1 de v12 ; recalé
+    par identité (u1, §18) : B2/H0/V1, celui de l'alarme de v12 (l'exemplaire v2)."""
+    if exemplaire in CHOIX_VERSIONS:
+        return CHOIX_VERSIONS[exemplaire]
+    if exemplaire.endswith(PAR_SORTE):
+        return CHOIX_VERSIONS[COMBINEES["v12"]["classement"]]
+    if exemplaire.endswith(PAR_IDENTITE):
+        return CHOIX_VERSIONS[COMBINEES["v12"]["alarme"]]
+    raise ValueError(f"exemplaire inconnu : {exemplaire}")
+
+
 def modeles_de(version: str) -> tuple[str, ...]:
-    """Les versions de modèle à apprendre pour une version (une, ou deux pour v12)."""
-    return tuple(dict.fromkeys(exemplaires(version)))
+    """Les versions de modèle à apprendre pour une version (une ; deux pour v12 ; une pour u et u1)."""
+    return tuple(dict.fromkeys(modele_de(e) for e in exemplaires(version)))
+
+
+def prefixe(version: str) -> str:
+    """Le début des noms de methodes() : « GNN », ou « GNN unique » pour u (§17), « GNN
+    unique u1 » pour u1 (§18)."""
+    return PREFIXES.get(version, "GNN")
 
 
 def decrire(version: str) -> str:
@@ -251,6 +382,17 @@ def decrire(version: str) -> str:
         return (f"GNN combiné (écart E-5, §15) : alarme = exemplaire {va} ({un(va)}, choix "
                 f"{'/'.join(CHOIX_VERSIONS[va].values())}) ; classement = exemplaire {vc} ({un(vc)}, choix "
                 f"{'/'.join(CHOIX_VERSIONS[version].values())}) ; mêmes normales, mêmes graines")
+    if version in UNIQUES and exemplaires(version)[1].endswith(PAR_SORTE):
+        va, vc = exemplaires(version)
+        return (f"GNN unique (§17) : UN exemplaire {va} ({un(va)}) ; alarme = ses résidus calés par identité, choix "
+                f"{'/'.join(CHOIX_VERSIONS[va].values())} (celle de v12) ; classement = les mêmes résidus calés PAR "
+                f"SORTE ({vc}), choix {'/'.join(CHOIX_VERSIONS[version].values())} ; aucun modèle de plus")
+    if version in UNIQUES:
+        va, vc = exemplaires(version)
+        return (f"GNN unique u1 ({UNIQUES[version]['section']}) : UN exemplaire {vc} ({un(vc)}) ; alarme = ses "
+                f"résidus calés PAR IDENTITÉ ({va}, la méthode de v2), choix {'/'.join(choix_exemplaire(va).values())} "
+                f"(celui de l'alarme de v12) ; classement = les mêmes résidus calés par sorte, choix "
+                f"{'/'.join(CHOIX_VERSIONS[version].values())} (le classement de v12) ; aucun modèle de plus")
     return un(version)
 
 # Les variantes du retrait des flèches (§6) : relations du passage de messages,
@@ -866,7 +1008,12 @@ def noter_noeuds(sortie: Sortie, calage: "Calage", choix: dict | None = None,
                  variante: str | None = None) -> tuple[dict, float, dict]:
     """(score ŝ' de chaque clé du juge, score de la fenêtre S = max ŝ', diagnostic). La
     variante est celle du calage (celle de l'étape 1 qui l'a produit) ; le choix par
-    défaut, celui de la version du calage."""
+    défaut, celui de la version du calage, et seulement pour un calage de sa version : un
+    calage recalé (« v2:sorte » de u, « v1:identite » de u1) n'a pas de défaut (son choix
+    n'est pas celui de sa version), le choix doit être passé."""
+    if not choix and calage.par_identite != VERSIONS[calage.version]["identite"]:
+        raise ValueError(f"calage recalé ({calage.version}, par identité : {calage.par_identite}) sans choix : "
+                         f"le choix B/H/V doit être passé (choix_exemplaire)")
     choix = choix or CHOIX_VERSIONS[calage.version]
     if variante is not None and variante != calage.variante:
         raise ValueError(f"variante {variante} contre un calage de la variante {calage.variante}")
@@ -929,12 +1076,17 @@ class Calage:
     plancher par (sorte, colonne) ou (relation, colonne) et son minimum de MIN_OBS
     résidus. Une identité (ou une de ses colonnes) sans normal retombe sur le calage
     par sorte ou par relation. L'identité ne cale que la sortie : le modèle ne la
-    voit jamais."""
+    voit jamais.
 
-    def __init__(self, sorties: list[Sortie], variante: str, notees: list[str], version: str = MODELE_DEFAUT):
+    `par_identite` (None : celui de la version) : la variante u (§17) cale les résidus
+    de l'exemplaire v2 PAR SORTE (par_identite=False) pour son classement ; la variante u1
+    (§18) cale ceux de l'exemplaire v1 PAR IDENTITÉ (par_identite=True) pour son alarme."""
+
+    def __init__(self, sorties: list[Sortie], variante: str, notees: list[str], version: str = MODELE_DEFAUT,
+                 par_identite: bool | None = None):
         self.variante, self.notees, self.sorties = variante, list(notees), sorties
         self.version = version
-        self.par_identite = VERSIONS[version]["identite"]
+        self.par_identite = VERSIONS[version]["identite"] if par_identite is None else bool(par_identite)
         self.med_n, self.ech_n, self.med_e, self.ech_e = {}, {}, {}, {}
         for k in SORTES:
             tout = np.concatenate([s.res_n[k] for s in sorties]) if sorties else np.zeros((0, 1))
@@ -1077,6 +1229,7 @@ class Etape1:
             raise ValueError("il faut des fenêtres normales d'apprentissage dans au moins deux campagnes "
                              "(le seuil d'alarme se cale en en mettant une de côté)")
         self.variante, self.graine, self.epoques, self.version = variante, graine, epoques, version
+        self.exemplaire = version    # son nom dans les sorties (ParSorte : « v2:sorte » ; ParIdentite : « v1:identite »)
         _un_fil()                    # notes reproductibles : un fil, algorithmes déterministes
         self.dims = dimensions(fige)
         if etats is None:
@@ -1098,6 +1251,18 @@ class Etape1:
                                        variante, notees, version) for c in self.campagnes}
         self._sorties: dict[int, tuple[dict, Sortie]] = {}
         self._tenus: dict[tuple, list] = {}
+        self._recales: dict[str, "Recale"] = {}
+
+    def recale(self, suffixe: str) -> "Recale":
+        """Le même exemplaire, ses résidus calés autrement : PAR SORTE (« :sorte », variante u,
+        §17) ou PAR IDENTITÉ (« :identite », variante u1, §18) ; gardé."""
+        if suffixe not in self._recales:
+            self._recales[suffixe] = {PAR_SORTE: ParSorte, PAR_IDENTITE: ParIdentite}[suffixe](self)
+        return self._recales[suffixe]
+
+    def par_sorte(self) -> "ParSorte":
+        """Le même exemplaire, ses résidus calés PAR SORTE (variante u, §17) ; gardé."""
+        return self.recale(PAR_SORTE)
 
     def sortie(self, donnees: dict) -> Sortie:
         """Les résidus du modèle final (gardés par objet ; une copie profonde est recalculée)."""
@@ -1116,6 +1281,65 @@ class Etape1:
         return self._tenus[cle]
 
 
+class Recale(Etape1):
+    """
+    Un exemplaire déjà appris, ses résidus calés autrement (SUFFIXE, RECALAGES). Rien
+    n'est appris ni recalculé côté modèle : le modèle final, les plis, les résidus tenus
+    hors pli, les empreintes et les résidus de chaque fenêtre sont ceux de l'exemplaire
+    (les mêmes objets). Seuls les calages sont refaits, sur les MÊMES résidus tenus et dans
+    le même ordre (Calage(..., par_identite=RECALAGES[SUFFIXE])) : celui du modèle final et
+    celui de chaque pli (les scores tenus). Le nom de l'exemplaire est « <version><SUFFIXE> ».
+    """
+    SUFFIXE = ""
+
+    def __init__(self, origine: Etape1):     # sans Etape1.__init__ : rien n'est appris
+        self.origine = origine
+        for a in ("campagnes", "variante", "graine", "epoques", "version", "dims", "infos", "modele", "plis",
+                  "empreinte", "empreintes", "tenues"):
+            setattr(self, a, getattr(origine, a))
+        self.exemplaire = origine.exemplaire + self.SUFFIXE
+        notees = self.modele.notees
+        identite = RECALAGES[self.SUFFIXE]
+
+        def calage(campagnes: list[str]) -> Calage:
+            return Calage([s for c in campagnes for _, s in self.tenues[c]], self.variante, notees, self.version,
+                          par_identite=identite)
+        self.calage = calage(self.campagnes)
+        self.calages_sans = {c: calage([c2 for c2 in self.campagnes if c2 != c]) for c in self.campagnes}
+        self._tenus: dict[tuple, list] = {}
+        self._recales = {self.SUFFIXE: self}
+
+    def recale(self, suffixe: str) -> "Recale":
+        return self if suffixe == self.SUFFIXE else self.origine.recale(suffixe)
+
+    def sortie(self, donnees: dict) -> Sortie:
+        """Les résidus du modèle final de l'exemplaire (le même cache)."""
+        return self.origine.sortie(donnees)
+
+    def tenus(self, choix: dict | None = None) -> list[tuple[str, str, float]]:
+        """Comme Etape1.tenus, sous le choix de l'exemplaire recalé par défaut (choix_exemplaire)."""
+        return super().tenus(choix or choix_exemplaire(self.exemplaire))
+
+
+class ParSorte(Recale):
+    """
+    L'exemplaire, ses résidus calés PAR SORTE : le classement de la variante u (§17), sur
+    l'exemplaire v2 ; médiane et échelle par (sorte, colonne) et (relation, colonne), κ et
+    τ, comme en version 1 (Calage(..., par_identite=False)). Choix par défaut B5/H2/V0.
+    """
+    SUFFIXE = PAR_SORTE
+
+
+class ParIdentite(Recale):
+    """
+    L'exemplaire, ses résidus calés PAR IDENTITÉ : l'alarme de la variante u1 (§18), sur
+    l'exemplaire v1 ; exactement la méthode de v2 (Calage(..., par_identite=True) :
+    temoin_noeud.identite et temoin_noeud.echelles, plancher par sorte, repli par sorte pour
+    une identité sans normal). Choix par défaut B2/H0/V1, celui de l'alarme de v12.
+    """
+    SUFFIXE = PAR_IDENTITE
+
+
 _CACHE: dict[tuple, Etape1] = {}
 
 
@@ -1129,7 +1353,12 @@ def _normales(fen: list[dict]) -> list[dict]:
 
 def etape1(fen: list[dict], fige: dict, variante: str = "complet", graine: int = 0,
            epoques: int = EPOQUES, version: str = MODELE_DEFAUT) -> Etape1:
-    """L'étape 1 apprise sur les normales d'apprentissage de `fen`, gardée en mémoire."""
+    """L'étape 1 apprise sur les normales d'apprentissage de `fen`, gardée en mémoire. Un
+    exemplaire « v2:sorte » (variante u, §17) : l'étape 1 v2, calée par sorte (ParSorte) ;
+    « v1:identite » (variante u1, §18) : l'étape 1 v1, calée par identité (ParIdentite)."""
+    for suffixe in RECALAGES:
+        if version.endswith(suffixe):
+            return etape1(fen, fige, variante, graine, epoques, modele_de(version)).recale(suffixe)
     normales = _normales(fen)
     cle = _cle_cache(normales, variante, graine, epoques, version)
     if cle not in _CACHE:
@@ -1168,16 +1397,20 @@ def empreintes(fen: list[dict], fige: dict, graines: int = 5, epoques: int = EPO
     """
     {clé : sha256 de torch.save en mémoire (§8)} de tous les modèles qui entrent dans les
     décisions (decision_c.empreintes_du_gnn) : pour chaque variante de methodes(), chaque
-    graine et chaque exemplaire (v12 : l'alarme v2 et le classement v1), le modèle final
-    ET chaque pli (ils calent le seuil) ; et, pour « GNN, avec exemples » (complet), les
-    modèles « sans c ni c' » de l'exemplaire de l'alarme, qui calent le seuil de sa forêt
+    graine et chaque exemplaire (v12 : l'alarme v2 et le classement v1 ; u : le seul
+    exemplaire v2, calé deux fois ; u1 : le seul exemplaire v1, calé deux fois), le modèle
+    final ET chaque pli (ils calent le seuil) ; et, pour « GNN, avec exemples » (complet),
+    les modèles « sans c ni c' » du modèle de l'alarme, qui calent le seuil de sa forêt
     (gnn_exemples). Ce qui manque est appris (mêmes caches que les réponses). La forêt et
     les régressions (scikit-learn) n'ont pas d'empreinte : elles se refont, déterministes
     par graine, sur ces modèles.
     """
     preparer(fen, fige, graines, variantes, epoques, version)
     va, vc = exemplaires(version)
-    roles = [(va, "alarme et classement")] if va == vc else [(va, "alarme"), (vc, "classement")]
+    if version in UNIQUES:           # un seul modèle : ses empreintes une fois
+        roles = [(UNIQUES[version]["modele"], "alarme par identité et classement par sorte")]
+    else:
+        roles = [(va, "alarme et classement")] if va == vc else [(va, "alarme"), (vc, "classement")]
     out = {}
     for v in variantes:
         for g in range(graines):
@@ -1192,8 +1425,8 @@ def empreintes(fen: list[dict], fige: dict, graines: int = 5, epoques: int = EPO
         for g in range(graines):
             e1 = etape1(fen, fige, "complet", g, epoques, va)
             for (a, b), etat in gnn_exemples._ETATS_PAIRES[gnn_exemples._cle_e1(e1, normales)].items():
-                out[f"{version} complet exemplaire {va} (alarme, avec exemples) graine {g} modèle sans {a} ni {b}"] = \
-                    empreinte(etat)
+                out[f"{version} complet exemplaire {modele_de(va)} (alarme, avec exemples) graine {g} modèle sans {a} "
+                    f"ni {b}"] = empreinte(etat)
     return out
 
 
@@ -1239,7 +1472,10 @@ class GNN:
     Deux étapes 1 : `etape1_alarme` (son score de fenêtre sous `choix_alarme` fait
     l'alarme, ses profils d'écart la cause) et `etape1` (ses scores sous `choix` font
     le classement). Pour v1, v2, v3, c'est la même, sous le même choix ; pour v12
-    (écart E-5, §15), l'exemplaire v2 sous son choix, et l'exemplaire v1 sous B5/H2/V0.
+    (écart E-5, §15), l'exemplaire v2 sous son choix, et l'exemplaire v1 sous B5/H2/V0 ;
+    pour u (§17), l'exemplaire v2 sous son choix, et le même calé par sorte (ParSorte)
+    sous B5/H2/V0 ; pour u1 (§18), l'exemplaire v1 calé par identité (ParIdentite) sous
+    B2/H0/V1, et le même exemplaire v1 sous B5/H2/V0 (celui de v12).
     """
 
     def __init__(self, fen: list[dict], fige: dict, graine: int = 0, variante: str = "complet",
@@ -1251,7 +1487,7 @@ class GNN:
         self.reglage, self.variante, self.budget, self.version = reglage, variante, budget, version
         va, vc = exemplaires(version)
         self.choix = dict(choix or CHOIX_VERSIONS[version])
-        self.choix_alarme = dict(self.choix) if va == vc else dict(CHOIX_VERSIONS[va])
+        self.choix_alarme = dict(self.choix) if va == vc else dict(choix_exemplaire(va))
         garde = [f for f in fen if f["jeu"] == "apprentissage" and f["etiquette"] not in juge.ECARTEES]
         pannes = [f for f in garde if f["etiquette"] == "panne"]
         self.etape1 = etape1(fen, fige, variante, graine, epoques, vc)
@@ -1324,6 +1560,12 @@ NOMS_DECISION = ("GNN, sans exemples", "GNN, sans exemples, budget de la règle"
                  "GNN, avec exemples", "GNN, avec exemples, budget de la règle")
 
 
+def noms_decision(version: str = VERSION) -> tuple[str, ...]:
+    """Les quatre noms qu'attend decision_c pour cette version : NOMS_DECISION, « GNN » en
+    tête remplacé par prefixe(version) (u : « GNN unique, sans exemples »…)."""
+    return tuple(prefixe(version) + n[len("GNN"):] for n in NOMS_DECISION)
+
+
 def methodes(fige: dict, epoques: int = EPOQUES, version: str = VERSION,
              variantes=tuple(v for v in VARIANTES if v != "complet")) -> list[tuple[str, object, bool]]:
     """(nom, fabrique(fen, graine), tire au hasard) : noms commençant par « GNN »
@@ -1333,37 +1575,110 @@ def methodes(fige: dict, epoques: int = EPOQUES, version: str = VERSION,
       « GNN, avec exemples »                   gnn_exemples sur la même version (écart E-2, rejet E-4) ;
       « GNN, avec exemples, budget de la règle »  la même, ses deux alarmes calées ensemble à 21/249 ;
     puis les variantes (« GNN sans aucune arête »… : sans exemples, seuil propre), pour la
-    décision 1 et la ligne 0 de l'axe (d)."""
+    décision 1 et la ligne 0 de l'axe (d). Pour u (§17), les mêmes noms, « GNN unique » en
+    tête au lieu de « GNN » (noms_decision, prefixe) ; pour u1 (§18), « GNN unique u1 »."""
     import gnn_exemples           # import paresseux : gnn_exemples importe gnn
-    out = [(NOMS_DECISION[0], lambda fen, g: GNN(fen, fige, graine=g, reglage="sans exemples", epoques=epoques,
-                                                 version=version), True),
-           (NOMS_DECISION[1], lambda fen, g: GNN(fen, fige, graine=g, reglage="sans exemples", budget="règle",
-                                                 epoques=epoques, version=version), True)]
-    out += [(nom, fab, hasard) for nom, fab, hasard in gnn_exemples.methodes(fige, epoques, version, budgets=True)]
+    noms_d, p = noms_decision(version), prefixe(version)
+    out = [(noms_d[0], lambda fen, g: GNN(fen, fige, graine=g, reglage="sans exemples", epoques=epoques,
+                                          version=version), True),
+           (noms_d[1], lambda fen, g: GNN(fen, fige, graine=g, reglage="sans exemples", budget="règle",
+                                          epoques=epoques, version=version), True)]
+    for nom, fab, hasard in gnn_exemples.methodes(fige, epoques, version, budgets=True):
+        if not nom.startswith("GNN"):
+            raise ValueError(f"gnn_exemples.methodes : « {nom} » ne commence pas par « GNN »")
+        out.append((p + nom[len("GNN"):], fab, hasard))
     for v in variantes:
         if v != "complet":
-            out.append((f"GNN {v}", lambda fen, g, v=v: GNN(fen, fige, graine=g, variante=v, reglage="sans exemples",
+            out.append((f"{p} {v}", lambda fen, g, v=v: GNN(fen, fige, graine=g, variante=v, reglage="sans exemples",
                                                             epoques=epoques, version=version), True))
     noms = [n for n, _, _ in out]
-    if noms[:4] != list(NOMS_DECISION):
-        raise ValueError(f"gnn.methodes : {noms[:4]} au lieu de {list(NOMS_DECISION)}")
+    if noms[:4] != list(noms_d):
+        raise ValueError(f"gnn.methodes : {noms[:4]} au lieu de {list(noms_d)}")
     return out
 
 
 # ------------------------------------------------------------------------------
 # Le scellé
 # ------------------------------------------------------------------------------
-def scelle_ouvert() -> bool:
-    """L'étiquette gnn-fige existe-t-elle ? (lecture seule, comme decision_c._git)"""
+def _git_lecture(*args: str) -> subprocess.CompletedProcess:
+    """git en lecture seule, depuis la racine du dépôt (comme decision_c._git)."""
+    return subprocess.run(["git", "-C", str(HERE.parent), *args], capture_output=True, text=True)
+
+
+def fichier_empreintes_unique(version: str) -> str:
+    """graphe_en/gnn-empreintes-<version>.txt, les empreintes d'une variante unique (decision_c
+    --empreintes --variante), commitées avec gnn-fige-2."""
+    return f"gnn-empreintes-{version}.txt"
+
+
+def scelle_ouvert(version: str | None = None) -> bool:
+    """Sans version : l'étiquette gnn-fige existe-t-elle ? (lecture seule, comme decision_c._git)
+    Avec une version (le vrai test de cette version) : il faut EN PLUS l'étiquette gnn-fige-2
+    bien posée (raisons_scelle_2), pour TOUTE version : l'alarme de v12 est celle de u, son
+    classement celui de u1, v1 et v2 sont leurs modèles mêmes (§17, §18) ; le vrai test de
+    v12 (la première ouverture) n'est regardé qu'après gnn-fige-2 (§19.3)."""
     r = subprocess.run(["git", "-C", str(HERE.parent), "rev-parse", "-q", "--verify",
                         f"refs/tags/{ETIQUETTE_SCELLE}"], capture_output=True, text=True)
-    return r.returncode == 0 and bool(r.stdout.strip())
+    ouvert = r.returncode == 0 and bool(r.stdout.strip())
+    if not ouvert or version is None:
+        return ouvert
+    return not raisons_scelle_2(version)
 
 
-def exiger_scelle() -> None:
+def raisons_scelle_2(version: str) -> list[str]:
+    """Ce qui ferme encore le vrai test d'une version, gnn-fige existant (§17–§19) ; rien s'il
+    est ouvert :
+      - gnn-fige-2 existe, posée APRÈS gnn-fige (gnn-fige ancêtre, sur un autre commit) ;
+      - elle porte les empreintes d'UNE seule variante unique (graphe_en/gnn-empreintes-<w>.txt,
+        §18 : une seule seconde lecture) : pour u et u1, celles de cette variante ; pour v12, v1,
+        v2, v3, celles de la variante figée, quelle qu'elle soit ;
+      - le scellé de la seconde lecture (decision_c.scelle_2_mal_pose : entre gnn-fige et
+        gnn-fige-2, graphe_en/ ne change que dans le code du GNN et les empreintes des variantes) ;
+      - graphe_en/ inchangé depuis gnn-fige-2 et aucun .py non suivi : le vrai test se lit avec
+        le code figé, comme la seconde lecture (decision_c.controle_du_code)."""
+    c1 = _git_lecture("rev-parse", "-q", "--verify", f"refs/tags/{ETIQUETTE_SCELLE}^{{commit}}").stdout.strip()
+    c2 = _git_lecture("rev-parse", "-q", "--verify", f"refs/tags/{ETIQUETTE_SCELLE_2}^{{commit}}").stdout.strip()
+    pourquoi = "" if version in UNIQUES else (f" (le vrai test de {version} montre l'alarme de u et le classement "
+                                               f"de u1 : il ne se lit qu'après {ETIQUETTE_SCELLE_2}, §17, §18, §19.3)")
+    if not c2:
+        return [f"l'étiquette « {ETIQUETTE_SCELLE_2} » n'existe pas{pourquoi}"]
+    if not c1 or c1 == c2 or _git_lecture("merge-base", "--is-ancestor", c1, c2).returncode != 0:
+        return [f"l'étiquette « {ETIQUETTE_SCELLE_2} » n'est pas posée après « {ETIQUETTE_SCELLE} »{pourquoi}"]
+    fichiers = {f"graphe_en/{fichier_empreintes_unique(w)}": w for w in UNIQUES}
+    arbre = _git_lecture("ls-tree", "-z", "--name-only", c2, "graphe_en/")
+    portees = sorted(n for n in arbre.stdout.split("\0")
+                     if n.startswith("graphe_en/" + fichier_empreintes_unique("")[:-len(".txt")]) and n.endswith(".txt"))
+    if version in UNIQUES:
+        attendu = f"graphe_en/{fichier_empreintes_unique(version)}"
+        bien = portees == [attendu]
+    else:
+        attendu = "les empreintes d'UNE variante unique (" + ", ".join(sorted(fichiers)) + ")"
+        bien = len(portees) == 1 and portees[0] in fichiers
+    if arbre.returncode != 0 or not bien:
+        return [f"« {ETIQUETTE_SCELLE_2} » doit porter {attendu} et aucune autre empreinte de variante unique "
+                f"(§18 : une seule variante figée) ; elle porte : {', '.join(portees) or 'aucune'}{pourquoi}"]
+    import decision_c as dc      # le même scellé que la seconde lecture (import paresseux, comme T16)
+    soucis = list(dc.scelle_2_mal_pose(fichiers[portees[0]]))
+    if _git_lecture("diff", "--quiet", c2, "--", "graphe_en/").returncode != 0:
+        soucis.append(f"graphe_en/ a changé depuis l'étiquette {ETIQUETTE_SCELLE_2} : le vrai test se lit avec le "
+                      f"code figé")
+    hors = _git_lecture("ls-files", "--others", "--exclude-standard", "--", "graphe_en/*.py").stdout.split()
+    if hors:
+        soucis.append(f"fichiers Python non suivis dans graphe_en/ : {', '.join(hors)}")
+    return soucis
+
+
+def exiger_scelle(version: str | None = None) -> None:
+    """Refus (juge.Refus) si le vrai test de cette version est fermé (scelle_ouvert)."""
     if not scelle_ouvert():
         raise juge.Refus(f"SCELLÉ FERMÉ : l'étiquette « {ETIQUETTE_SCELLE} » n'existe pas ; le vrai test "
                          f"ne se lit qu'une fois le GNN figé (réglages sur juge.validation seulement).")
+    if version is not None:
+        raisons = raisons_scelle_2(version)
+        if raisons:
+            raise juge.Refus(f"SCELLÉ FERMÉ pour la version {version} : {'; '.join(raisons)} ; le vrai test ne se lit "
+                             f"qu'une fois la variante unique figée à « {ETIQUETTE_SCELLE_2} » (réglages sur "
+                             f"juge.validation seulement).")
 
 
 # ------------------------------------------------------------------------------
@@ -1476,7 +1791,12 @@ def verifier(campagnes: Path, runs: Path, version: str = VERSION) -> int:
     CHACUN de ses exemplaires, les contrôles de la réponse (T1, T2 sur la réponse, T4,
     T6) sur la méthode combinée, et en plus T14 (l'alarme est celle de l'exemplaire v2,
     le classement celui de l'exemplaire v1 sous B5/H2/V0, la cause celle de v2), T15 (les
-    empreintes de tous les modèles) et T16 (les noms qu'attend decision_c)."""
+    empreintes de tous les modèles) et T16 (les noms qu'attend decision_c). La variante u
+    (§17) passe les contrôles d'un modèle pour son seul exemplaire v2, T2 et T12 aussi pour
+    ce même exemplaire calé par sorte (« v2:sorte »), et T17 au lieu de T14 ; la variante u1
+    (§18) de même pour son seul exemplaire v1 et « v1:identite », et T19. Pour toute version,
+    T6 éprouve le refus du vrai test sans gnn-fige, puis sans gnn-fige-2 bien posée (§17–§19).
+    T18 (le nombre de processus) pour toute version."""
     _un_fil()
     fige, ecarts_ref, _ = gel.reference()
     if ecarts_ref:
@@ -1559,11 +1879,11 @@ def verifier(campagnes: Path, runs: Path, version: str = VERSION) -> int:
     # dans le modèle. Et la réponse de la méthode (v12 : alarme, S, scores), sous le
     # renommage que permettent tous ses exemplaires.
     pire, pire_res, pire_rep, cas, det2 = 0.0, 0.0, 0.0, 0, []
-    tout_rep = not any(VERSIONS[mv]["identite"] for mv in mvs)
+    tout_rep = not any(par_identite(e) for e in (va, vc))
     for v in ("complet", "sans aucune arête"):
         m = modeles[v]
         for e1 in dict.fromkeys((m.etape1, m.etape1_alarme)):
-            tout = not VERSIONS[e1.version]["identite"]
+            tout = not e1.calage.par_identite
             for f in petit[-6:]:
                 d2, renomme = _permuter(f["donnees"], 7, tout)
                 s1, s2 = e1.sortie(f["donnees"]), e1.sortie(d2)
@@ -1585,7 +1905,7 @@ def verifier(campagnes: Path, runs: Path, version: str = VERSION) -> int:
                                 pire_res = math.inf
                             else:
                                 pire_res = max(pire_res, float(np.nanmax(np.abs(a1 - a3), initial=0.0)))
-            det2.append(f"{v} {e1.version} : " + ("tout renommé" if tout else "pods de Deployment renommés"))
+            det2.append(f"{v} {e1.exemplaire} : " + ("tout renommé" if tout else "pods de Deployment renommés"))
         for f in petit[-6:]:
             d2, renomme = _permuter(f["donnees"], 13, tout_rep)
             r1, r2 = m.repondre(f["donnees"]), m.repondre(d2)
@@ -1595,7 +1915,8 @@ def verifier(campagnes: Path, runs: Path, version: str = VERSION) -> int:
                            *(abs(r1["scores"][k] - r2["scores"][renomme[k]]) for k in r1["scores"]))
     resultats["T2 aucun nom, invariance par permutation"] = (
         pire <= 1e-5 and pire_res <= 1e-5 and pire_rep <= 1e-5,
-        f"{cas} cas (2 variantes × {len(mvs)} exemplaire(s) × 6 fenêtres × 30 combinaisons ; {', '.join(det2)}) ; "
+        f"{cas} cas (2 variantes × {cas // (2 * 6 * 30)} exemplaire(s) × 6 fenêtres × 30 combinaisons ; "
+        f"{', '.join(det2)}) ; "
         f"plus grand écart {pire:.2e} ; résidus bruts du modèle, tout renommé : plus grand écart {pire_res:.2e} ; "
         f"réponse de la méthode ({'tout renommé' if tout_rep else 'pods de Deployment renommés'}) : {pire_rep:.2e}")
 
@@ -1644,9 +1965,9 @@ def verifier(campagnes: Path, runs: Path, version: str = VERSION) -> int:
                                 attendu[c] = (attendu[c] - cal.med_n[k][c]) / cal.ech_n[k][c]
                     zi = z4[k][i] if change.get((k, i)) else z1[k][i]
                     if not np.allclose(zi, attendu, equal_nan=True, atol=1e-9):
-                        soucis12.append(f"{e1.version} {f['id']} {k} {i} ({ident})")
+                        soucis12.append(f"{e1.exemplaire} {f['id']} {k} {i} ({ident})")
         connus = cal.connues(e1.sortie(petit[-1]["donnees"]))
-        det12.append(f"{e1.version} {'par identité' if cal.par_identite else 'par sorte'}, identités calées dans une "
+        det12.append(f"{e1.exemplaire} {'par identité' if cal.par_identite else 'par sorte'}, identités calées dans une "
                      f"fenêtre : {connus[0]}/{connus[1]} nœuds, {connus[2]}/{connus[3]} flèches")
     resultats["T12 calage de la sortie"] = (
         not soucis12, f"{n12} nœuds ({' ; '.join(det12)} ; StatefulSet et machine renommés : repli par sorte)"
@@ -1681,19 +2002,22 @@ def verifier(campagnes: Path, runs: Path, version: str = VERSION) -> int:
                                             f"limite n'est pas une égalité, jamais plus de b ailleurs), "
                                             f"exacts sauf {ecarts_b or 'aucun'} ; budgets mis à l'échelle {budgets}")
 
-    # T6 : le mode test est refusé sans gnn-fige.
-    if scelle_ouvert():
-        resultats["T6 test refusé sans gnn-fige"] = (True, "l'étiquette existe ici : refus non éprouvé")
+    # T6 : le mode test est refusé sans gnn-fige, puis, pour TOUTE version (§17–§19 : le vrai test de
+    # v12 montre l'alarme de u et le classement de u1), sans gnn-fige-2 bien posée (raisons_scelle_2).
+    nom6 = "T6 test refusé sans gnn-fige" if not scelle_ouvert() else "T6 test refusé sans gnn-fige-2"
+    if scelle_ouvert(version):
+        resultats[nom6] = (True, f"gnn-fige et gnn-fige-2 (bien posée pour {version}) existent ici : refus non éprouvé")
     else:
         try:
-            exiger_scelle()
+            exiger_scelle(version)
             t6 = False
         except juge.Refus:
             t6 = True
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             code = main(["gnn.py", "--test", "--graines", "1", "--epoques", "1", "--sans-temoins", "--version", version])
-        resultats["T6 test refusé sans gnn-fige"] = (t6 and code == 1, f"exiger_scelle refuse : {t6} ; "
-                                                                      f"--test rend le code {code}")
+        raison = f"« {ETIQUETTE_SCELLE} » absente" if not scelle_ouvert() else "; ".join(raisons_scelle_2(version))
+        resultats[nom6] = (t6 and code == 1, f"{raison} : exiger_scelle refuse : {t6} ; --test --version {version} "
+                                             f"rend le code {code}")
 
     if version in COMBINEES:
         # T14 : l'alarme de v12 est celle de l'exemplaire v2 (score, seuils propre et au budget,
@@ -1753,15 +2077,245 @@ def verifier(campagnes: Path, runs: Path, version: str = VERSION) -> int:
                       f"+ {n_plis * (n_plis - 1) // 2} modèles « sans c ni c' »), toutes distinctes ; par exemple "
                       f"« {sorted(emp)[0]} »" + (f" ; {len(soucis15)} soucis, dont {soucis15[0]}" if soucis15 else ""))
 
-    # T16 : les noms qu'attend decision_c (les quatre du GNN, puis les variantes), tous « GNN… ».
+    # T16 : les noms qu'attend decision_c (les quatre du GNN, puis les variantes), tous « GNN… » ;
+    # pour u, ceux de decision_c --variante u (« GNN unique… »).
     noms = [n for n, _, _ in methodes(fige, 2, version)]
     import decision_c as dc
-    attendus = [n for r in dc.REGLAGES for n in (dc.GNN[r], dc.GNN_REGLE[r])]
+    nd = dc.noms_gnn(version if version in UNIQUES else None)
+    attendus = [n for r in dc.REGLAGES for n in (nd["propre"][r], nd["regle"][r])]
     ok16 = set(attendus) <= set(noms) and all(n.startswith("GNN") for n in noms) and len(set(noms)) == len(noms) \
-        and dc.GNN_SANS_ARETE in noms
+        and nd["sans_arete"] in noms
     resultats["T16 noms de decision_c"] = (ok16, f"{len(noms)} noms : {', '.join(noms[:4])}, puis "
                                                  f"{len(noms) - 4} variantes ; attendus par decision_c présents "
                                                  f"{set(attendus) <= set(noms)}")
+
+    if version in UNIQUES and vc.endswith(PAR_SORTE):
+        # T17 : la variante u (§17). (a) L'alarme est celle de v12 à graine égale : le même
+        # exemplaire v2 (le même objet), les mêmes seuils, scores tenus, S, alarme et cause, pour
+        # chaque variante, chaque réglage, seuil propre et budget de la règle. (b) Le classement
+        # est celui des résidus de CE modèle calés PAR SORTE sous B5/H2/V0 : calage refait ici à
+        # part sur ses résidus tenus (Calage, par_identite=False), scores et S identiques ; et il
+        # diffère du calage par identité sur au moins une fenêtre (le calage compte). (c) Un seul
+        # exemplaire : les empreintes de u sont celles de l'exemplaire v2 de v12, et elles seules.
+        # (d) Les noms : ceux de v12, « GNN unique » en tête. (e) Déterminisme : tout réappris à
+        # neuf (caches vidés), mêmes empreintes et mêmes réponses.
+        soucis17, n17, differe, garder = [], 0, 0, []
+        choix_u = CHOIX_VERSIONS[version]
+        if choix_u != {"bout": "B5", "remontee": "H2", "explication": "V0"} or va != UNIQUES[version]["modele"] \
+                or vc != va + PAR_SORTE:
+            soucis17.append(f"choix {nom_choix(choix_u)}, exemplaires {va} et {vc}")
+        preparer(petit, fige, graines=1, variantes=tuple(VARIANTES), epoques=2, version="v12")
+        for v in VARIANTES:
+            e2 = etape1(petit, fige, v, 0, 2, va)
+            cal = Calage([s_ for c in e2.campagnes for _, s_ in e2.tenues[c]], v, e2.modele.notees, e2.version,
+                         par_identite=False)
+            if cal.par_identite or any(cal.ident_n.values()) or any(cal.ident_e.values()):
+                soucis17.append(f"{v} : le calage par sorte lit une identité")
+            for reglage in tn.REGLAGES:
+                for budget in (None, "règle"):
+                    mu = GNN(petit, fige, graine=0, variante=v, epoques=2, version=version, reglage=reglage,
+                             budget=budget)
+                    m12 = GNN(petit, fige, graine=0, variante=v, epoques=2, version="v12", reglage=reglage,
+                              budget=budget)
+                    if mu.etape1_alarme is not e2 or m12.etape1_alarme is not e2:
+                        soucis17.append(f"{v} : l'exemplaire de l'alarme n'est pas celui de v12")
+                    if mu.etape1.modele is not e2.modele or mu.etape1.plis is not e2.plis \
+                            or mu.etape1.empreintes != e2.empreintes or mu.etape1.calage.par_identite:
+                        soucis17.append(f"{v} : le classement n'est pas l'exemplaire {va} calé par sorte")
+                    if (mu.seuil, mu.seuil_propre, mu.tenus, mu.seuil_rejet) != \
+                            (m12.seuil, m12.seuil_propre, m12.tenus, m12.seuil_rejet):
+                        soucis17.append(f"{v} {reglage} {budget} : seuils ou scores tenus ≠ v12")
+                    for f in petit:
+                        ru, r12 = mu.repondre(f["donnees"]), m12.repondre(f["donnees"])
+                        n17 += 1
+                        if (ru["alarme"], ru["cause"], ru["_S"], ru["_sans_rejet"]) != \
+                                (r12["alarme"], r12["cause"], r12["_S"], r12["_sans_rejet"]):
+                            soucis17.append(f"{v} {reglage} {budget} {f['id']} : alarme, cause ou S ≠ v12")
+                        sortie = e2.sortie(f["donnees"])
+                        attendu, s_att, _ = noter_noeuds(sortie, cal, choix_u)
+                        if ru["scores"] != attendu or ru["_S_classement"] != s_att:
+                            soucis17.append(f"{v} {reglage} {budget} {f['id']} : classement ≠ résidus {va} par sorte")
+                        if reglage == "sans exemples" and budget is None \
+                                and noter_noeuds(sortie, e2.calage, choix_u)[0] != attendu:
+                            differe += 1
+        if not differe:
+            soucis17.append("le calage par identité donne partout le même classement que le calage par sorte")
+        emp_u = empreintes(petit, fige, 1, 2, version, ("complet",), avec_exemples=True)
+        emp_12 = empreintes(petit, fige, 1, 2, "v12", ("complet",), avec_exemples=True)
+        du_v2 = {sha for k, sha in emp_12.items() if f" exemplaire {va} (" in k}
+        if set(emp_u.values()) != du_v2 or len(emp_u) != len(du_v2) \
+                or not all(f" exemplaire {va} (" in k and k.startswith(f"{version} ") for k in emp_u):
+            soucis17.append(f"empreintes : {len(emp_u)} pour u, {len(du_v2)} de l'exemplaire {va} de v12")
+        nu = [n for n, _, _ in methodes(fige, 2, version)]
+        n12 = [n for n, _, _ in methodes(fige, 2, "v12")]
+        if nu != [PREFIXES[version] + n[len("GNN"):] for n in n12] or tuple(nu[:4]) != noms_decision(version) \
+                or dc.VARIANTES_GNN.get(version) != PREFIXES[version]:
+            soucis17.append(f"noms : {nu[:4]}")
+        # (e) tout réappris à neuf, puis les caches remis (les objets neufs restent vivants : leur id
+        # ne doit pas être réemployé par un autre, gnn_exemples.lecteur garde par id).
+        e2_avant = etape1(petit, fige, "complet", 0, 2, va)
+        net = lambda r: {k: r[k] for k in ("alarme", "cause", "scores", "_S", "_S_classement")}
+        m_avant = GNN(petit, fige, graine=0, epoques=2, version=version, reglage="sans exemples")
+        rep_avant = {f["id"]: net(m_avant.repondre(f["donnees"])) for f in petit}
+        sauve = dict(_CACHE)
+        try:
+            _CACHE.clear()
+            preparer(petit, fige, graines=1, variantes=("complet",), epoques=2, version=version)
+            e2_neuf = etape1(petit, fige, "complet", 0, 2, va)
+            m_neuf = GNN(petit, fige, graine=0, epoques=2, version=version, reglage="sans exemples")
+            garder += [e2_neuf, m_neuf]
+            neuf = e2_neuf is not e2_avant and e2_neuf.empreintes == e2_avant.empreintes \
+                and all(net(m_neuf.repondre(f["donnees"])) == rep_avant[f["id"]] for f in petit)
+        finally:
+            _CACHE.clear()
+            _CACHE.update(sauve)
+        if not neuf:
+            soucis17.append("réappris à neuf : autres empreintes ou autres réponses")
+        resultats["T17 u : alarme de v12, classement v2 par sorte"] = (
+            not soucis17, f"{n17} réponses ({len(VARIANTES)} variantes × 2 réglages × 2 seuils × {len(petit)} "
+                          f"fenêtres) : alarme, S, cause, seuils identiques à v12 (même exemplaire {va}) ; scores = "
+                          f"résidus {va} calés par sorte ({nom_choix(choix_u)}), recalculés à part ; le calage par "
+                          f"identité donnerait d'autres scores sur {differe}/{len(VARIANTES) * len(petit)} fenêtres ; "
+                          f"{len(emp_u)} empreintes, celles de l'exemplaire {va} de v12 ; noms « {nu[0]} »… ; "
+                          f"réappris à neuf : mêmes empreintes et réponses {neuf}"
+            + (f" ; {len(soucis17)} soucis, dont {soucis17[0]}" if soucis17 else ""))
+
+    if version in UNIQUES and not vc.endswith(PAR_SORTE):
+        # T19 : la variante u1 (§18). (a) Le classement est celui de v12 à graine égale : le même
+        # exemplaire v1 (le même objet), le même choix B5/H2/V0 ; scores, S du classement, premier,
+        # racines et pointeurs identiques, pour chaque variante, chaque réglage, seuil propre et
+        # budget de la règle. (b) L'alarme est celle de CE modèle v1, ses résidus calés PAR IDENTITÉ
+        # (Calage, par_identite=True, la méthode de v2, recalculé ici à part : le calage final et
+        # celui de chaque pli) sous B2/H0/V1, le choix de l'alarme de v12 : scores tenus, seuil
+        # propre et au budget, S, alarme, et (avec exemples) la cause du prototype le plus proche,
+        # tous recalculés à part ; et le calage par identité compte (S autre que par sorte sur au
+        # moins une fenêtre). (c) Un seul modèle : les empreintes de u1 sont celles de la version
+        # v1 (modèle final, plis, modèles « sans c ni c' »), et celles de ses modèles finals et plis
+        # sont celles de l'exemplaire v1 de v12. (d) Les noms : ceux de v12, « GNN unique u1 » en
+        # tête. (e) Déterminisme : tout réappris à neuf, mêmes empreintes et mêmes réponses.
+        soucis19, n19, differe, garder19 = [], 0, 0, []
+        choix_a, choix_c = choix_exemplaire(va), CHOIX_VERSIONS[version]
+        m_u1 = UNIQUES[version]["modele"]
+        if choix_c != {"bout": "B5", "remontee": "H2", "explication": "V0"} \
+                or choix_a != CHOIX_VERSIONS[COMBINEES["v12"]["alarme"]] or vc != m_u1 or va != m_u1 + PAR_IDENTITE \
+                or choix_c != CHOIX_VERSIONS["v12"] or vc != COMBINEES["v12"]["classement"]:
+            soucis19.append(f"choix {nom_choix(choix_a)} et {nom_choix(choix_c)}, exemplaires {va} et {vc}")
+        preparer(petit, fige, graines=1, variantes=tuple(VARIANTES), epoques=2, version="v12")
+        garde19 = [f for f in petit if f["jeu"] == "apprentissage" and f["etiquette"] not in juge.ECARTEES]
+        pannes19 = [f for f in garde19 if f["etiquette"] == "panne"]
+        for v in VARIANTES:
+            e1 = etape1(petit, fige, v, 0, 2, vc)
+            recal = lambda camps, e1=e1, v=v: Calage([s_ for c in camps for _, s_ in e1.tenues[c]], v,
+                                                     e1.modele.notees, e1.version, par_identite=True)
+            cal = recal(e1.campagnes)
+            if not cal.par_identite or not any(cal.ident_n.values()):
+                soucis19.append(f"{v} : le calage par identité ne cale aucune identité")
+            tenus_att = [(c, i, noter_noeuds(s_, recal([c2 for c2 in e1.campagnes if c2 != c]), choix_a)[1])
+                         for c in e1.campagnes for i, s_ in e1.tenues[c]]
+            s_t = [x for _, _, x in tenus_att]
+            protos = tn.Prototypes([profil(e1.sortie(f["donnees"]), cal) for f in pannes19],
+                                   [f["cause"] for f in pannes19]) if pannes19 else None
+            for reglage in tn.REGLAGES:
+                for budget in (None, "règle"):
+                    mu = GNN(petit, fige, graine=0, variante=v, epoques=2, version=version, reglage=reglage,
+                             budget=budget)
+                    m12 = GNN(petit, fige, graine=0, variante=v, epoques=2, version="v12", reglage=reglage,
+                              budget=budget)
+                    ea = mu.etape1_alarme
+                    if mu.etape1 is not e1 or m12.etape1 is not e1 or mu.choix != m12.choix:
+                        soucis19.append(f"{v} : le classement n'est pas l'exemplaire {vc} de v12")
+                    if ea is e1 or ea.modele is not e1.modele or ea.plis is not e1.plis or ea.tenues is not e1.tenues \
+                            or ea.empreintes != e1.empreintes or not ea.calage.par_identite \
+                            or mu.choix_alarme != m12.choix_alarme or mu.choix_alarme != choix_a:
+                        soucis19.append(f"{v} : l'alarme n'est pas l'exemplaire {vc} calé par identité sous "
+                                        f"{nom_choix(choix_a)}")
+                    seuil_att = _q95(s_t) if budget is None else seuil_budget(s_t, budget_mis_a_l_echelle(budget,
+                                                                                                        len(s_t)))
+                    if mu.tenus != tenus_att or mu.seuil != seuil_att or mu.seuil_propre != _q95(s_t):
+                        soucis19.append(f"{v} {reglage} {budget} : scores tenus ou seuils ≠ recalcul par identité")
+                    for f in petit:
+                        ru, r12 = mu.repondre(f["donnees"]), m12.repondre(f["donnees"])
+                        n19 += 1
+                        cles19 = ("scores", "_S_classement", "_premier", "_racine", "_pointeurs")
+                        if any(ru[k] != r12[k] for k in cles19):
+                            soucis19.append(f"{v} {reglage} {budget} {f['id']} : classement ≠ v12")
+                        sortie = e1.sortie(f["donnees"])
+                        s_att = noter_noeuds(sortie, cal, choix_a)[1]
+                        if ru["_S"] != s_att or ru["alarme"] != bool(s_att > seuil_att):
+                            soucis19.append(f"{v} {reglage} {budget} {f['id']} : S ou alarme ≠ recalcul par identité")
+                        if reglage == "avec exemples" and ru["alarme"] and protos is not None \
+                                and ru["_sans_rejet"] != protos.plus_proche(profil(sortie, cal))[0]:
+                            soucis19.append(f"{v} {reglage} {budget} {f['id']} : prototype ≠ recalcul par identité")
+                        if reglage == "sans exemples" and budget is None \
+                                and noter_noeuds(sortie, e1.calage, choix_a)[1] != s_att:
+                            differe += 1
+        if not differe:
+            soucis19.append("le calage par sorte donne partout le même S que le calage par identité")
+        emp_u1 = empreintes(petit, fige, 1, 2, version, ("complet",), avec_exemples=True)
+        emp_v1 = empreintes(petit, fige, 1, 2, vc, ("complet",), avec_exemples=True)
+        emp_12 = empreintes(petit, fige, 1, 2, "v12", ("complet",), avec_exemples=True)
+        du_v1 = {sha for k, sha in emp_12.items() if f" exemplaire {vc} (" in k}
+        sans_paires = {sha for k, sha in emp_u1.items() if "(alarme, avec exemples)" not in k}
+        if sorted(emp_u1.values()) != sorted(emp_v1.values()) or sans_paires != du_v1 \
+                or not all(f" exemplaire {vc} (" in k and k.startswith(f"{version} ") for k in emp_u1):
+            soucis19.append(f"empreintes : {len(emp_u1)} pour u1, {len(emp_v1)} de la version {vc}, {len(du_v1)} de "
+                            f"l'exemplaire {vc} de v12")
+        nu = [n for n, _, _ in methodes(fige, 2, version)]
+        n12 = [n for n, _, _ in methodes(fige, 2, "v12")]
+        if nu != [PREFIXES[version] + n[len("GNN"):] for n in n12] or tuple(nu[:4]) != noms_decision(version) \
+                or dc.VARIANTES_GNN.get(version) != PREFIXES[version] \
+                or set(nu) & {n for n, _, _ in methodes(fige, 2, "u")}:
+            soucis19.append(f"noms : {nu[:4]}")
+        # (e) tout réappris à neuf, puis les caches remis (comme T17).
+        e1_avant = etape1(petit, fige, "complet", 0, 2, vc)
+        net = lambda r: {k: r[k] for k in ("alarme", "cause", "scores", "_S", "_S_classement")}
+        m_avant = GNN(petit, fige, graine=0, epoques=2, version=version, reglage="sans exemples")
+        rep_avant = {f["id"]: net(m_avant.repondre(f["donnees"])) for f in petit}
+        sauve = dict(_CACHE)
+        try:
+            _CACHE.clear()
+            preparer(petit, fige, graines=1, variantes=("complet",), epoques=2, version=version)
+            e1_neuf = etape1(petit, fige, "complet", 0, 2, vc)
+            m_neuf = GNN(petit, fige, graine=0, epoques=2, version=version, reglage="sans exemples")
+            garder19 += [e1_neuf, m_neuf]
+            neuf19 = e1_neuf is not e1_avant and e1_neuf.empreintes == e1_avant.empreintes \
+                and m_neuf.etape1_alarme.origine is e1_neuf \
+                and all(net(m_neuf.repondre(f["donnees"])) == rep_avant[f["id"]] for f in petit)
+        finally:
+            _CACHE.clear()
+            _CACHE.update(sauve)
+        if not neuf19:
+            soucis19.append("réappris à neuf : autres empreintes ou autres réponses")
+        resultats["T19 u1 : classement de v12, alarme v1 par identité"] = (
+            not soucis19, f"{n19} réponses ({len(VARIANTES)} variantes × 2 réglages × 2 seuils × {len(petit)} "
+                          f"fenêtres) : scores, S du classement, premier, racines identiques à v12 (même exemplaire "
+                          f"{vc}, {nom_choix(choix_c)}) ; scores tenus, seuils, S, alarme et prototype = résidus {vc} "
+                          f"calés par identité ({nom_choix(choix_a)}), recalculés à part ; le calage par sorte "
+                          f"donnerait un autre S sur {differe}/{len(VARIANTES) * len(petit)} fenêtres ; "
+                          f"{len(emp_u1)} empreintes, celles de la version {vc} (dont {len(du_v1)} de l'exemplaire "
+                          f"{vc} de v12) ; noms « {nu[0]} »… ; réappris à neuf : mêmes empreintes et réponses {neuf19}"
+            + (f" ; {len(soucis19)} soucis, dont {soucis19[0]}" if soucis19 else ""))
+
+    # T18 : GNN_PROCESSUS ne change aucun modèle : les mêmes tâches (modèle final et plis du petit
+    # jeu, graines 0 et 1) en 1 processus puis en max(2, PROCESSUS), mêmes empreintes, et celles de
+    # l'étape 1 déjà apprise (graine 0).
+    mv0 = mvs[0]
+    normales_p = _normales(petit)
+    taches18 = _taches(normales_p, dims, "complet", 0, 2, mv0) + _taches(normales_p, dims, "complet", 1, 2, mv0)
+    graphes18 = {id(f["donnees"]): convertir(f["donnees"], VERSIONS[mv0]["asinh"]) for f in normales_p}
+    avant18, n18, emp18 = PROCESSUS, max(2, PROCESSUS), {}
+    try:
+        for n in (1, n18):
+            globals()["PROCESSUS"] = n
+            emp18[n] = [empreinte(e) for e, _ in entrainer_tous(taches18, graphes18)]
+    finally:
+        globals()["PROCESSUS"] = avant18
+    deja18 = list(etape1(petit, fige, "complet", 0, 2, mv0).empreintes.values())
+    ok18 = emp18[1] == emp18[n18] and emp18[1][:len(deja18)] == deja18 and len(set(emp18[1])) == len(taches18)
+    resultats["T18 le nombre de processus ne change rien"] = (
+        ok18, f"{len(taches18)} entraînements ({mv0}, graines 0 et 1) en 1 et en {n18} processus : mêmes empreintes "
+              f"{emp18[1] == emp18[n18]} ; celles de l'étape 1 apprise avec PROCESSUS = {avant18} "
+              f"{emp18[1][:len(deja18)] == deja18}")
 
     echecs = 0
     for nom, (ok, detail) in sorted(resultats.items(), key=lambda x: int(x[0].split()[0][1:])):
@@ -1834,8 +2388,9 @@ def _en_tete(t: GNN, variantes_infos: list) -> list[str]:
         tau = cal.tau(choix["bout"])
         duree = [i["duree"] for i in e1.infos]
         source = _source_choix(choix, t.version) if choix == t.choix else \
-            f"le choix de {e1.version}, {_source_choix(choix, e1.version)}"
-        out += [f"# étape 1 ({role}) version {e1.version} ({e1.variante}, graine {e1.graine}) : "
+            f"le choix de {e1.exemplaire}, {_source_choix(choix, e1.version)}" if not isinstance(e1, ParIdentite) else \
+            f"le choix de l'alarme de v12 (§18), {_source_choix(choix, COMBINEES['v12']['alarme'])}"
+        out += [f"# étape 1 ({role}) version {e1.exemplaire} ({e1.variante}, graine {e1.graine}) : "
                 f"{e1.infos[0]['parametres']} paramètres, {e1.epoques} époques, {e1.infos[0]['fenetres']} normales "
                 f"d'apprentissage, {len(e1.campagnes)} plis ; empreinte du modèle final {e1.empreinte[:16]}",
                 f"#   durée d'un entraînement : modèle final {duree[0]:.1f} s, plis {min(duree[1:]):.1f}–"
@@ -1849,7 +2404,13 @@ def _en_tete(t: GNN, variantes_infos: list) -> list[str]:
             ide = sum(len(v) for v in cal.ident_e.values())
             out.append(f"#   calage par identité (temoin_noeud.identite, temoin_noeud.echelles) : {idn} identités de "
                        f"nœud et {ide} de flèche ont leur normal ; les autres retombent sur le calage par sorte")
-    out.append(f"# alarme ({t.etape1_alarme.version}) au-dessus de {t.seuil_propre:.3f} (95e centile de "
+        elif isinstance(e1, ParSorte):
+            out.append(f"#   calage PAR SORTE des résidus de l'exemplaire {e1.version} (§17) : le même modèle et les "
+                       f"mêmes résidus tenus que l'alarme, médiane et échelle par (sorte, colonne) et (relation, colonne)")
+        if isinstance(e1, ParIdentite):
+            out.append(f"#   (§18 : le modèle {e1.version} du classement, ses mêmes résidus tenus, calés par identité "
+                       f"comme en version 2)")
+    out.append(f"# alarme ({t.etape1_alarme.exemplaire}) au-dessus de {t.seuil_propre:.3f} (95e centile de "
                f"{t.calage_propre[1]} scores tenus hors pli ; {t.calage_propre[0]} au-dessus)")
     n = len(t.tenus)
     s = [x for _, _, x in t.tenus]
@@ -1908,7 +2469,7 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques: int, sans_temoin
         return 1
     try:
         if not validation:
-            exiger_scelle()
+            exiger_scelle(version)
         charger_echelle(fige)
         noms = fautifs_module.SERIES
         fen = juge.lire(noms, campagnes, runs)
@@ -2036,6 +2597,10 @@ def main(argv: list[str]) -> int:
     validation = mode != "test"
     if mode == "test" and not scelle_ouvert():
         print(f"REFUS  SCELLÉ FERMÉ : l'étiquette « {ETIQUETTE_SCELLE} » n'existe pas ; --test est refusé.")
+        return 1
+    if mode == "test" and not scelle_ouvert(version):     # toute version (§17–§19) : gnn-fige-2 aussi
+        print(f"REFUS  SCELLÉ FERMÉ pour la version {version} : {'; '.join(raisons_scelle_2(version))} ; "
+              f"--test est refusé.")
         return 1
     sortie = io.StringIO()
     with contextlib.redirect_stdout(sortie):

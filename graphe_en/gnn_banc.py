@@ -1,8 +1,8 @@
 """
 Le banc de pannes fabriquées du GNN, et le choix de la grille B/H/V.
 
-    ./.venv/bin/python gnn_banc.py [--graines n] [--epoques e] [--version v12|v1|v2|v3]
-    ./.venv/bin/python gnn_banc.py --verifier [--version v12|v1|v2|v3]
+    ./.venv/bin/python gnn_banc.py [--graines n] [--epoques e] [--version v12|v1|v2|v3|u|u1]
+    ./.venv/bin/python gnn_banc.py --verifier [--version v12|v1|v2|v3|u|u1]
 
 Phase E. Écrit d'après notes/GNN_SPEC.md §7 (le banc) et §3.5 (le choix), avec
 la signature de l'écart 3 du journal (J 1989-1996). Importe gnn.py sans le
@@ -73,8 +73,8 @@ Options :
                          notation, du parallélisme et du choix), sur un petit jeu
                          et 2 époques
   --version <v>          la version de l'étape 1 (gnn.TOUTES_VERSIONS, §11 : chacune
-                         fixe SON choix B/H/V ; v12 : celui de v1, §15) ; défaut
-                         celui de gnn.py (v12)
+                         fixe SON choix B/H/V ; v12 : celui de v1, §15 ; u et
+                         u1 : le même, §17, §18) ; défaut celui de gnn.py (v12)
   --graines <n>          graines 0 à n−1 (défaut 5)
   --epoques <e>          époques d'apprentissage (défaut 150)
   --campaigns <dossier>  le dossier des dossiers de campagne (défaut ../campagnes)
@@ -87,6 +87,18 @@ v12 (écart E-5, §15) : la grille, les familles et G_val sont ceux de l'exempla
   graine ; F_C ≥ 0,5 et F_D ≥ 0,5, F_R rapporté). En plus, à titre d'information,
   l'alarme de l'exemplaire v2 sur chaque famille (seuil propre, budget de la règle,
   et « alarme ET rang 1 »).
+
+u (le GNN unique, §17) : la grille, les familles et G_val sont ceux de l'exemplaire v2
+  calé PAR SORTE (« v2:sorte », gnn.ParSorte : le modèle de l'alarme, ses résidus tenus
+  calés par sorte) ; le CHOIX de u est FIXÉ (B5/H2/V0, comme v12) : la sortie dit si ce
+  banc le redonne, et les critères 1 et 3 de §15 (repris par §17). L'alarme est celle de
+  l'exemplaire v2 calé par identité, la même que v12, donnée de même à titre d'information.
+
+u1 (la seconde variante « GNN unique », §18) : la grille, les familles et G_val sont ceux
+  de l'exemplaire v1 (le classement même de v12) ; le CHOIX de u1 est FIXÉ (B5/H2/V0) :
+  la sortie dit si ce banc le redonne, et les critères 1 et 3 de §15 (repris par §18).
+  L'alarme est celle du même modèle v1 calé PAR IDENTITÉ (« v1:identite »,
+  gnn.ParIdentite) sous B2/H0/V1, donnée à titre d'information.
 
 Écrit <campagnes>/gnn-banc-validation.txt (v1 ; gnn-banc-validation-v2.txt…
 pour les autres versions). Code de sortie 0 ; 1 si une campagne
@@ -141,6 +153,10 @@ DIMENSIONS = (("explication", "V"), ("remontee", "H"), ("bout", "B"))
 FAMILLES_E3 = ("F_C", "F_D", "F_R")
 COLONNES_E3 = FAMILLES_E3 + ("Y", "ent. order", "400 F_C", "400 F_D", "400 F_R")
 TOLERANCE_E3 = 0.05
+# Les versions dont le CHOIX du classement est FIXÉ par la spécification et non par ce banc :
+# v12 (écart E-5, §15) et u (§17), tous deux B5/H2/V0.
+FIXEES = {**{v: "écart E-5, §15" for v in gnn.COMBINEES},
+          **{v: f"variante « GNN unique »{'' if v == 'u' else ' ' + v}, {gnn.UNIQUES[v]['section']}" for v in gnn.UNIQUES}}
 LOT_TACHE = 40                                     # fenêtres par tâche du parallélisme
 
 
@@ -707,8 +723,9 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques: int, version: st
           + ", ".join(f"graine {g} {e.empreinte[:16]}" for g, e in etapes.items()))
     alarmes, seuils_a = None, None
     if va != vc:
-        # v12 (§15) : l'alarme de l'exemplaire v2, au seuil propre et au budget de la règle, notée
-        # sur les mêmes fenêtres (information ; elle ne change ni la grille ni le choix).
+        # v12 (§15) et u (§17) : l'alarme de l'exemplaire v2 ; u1 (§18) : celle du modèle v1 calé par
+        # identité ; au seuil propre et au budget de la règle, notée sur les mêmes fenêtres (information ;
+        # elle ne change ni la grille ni le choix).
         gnns = {g: (gnn.GNN(fen, fige, graine=g, reglage="sans exemples", epoques=epoques, version=version),
                     gnn.GNN(fen, fige, graine=g, reglage="sans exemples", budget="règle", epoques=epoques,
                             version=version)) for g in range(graines)}
@@ -811,14 +828,17 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques: int, version: st
     print("\n".join(lignes_e3))
     print(f"CHOIX = {json.dumps(choix, ensure_ascii=False)}"
           + ("" if graines >= 5 else f"   (sur {graines} graine(s) : indicatif, à refaire sur 5)")
-          + (f"   (le choix que ce banc donnerait à l'exemplaire {vc} ; celui de {version} est fixé par §15, "
-             f"ci-dessous)" if va != vc else ""))
-    if version in gnn.COMBINEES:
+          + (f"   (le choix que ce banc donnerait à l'exemplaire {vc} ; celui de {version} est fixé par "
+             f"{gnn.UNIQUES[version]['section'] if version in gnn.UNIQUES else '§15'}, ci-dessous)" if va != vc else ""))
+    if version in FIXEES:
         fixe = gnn.CHOIX_VERSIONS[version]
         nf = gnn.nom_choix(fixe)
         fc, fd, fr = (_med(parts[nf][c]) for c in FAMILLES_E3)
-        print(f"\n== 2 ter. {version} (écart E-5, §15) : le CHOIX du classement est FIXÉ, {nf} (celui de "
-              f"l'exemplaire {vc}) ; ce banc lui donnerait {gnn.nom_choix(choix)}"
+        print(f"\n== 2 ter. {version} ({FIXEES[version]}) : le CHOIX du classement est FIXÉ, {nf} (celui de "
+              + (f"l'exemplaire {vc}" if version in gnn.COMBINEES else
+                 f"l'exemplaire v1 de v12, appliqué à l'exemplaire {vc}" if vc != gnn.COMBINEES["v12"]["classement"]
+                 else f"l'exemplaire {vc} de v12, le même")
+              + f") ; ce banc lui donnerait {gnn.nom_choix(choix)}"
               + (" : le même" if gnn.nom_choix(choix) == nf else " : AUTRE, à expliquer"))
         print(f"critère 1 (G_val tient pour les {graines} graines) : injections qui accusent la base, par graine "
               f"{'/'.join(str(x) for x in g_val[nf])} → {'tenu' if all(x == 0 for x in g_val[nf]) else 'NON TENU'}")
@@ -837,7 +857,8 @@ def rapport(campagnes: Path, runs: Path, graines: int, epoques: int, version: st
           f"{mins_e3[gnn.nom_choix(choix_ancien)]:.3f})")
 
     nom_c, nom_a, nom_p = gnn.nom_choix(choix), gnn.nom_choix(choix_ancien), gnn.nom_choix(MINIMAUX)
-    titres = ((nom_c, "le choix, §15" if version in gnn.COMBINEES else "le choix, §13"),
+    titres = ((nom_c, f"le choix, {gnn.UNIQUES[version]['section']}" if version in gnn.UNIQUES
+               else "le choix, §15" if version in gnn.COMBINEES else "le choix, §13"),
               (nom_a, "l'ancien choix, §3.5"), (nom_p, "le plus simple"))
     for numero, nom in zip(("3", "3 bis", "3 ter"), dict.fromkeys((nom_c, nom_a, nom_p))):
         k = NOMS.index(nom)
@@ -1249,8 +1270,9 @@ def verifier(campagnes: Path, runs: Path, version: str = gnn.VERSION) -> int:
     res, duree, cumul = noter_tout({0: e1}, fige, banc, val, b["files"], b["pressions"], elements + fabr, alarmes)
     r0 = res[0]
     if va != vc:
-        # T13 (v12) : le S de l'alarme noté dans les processus est celui de gnn.GNN (v12), et le
-        # classement du CHOIX celui de gnn.GNN (v12).
+        # T13 (v12, u, u1) : le S de l'alarme noté dans les processus est celui de gnn.GNN (v12, u, u1 :
+        # pour u1, les résidus v1 calés par identité), et le classement du CHOIX celui de gnn.GNN (u : les
+        # résidus v2 calés par sorte, dans les processus).
         pire, n13, faux13, n_sf = 0.0, 0, [], 0
         k = NOMS.index(gnn.nom_choix(m12.choix))
         for el, (rangs, _, premiers, s_a, s_sf) in zip(elements + fabr, r0):
@@ -1270,7 +1292,7 @@ def verifier(campagnes: Path, runs: Path, version: str = gnn.VERSION) -> int:
             if att and juge.rang(att, rep["scores"], juge.noeuds(donnees)) != rangs[k]:
                 faux13.append(f"{el}")
             n13 += 1
-        resultats["T13 v12 : alarme v2 et classement v1 dans le banc"] = (
+        resultats[f"T13 {version} : alarme {va} et classement {vc} dans le banc"] = (
             pire == 0.0 and not faux13, f"{n13} fenêtres : S de l'alarme ({va}) = gnn.GNN {version}, plus grand écart "
                                         f"{pire:.1e} (avec et sans la file ; {n_sf} fenêtres où la file change S) ; "
                                         f"rang sous {gnn.nom_choix(m12.choix)} = gnn.GNN {version}"

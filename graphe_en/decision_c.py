@@ -5,6 +5,8 @@ AVANT C et D.
     ./.venv/bin/python decision_c.py --garde [--machines X1,X2] [options]
     ./.venv/bin/python decision_c.py --ouvrir <campagne C> --jumeaux <campagne D> [options]
     ./.venv/bin/python decision_c.py --empreintes [options]
+    ./.venv/bin/python decision_c.py --empreintes --variante u|u1 [options]
+    ./.venv/bin/python decision_c.py --ouvrir <campagne C> --jumeaux <campagne D> --variante u|u1 [options]
 
 Les règles sont celles du journal : « Ce qui décidera sur C » (27 sept.), « Ce qui
 décidera sur D », la décision 2 précisée et la table de l'axe (d) (28 sept.,
@@ -32,7 +34,10 @@ réglage. La décision 1 et la ligne 0 de l'axe (d) restent communes.
   restreint aux machines. Écrit alors <campagnes>/decision-garde-d.txt.
   Une fois gnn-fige posée (le GNN entre alors dans la liste), la garde s'écrit dans
   decision-garde-gnn.txt (decision-garde-d-gnn.txt), une seule fois : la garde
-  commitée avant le gel n'est jamais réécrite.
+  commitée avant le gel n'est jamais réécrite. Avec ce code, la garde avec le GNN
+  (v12) est refusée tant que gnn-fige-2 n'est pas bien posée (gnn.raisons_scelle_2) :
+  elle lit le test des deux séries avec l'alarme de u et le classement de u1 ; la
+  première ouverture n'est regardée qu'après gnn-fige-2 (GNN_SPEC.md §17–§19).
 
 --ouvrir <C> --jumeaux <D> : la lecture de C et de D, UNE fois, dans la même
   lecture (J 1538-1540), quand le GNN est figé. Refusée tant que l'étiquette git
@@ -75,6 +80,50 @@ réglage. La décision 1 et la ligne 0 de l'axe (d) restent communes.
   calculée), écrites dans graphe_en/gnn-empreintes.txt, à commiter dans le commit
   de gnn-fige (§8 étape 8) : --ouvrir les relit par git à l'étiquette.
 
+--variante u|u1 : la SECONDE LECTURE (GNN_SPEC.md §17, §18, §19), pour UNE variante
+  « GNN unique » (gnn.py, version u ou u1), figée à l'étiquette gnn-fige-2 avant tout
+  regard sur la première. Exception écrite au §17 à « C et D lus une seule fois ».
+  RÈGLE FINALE (§19, qui remplace les règles de choix de §17 et §18, et sa mise à jour
+  de 16 h 10) : le modèle retenu parmi v12, u, u1 et u2 est choisi par l'utilisateur au
+  vu des seuls résultats de validation, le choix et son heure écrits au journal avant
+  toute lecture de C et D pour une variante unique ; si c'est une variante unique, UNE
+  seule seconde lecture, pour elle, et ses verdicts sont ceux du modèle retenu ; si
+  c'est v12, aucune seconde lecture. Ce code ne choisit rien : il refuse une deuxième
+  seconde lecture, de quelque variante que ce soit. Ci-dessous <v> vaut u ou u1.
+    --empreintes --variante <v> écrit graphe_en/gnn-empreintes-<v>.txt (gnn.empreintes
+                                de la version <v>, avec le nom de la machine), à
+                                commiter dans le commit de gnn-fige-2 ;
+    --ouvrir <C> --jumeaux <D> --variante <v>
+                                la même lecture que --ouvrir (mêmes règles, mêmes
+                                refus : code, injections confirmées, graines 5,
+                                empreintes), mais : refusée sans les étiquettes
+                                gnn-fige ET gnn-fige-2, si gnn-fige-2 n'est pas posée
+                                après gnn-fige (ancêtre, autre commit), si gnn-fige-2
+                                ne porte pas graphe_en/gnn-empreintes-<v>.txt ou en
+                                porte une autre gnn-empreintes-*.txt (une seule
+                                variante figée), si graphe_en/ a changé entre gnn-fige
+                                et gnn-fige-2 ailleurs que dans gnn.py, gnn_exemples.py,
+                                gnn_banc.py, decision_c.py et les gnn-empreintes-<v>.txt,
+                                si graphe_en/ a changé depuis gnn-fige-2, si les
+                                empreintes recalculées ne sont pas celles de
+                                gnn-fige-2:graphe_en/gnn-empreintes-<v>.txt, si la
+                                première lecture (decision-<C>-<D>.txt) n'est pas
+                                encore écrite ou est vide (son contenu n'est jamais
+                                lu : sa taille et son sha256 vont dans l'en-tête), ou
+                                si une seconde lecture de C ou de D existe déjà, de
+                                quelque variante que ce soit (decision-*-u.txt,
+                                decision-*-u1.txt). Les seules entrées du GNN sont
+                                celles de <v> (« GNN unique, sans exemples »… pour u,
+                                « GNN unique u1, sans exemples »… pour u1 :
+                                gnn.methodes de la version <v>) ; les témoins, la règle
+                                et ses versions machine sont recalculés (identiques à la
+                                première lecture). L'en-tête dit en plus les commits de
+                                gnn-fige et gnn-fige-2, la taille et le sha256 de la
+                                première lecture, la machine, numpy et scikit-learn.
+                                Écrit decision-<C>-<D>-<v>.txt, une seule fois.
+  --ouvrir sans --variante garde exactement son comportement (v12, gnn-fige,
+  gnn-empreintes.txt, decision-<C>-<D>.txt).
+
 comparer() calcule les axes (a), (b), (c) du journal entre le GNN et une version
 de la règle ; le GNN y sonne au budget de la règle (« GNN, <réglage>, budget de la
 règle », 21/249 ; les versions « machine » gardent ce budget, J 1620). Face à une
@@ -86,6 +135,7 @@ Options :
   --runs <dossier>       où sont les runs (défaut runs)
   --graines <n>          nombre de graines, à partir de 0 (défaut 5 ; à --ouvrir, 5 seulement)
   --machines <X1,X2>     avec --garde : les machines X de D (couples_d.py)
+  --variante u|u1        avec --ouvrir ou --empreintes : la seconde lecture (§17, §18)
   --no-install           n'installe jamais scikit-learn
   --help                 ce texte
 
@@ -132,6 +182,36 @@ GNN_SANS_ARETE = "GNN sans aucune arête"
 GRAINES_ECRITES = 5          # graines 0 à 4, écrites avant C et D (J 1237, 1315, 1553)
 FICHIER_EMPREINTES = "gnn-empreintes.txt"   # dans graphe_en/, commité avec gnn-fige (§8 étape 8)
 PLANCHER_D = "a priori, machines seules"   # le plancher de D (J 1551-1552)
+# La seconde lecture (GNN_SPEC.md §17, §18) : UNE variante « GNN unique » (u ou u1), figée à
+# gnn-fige-2 après gnn-fige et avant tout regard sur la première lecture. Ses noms commencent par
+# « GNN unique » (u) ou « GNN unique u1 » (gnn.PREFIXES) ; ses empreintes sont dans
+# graphe_en/gnn-empreintes-<variante>.txt. Une seule seconde lecture, quelle que soit la variante.
+VARIANTES_GNN = {"u": "GNN unique", "u1": "GNN unique u1"}
+SECTIONS_GNN = {"u": "§17", "u1": "§18"}
+ETIQUETTE_SCELLE_2 = "gnn-fige-2"
+# Ce qui peut changer dans graphe_en/ entre gnn-fige et gnn-fige-2 (relecture B, constat 2) : le code
+# du GNN et de la lecture, et les empreintes des variantes uniques.
+PERMIS_SCELLE_2 = ("gnn.py", "gnn_exemples.py", "gnn_banc.py", "decision_c.py")
+
+
+def noms_gnn(variante: str | None = None) -> dict:
+    """Les noms du GNN que lisent les décisions : {« propre » : {réglage : nom}, « regle » :
+    {réglage : nom au budget de la règle}, « sans_arete » : nom}. Sans variante, GNN,
+    GNN_REGLE et GNN_SANS_ARETE (la première lecture, v12) ; pour u, « GNN unique » en tête."""
+    if variante is None:
+        return {"propre": GNN, "regle": GNN_REGLE, "sans_arete": GNN_SANS_ARETE}
+    p = VARIANTES_GNN[variante]
+    return {"propre": {r: f"{p}, {r}" for r in REGLAGES}, "regle": {r: f"{p}, {r}, budget de la règle" for r in REGLAGES},
+            "sans_arete": f"{p} sans aucune arête"}
+
+
+def etiquette_scelle(variante: str | None = None) -> str:
+    return ETIQUETTE_SCELLE if variante is None else ETIQUETTE_SCELLE_2
+
+
+def fichier_empreintes(variante: str | None = None) -> str:
+    """gnn-empreintes.txt (première lecture) ou gnn-empreintes-<variante>.txt."""
+    return FICHIER_EMPREINTES if variante is None else FICHIER_EMPREINTES[:-len(".txt")] + f"-{variante}.txt"
 
 
 def cles_base(fige: dict) -> list[str]:
@@ -191,7 +271,8 @@ class APrioriMachines:
                 "scores": {k: float(self.deja.get(k, 0)) for k in juge.noeuds(donnees) if k.startswith("host:")}}
 
 
-def methodes(fige: dict, machine: bool = False, gnn: bool = False) -> list[tuple[str, object, bool]]:
+def methodes(fige: dict, machine: bool = False, gnn: bool = False,
+             variante: str | None = None) -> list[tuple[str, object, bool]]:
     """
     Les témoins figés ; pour D (machine=True), aussi la règle avec l'idée « machine »
     (option B, décidée le 28 sept. avant D). C garde la liste écrite avant C : l'idée
@@ -199,7 +280,8 @@ def methodes(fige: dict, machine: bool = False, gnn: bool = False) -> list[tuple
     « lenteur », où des répliques sont déjà à 1e9), F, G et TROUVE de C n'en
     changeraient pas. Avec gnn=True, le GNN et ses variantes (gnn.methodes, noms
     commençant par « GNN ») ; gnn.py n'est importé qu'alors (torch), jamais par un
-    --garde d'avant le gel.
+    --garde d'avant le gel. Avec une variante (§17), le GNN est celui de cette version
+    seule (gnn.methodes(fige, version=variante)), noms commençant par « GNN unique ».
     """
     out = temoins_module.temoins(fige)
     if machine:
@@ -209,10 +291,11 @@ def methodes(fige: dict, machine: bool = False, gnn: bool = False) -> list[tuple
         ]
     if gnn:
         import gnn as gnn_module   # import paresseux : torch n'est chargé qu'une fois le GNN admis
-        du_gnn = gnn_module.methodes(fige)
-        hors = [n for n, _, _ in du_gnn if not n.startswith("GNN")]
+        du_gnn = gnn_module.methodes(fige) if variante is None else gnn_module.methodes(fige, version=variante)
+        tete = "GNN" if variante is None else VARIANTES_GNN[variante]
+        hors = [n for n, _, _ in du_gnn if not n.startswith(tete)]
         if hors:   # les décisions trient les méthodes par le début de leur nom
-            raise ValueError(f"gnn.methodes : noms qui ne commencent pas par « GNN » : {', '.join(hors)}")
+            raise ValueError(f"gnn.methodes : noms qui ne commencent pas par « {tete} » : {', '.join(hors)}")
         out += du_gnn
     return out
 
@@ -229,10 +312,11 @@ def majorite(n: int, total: int) -> bool:
     return 2 * n > total
 
 
-def sans_structure(nom: str) -> bool:
+def sans_structure(nom: str, noms: dict | None = None) -> bool:
     """Les méthodes de la décision 1 : le tableau, le score par nœud, et la variante
     du GNN sans aucune arête (J 1241-1243, 1262-1263)."""
-    return nom.startswith("tableau") or nom.startswith("score par nœud") or nom.startswith(GNN_SANS_ARETE)
+    sans_arete = (noms or noms_gnn())["sans_arete"]
+    return nom.startswith("tableau") or nom.startswith("score par nœud") or nom.startswith(sans_arete)
 
 
 def reglage_de(nom: str) -> str | None:
@@ -241,13 +325,15 @@ def reglage_de(nom: str) -> str | None:
     return next((r for r in REGLAGES if nom.endswith(f", {r}")), None)
 
 
-def ecart_budget(res: dict, reglage: str) -> list[str]:
+def ecart_budget(res: dict, reglage: str, noms: dict | None = None) -> list[str]:
     """Une ligne si TROUVE ou F du GNN diffère entre son seuil propre et le budget de la
     règle (l'alarme peut changer les scores, E-2) : face à la règle, c'est le budget qui est lu."""
-    p, b = res.get(GNN[reglage]), res.get(GNN_REGLE[reglage])
+    noms = noms or noms_gnn()
+    propre, budget = noms["propre"][reglage], noms["regle"][reglage]
+    p, b = res.get(propre), res.get(budget)
     if p is not None and b is not None and (p["trouve"] != b["trouve"] or p["n_f"] != b["n_f"]):
-        return [f"    (TROUVE ou F de « {GNN[reglage]} » diffère au budget de la règle ; face à la règle, "
-                f"c'est « {GNN_REGLE[reglage]} » qui est lu)"]
+        return [f"    (TROUVE ou F de « {propre} » diffère au budget de la règle ; face à la règle, "
+                f"c'est « {budget} » qui est lu)"]
     return []
 
 
@@ -362,10 +448,90 @@ def machine_avant_d(campagne_yaml: Path) -> list[str]:
     return []
 
 
-def controle_du_code(jumeaux_yaml: Path | None = None) -> list[str]:
-    """Ce qui empêche d'ouvrir C et D : le scellé fermé, ou un code qui a changé depuis son étiquette."""
+def commit_de(etiquette: str) -> str:
+    """Le commit d'une étiquette (git rev-parse <étiquette>^{commit}) ; « » si elle n'existe pas."""
+    return _git("rev-parse", "-q", "--verify", f"refs/tags/{etiquette}^{{commit}}").stdout.strip()
+
+
+def scelle_2_mal_pose(variante: str) -> list[str]:
+    """
+    La seconde lecture (§17, §18), gnn-fige et gnn-fige-2 existant, gnn-fige ancêtre de
+    gnn-fige-2 : ce qui empêche encore de lire.
+      - gnn-fige-2 posée sur le commit même de gnn-fige (pas APRÈS lui) ;
+      - §18, une seule seconde lecture : gnn-fige-2 doit porter graphe_en/gnn-empreintes-<variante>.txt
+        et AUCUNE autre graphe_en/gnn-empreintes-*.txt (sinon deux variantes pourraient être lues) ;
+      - relecture B, constat 2 : entre gnn-fige et gnn-fige-2, graphe_en/ ne change que dans
+        gnn.py, gnn_exemples.py, gnn_banc.py, decision_c.py et les gnn-empreintes-<u|u1>.txt.
+    """
+    scelle = etiquette_scelle(variante)
+    c1, c2 = commit_de(ETIQUETTE_SCELLE), commit_de(scelle)
+    if not c1 or not c2 or c1 == c2:
+        return [f"l'étiquette {scelle} n'est pas posée APRÈS {ETIQUETTE_SCELLE} (même commit, ou illisible) : la "
+                f"variante {variante} se fige après v12 ({SECTIONS_GNN[variante]})."]
+    soucis = []
+    voulu = f"graphe_en/{fichier_empreintes(variante)}"
+    prefixe = FICHIER_EMPREINTES[:-len(".txt")] + "-"
+    r = _git("ls-tree", "-z", "--name-only", c2, "graphe_en/")
+    portees = sorted(n for n in r.stdout.split("\0") if n.startswith("graphe_en/" + prefixe) and n.endswith(".txt"))
+    if r.returncode != 0 or portees != [voulu]:
+        soucis.append(f"{scelle} doit porter {voulu} et aucune autre empreinte de variante unique (§18 : une seule "
+                      f"seconde lecture) ; elle porte : {', '.join(portees) or 'aucune'}")
+    permis = {f"graphe_en/{x}" for x in PERMIS_SCELLE_2} | {f"graphe_en/{fichier_empreintes(w)}" for w in VARIANTES_GNN}
+    r = _git("diff", "-z", "--name-only", "--no-renames", c1, c2, "--", "graphe_en/")
+    hors = sorted(n for n in r.stdout.split("\0") if n and n not in permis)
+    if r.returncode != 0:
+        soucis.append(f"git diff {ETIQUETTE_SCELLE} {scelle} illisible : le changement du code n'est pas contrôlé")
+    elif hors:
+        soucis.append(f"graphe_en/ a changé entre {ETIQUETTE_SCELLE} et {scelle} hors de "
+                      f"{', '.join(sorted(permis))} : {', '.join(hors)}")
+    return soucis
+
+
+def en_tete_seconde_lecture(variante: str, premiere: Path) -> list[str]:
+    """
+    Ce qui identifie la seconde lecture (relecture B, constats 3 à 5), sans rien lire de la
+    première : les commits de gnn-fige et de gnn-fige-2 (une étiquette déplacée se verrait) ;
+    la taille et le sha256 de la première lecture (son contenu est haché, jamais lu ni
+    affiché) ; la machine, numpy et scikit-learn (torch est sur la ligne du GNN).
+    """
+    import hashlib
+    import platform
+    from importlib import metadata
+    h = hashlib.sha256()
+    with open(premiere, "rb") as f:
+        for bloc in iter(lambda: f.read(1 << 16), b""):
+            h.update(bloc)
+
+    def version_de(paquet: str) -> str:
+        try:
+            return metadata.version(paquet)
+        except metadata.PackageNotFoundError:
+            return "absent"
+    return [f"# étiquettes : {ETIQUETTE_SCELLE} = commit {commit_de(ETIQUETTE_SCELLE) or '?'} ; "
+            f"{etiquette_scelle(variante)} = commit {commit_de(etiquette_scelle(variante)) or '?'}",
+            f"# première lecture {premiere.name} : {premiere.stat().st_size} octets, sha256 {h.hexdigest()} "
+            f"(hachée, jamais lue ni affichée)",
+            f"# machine {platform.node()} ; numpy {version_de('numpy')} ; scikit-learn {version_de('scikit-learn')}"]
+
+
+def controle_du_code(jumeaux_yaml: Path | None = None, variante: str | None = None) -> list[str]:
+    """Ce qui empêche d'ouvrir C et D : le scellé fermé, ou un code qui a changé depuis son étiquette.
+    Avec une variante (§17, §18) : gnn-fige ET gnn-fige-2, gnn-fige-2 posée après gnn-fige et ne
+    portant que les empreintes de cette variante, graphe_en/ limité entre les deux étiquettes
+    (scelle_2_mal_pose), et le code comparé à gnn-fige-2."""
+    scelle = etiquette_scelle(variante)
     if _git("tag", "--list", ETIQUETTE_SCELLE).stdout.strip() != ETIQUETTE_SCELLE:
         return [f"SCELLÉ FERMÉ : l'étiquette « {ETIQUETTE_SCELLE} » n'existe pas ; C ne se lit qu'une fois le GNN figé."]
+    if variante is not None:
+        if _git("tag", "--list", scelle).stdout.strip() != scelle:
+            return [f"SCELLÉ FERMÉ : l'étiquette « {scelle} » n'existe pas ; la seconde lecture (variante {variante}, "
+                    f"{SECTIONS_GNN[variante]}) ne se fait qu'une fois la variante figée."]
+        if _git("merge-base", "--is-ancestor", ETIQUETTE_SCELLE, scelle).returncode != 0:
+            return [f"l'étiquette {ETIQUETTE_SCELLE} n'est pas antérieure à {scelle} : v12 est figée en premier "
+                    f"(§17, §18)."]
+        soucis2 = scelle_2_mal_pose(variante)
+        if soucis2:
+            return soucis2
     # Le contrôle doit voir une différence connue : decision_c.py n'existe pas à temoins-figes.
     if _git("diff", "--quiet", ETIQUETTE_TEMOINS, "--", "graphe_en/decision_c.py").returncode != 1:
         return ["LE CONTRÔLE NE VOIT RIEN : git ne voit pas que decision_c.py est né après "
@@ -387,14 +553,14 @@ def controle_du_code(jumeaux_yaml: Path | None = None) -> list[str]:
     else:
         if _git("diff", "--quiet", ETIQUETTE_MACHINE, "--", machine).returncode != 0:
             soucis.append(f"{machine} a changé depuis l'étiquette {ETIQUETTE_MACHINE}")
-        if _git("merge-base", "--is-ancestor", ETIQUETTE_MACHINE, ETIQUETTE_SCELLE).returncode != 0:
-            soucis.append(f"l'étiquette {ETIQUETTE_MACHINE} n'est pas antérieure à {ETIQUETTE_SCELLE}")
+        if _git("merge-base", "--is-ancestor", ETIQUETTE_MACHINE, scelle).returncode != 0:
+            soucis.append(f"l'étiquette {ETIQUETTE_MACHINE} n'est pas antérieure à {scelle}")
         if jumeaux_yaml is not None:
             soucis += machine_avant_d(jumeaux_yaml)
     if _git("ls-files", "--error-unmatch", machine).returncode != 0:
         soucis.append(f"{machine} n'est pas suivi par git")
-    if _git("diff", "--quiet", ETIQUETTE_SCELLE, "--", "graphe_en/").returncode != 0:
-        soucis.append(f"graphe_en/ a changé depuis l'étiquette {ETIQUETTE_SCELLE}")
+    if _git("diff", "--quiet", scelle, "--", "graphe_en/").returncode != 0:
+        soucis.append(f"graphe_en/ a changé depuis l'étiquette {scelle}")
     # git diff ne voit pas un fichier non suivi : aucun .py non suivi dans graphe_en/.
     hors = _git("ls-files", "--others", "--exclude-standard", "--", "graphe_en/*.py").stdout.split()
     if hors:
@@ -421,44 +587,53 @@ def lire_empreintes(texte: str) -> dict[str, str]:
     return out
 
 
-def empreintes_figees() -> dict[str, str] | None:
+def empreintes_figees(variante: str | None = None) -> dict[str, str] | None:
     """Les empreintes notées au gel (§8 étape 8) : graphe_en/gnn-empreintes.txt tel qu'il est
-    DANS l'étiquette gnn-fige (git show), jamais la copie de travail ; None s'il n'y est pas."""
-    r = _git("show", f"{ETIQUETTE_SCELLE}:graphe_en/{FICHIER_EMPREINTES}")
+    DANS l'étiquette gnn-fige (git show), jamais la copie de travail ; None s'il n'y est pas.
+    Variante u (§17) : graphe_en/gnn-empreintes-u.txt dans l'étiquette gnn-fige-2."""
+    r = _git("show", f"{etiquette_scelle(variante)}:graphe_en/{fichier_empreintes(variante)}")
     return lire_empreintes(r.stdout) if r.returncode == 0 else None
 
 
-def empreintes_du_gnn(gnn_module, fen_series: list[dict], fige: dict, graines: int) -> dict[str, str] | None:
+def empreintes_du_gnn(gnn_module, fen_series: list[dict], fige: dict, graines: int,
+                      version: str | None = None) -> dict[str, str] | None:
     """
     Les empreintes recalculées après gnn.preparer, par gnn.empreintes(fen, fige, graines) :
     {clé : sha256 de torch.save en mémoire}, une clé par réglage ou variante et par graine
     qui entre dans les décisions, modèle final ET modèles des plis (ils calent le seuil).
-    gnn.py la fournit (son auteur) ; None si elle manque.
+    gnn.py la fournit (son auteur) ; None si elle manque. `version` : celle d'une variante
+    (§17), passée à gnn.empreintes ; sans elle, l'appel d'avant.
     """
     f = getattr(gnn_module, "empreintes", None)
-    return None if f is None else {str(k): str(v) for k, v in f(fen_series, fige, graines).items()}
+    if f is None:
+        return None
+    emp = f(fen_series, fige, graines) if version is None else f(fen_series, fige, graines, version=version)
+    return {str(k): str(v) for k, v in emp.items()}
 
 
-def controle_empreintes(calculees: dict[str, str] | None, figees: dict[str, str] | None) -> list[str]:
+def controle_empreintes(calculees: dict[str, str] | None, figees: dict[str, str] | None,
+                        variante: str | None = None) -> list[str]:
     """Ce qui empêche d'ouvrir C et D côté modèles : l'absence de l'une ou l'autre liste, ou
     la moindre différence (une autre version, d'autres époques, une autre bibliothèque)."""
-    source = f"{ETIQUETTE_SCELLE}:graphe_en/{FICHIER_EMPREINTES}"
+    source = f"{etiquette_scelle(variante)}:graphe_en/{fichier_empreintes(variante)}"
     if calculees is None:
         return ["gnn.py ne fournit pas empreintes(fen, fige, graines) : les modèles ne peuvent pas être "
                 "comparés à ceux du gel (§8 étape 8) ; C ne s'ouvre pas."]
     if not figees:
         return [f"{source} n'existe pas ou est vide : les empreintes du gel manquent (§8 étape 8, "
-                f"« decision_c.py --empreintes » avant gnn-fige) ; C ne s'ouvre pas."]
+                f"« decision_c.py --empreintes{'' if variante is None else ' --variante ' + variante} » avant "
+                f"{etiquette_scelle(variante)}) ; C ne s'ouvre pas."]
     ecarts = [k for k in sorted(set(figees) | set(calculees)) if figees.get(k) != calculees.get(k)]
     return [f"empreinte {k} : figée {(figees.get(k) or 'absente')[:16]}, recalculée "
             f"{(calculees.get(k) or 'absente')[:16]} ; le GNN n'est plus celui du gel, C ne s'ouvre pas."
             for k in ecarts]
 
 
-def en_tete_gnn(gnn_module, emp: dict[str, str] | None) -> list[str]:
-    """Ce qui identifie le GNN lu : version, époques, torch, et chaque empreinte."""
+def en_tete_gnn(gnn_module, emp: dict[str, str] | None, version: str | None = None) -> list[str]:
+    """Ce qui identifie le GNN lu : version (celle de la variante s'il y en a une), époques,
+    torch, et chaque empreinte."""
     torch_v = getattr(sys.modules.get("torch"), "__version__", "?")
-    lignes = [f"# GNN : version {getattr(gnn_module, 'VERSION', '?')}, {getattr(gnn_module, 'EPOQUES', '?')} "
+    lignes = [f"# GNN : version {version or getattr(gnn_module, 'VERSION', '?')}, {getattr(gnn_module, 'EPOQUES', '?')} "
               f"époques, torch {torch_v}"]
     if emp is None:
         return lignes + ["#   (gnn.empreintes absent : aucune empreinte)"]
@@ -719,7 +894,7 @@ def contre_chacune(trouve_gnn: bool, nf_gnn: list[int], adversaires: dict[str, t
 
 
 def table_axe_d(n_confirmees: int, n_comptent: int, res: dict,
-                comptent: dict) -> tuple[dict[str, str] | None, list[str]]:
+                comptent: dict, noms: dict | None = None) -> tuple[dict[str, str] | None, list[str]]:
     """
     L'axe (d) de C, lu sur D (table du 28 sept., J 1697-1713, qui remplace celle de
     J 1561-1564). Les lignes se lisent DANS L'ORDRE ; la première qui s'applique
@@ -727,8 +902,9 @@ def table_axe_d(n_confirmees: int, n_comptent: int, res: dict,
     ligne 0 est commune ; les lignes 1 à 4 se lisent par réglage du GNN, contre les
     seules versions de la règle du même réglage (E-2, J 2119-2126). Rend
     ({réglage : valeur}, lignes) ; None si D est à refaire (moins de 2 injections
-    confirmées, J 1541-1542 : D refaite à l'identique).
+    confirmées, J 1541-1542 : D refaite à l'identique). `noms` : ceux du GNN lu (noms_gnn).
     """
+    noms = noms or noms_gnn()
     if n_confirmees < 2:
         return None, ["  D est à refaire à l'identique (moins de 2 injections confirmées) : l'axe (d) n'est pas établi."]
     trouve = {n: r["trouve"] for n, r in res.items()}
@@ -739,12 +915,12 @@ def table_axe_d(n_confirmees: int, n_comptent: int, res: dict,
                 + ([f"le plancher « {PLANCHER_D} » TROUVE"] if trouve.get(PLANCHER_D) else [])
                 + ([f"décision 1 sur D : {', '.join(structure)} TROUVE"] if structure else [])
                 + ([f"« {n} » TROUVE X (la remontée écrite à la main trouve, pas le GNN, J 1597-1599)"
-                    for n in trouve if n.startswith(GNN_SANS_ARETE) and trouve[n]]))
+                    for n in trouve if n.startswith(noms["sans_arete"]) and trouve[n]]))
     if raisons0:
         return {r: "égal" for r in REGLAGES}, [f"  ligne 0 : {' ; '.join(raisons0)} → égal (les deux réglages)"]
     valeurs, lignes = {}, []
     for reg in REGLAGES:
-        propre, budget = GNN[reg], GNN_REGLE[reg]
+        propre, budget = noms["propre"][reg], noms["regle"][reg]
         regles_r = [n for n in regles if reglage_de(n) == reg]
         if not regles_r:
             # 1. (J 1702-1703) aucune version de ce réglage ne TROUVE et le GNN TROUVE ; 4. (J 1712) personne
@@ -770,20 +946,22 @@ def table_axe_d(n_confirmees: int, n_comptent: int, res: dict,
             # 3. (J 1711) une version TROUVE et pas le GNN
             valeurs[reg] = "perdu"
             lignes.append(f"  [{reg}] ligne 3 : {', '.join(regles_r)} TROUVE X, pas « {budget} » → perdu")
-        lignes += ecart_budget(res, reg)
+        lignes += ecart_budget(res, reg, noms)
     return valeurs, lignes
 
 
 def decision_c(n_comptent: int, res: dict, comptent: dict, fa_test: dict, axe_d: dict[str, str] | None,
-               regles_c: list[str]) -> list[str]:
+               regles_c: list[str], noms: dict | None = None) -> list[str]:
     """Les décisions 1 à 3 de C (J 1241-1263), le verdict de chaque réglage du GNN contre
     CHAQUE version de la règle du même réglage (J 1690-1695, 2119-2126), l'axe (d) venant de D.
-    La décision 1 est commune aux deux réglages ; les décisions 2 et 3 se lisent par réglage."""
+    La décision 1 est commune aux deux réglages ; les décisions 2 et 3 se lisent par réglage.
+    `noms` : ceux du GNN lu (noms_gnn ; la première lecture par défaut)."""
+    noms = noms or noms_gnn()
     lignes = ["", "Décision sur C (ordre écrit avant C) :"]
     trouve = {n: r["trouve"] for n, r in res.items()}
-    structure = [n for n in trouve if sans_structure(n) and trouve[n]]
+    structure = [n for n in trouve if sans_structure(n, noms) and trouve[n]]
     regles = [n for n in trouve if n.startswith("règle") and trouve[n]]
-    avec_gnn = all(GNN[r] in res and GNN_REGLE[r] in res for r in REGLAGES)
+    avec_gnn = all(noms["propre"][r] in res and noms["regle"][r] in res for r in REGLAGES)
     d_txt = (lambda reg: "non établi (D à refaire)" if axe_d is None else axe_d[reg])
     if n_comptent < 2:
         lignes.append("  aucune : moins de 2 injections qui comptent.")
@@ -792,7 +970,7 @@ def decision_c(n_comptent: int, res: dict, comptent: dict, fa_test: dict, axe_d:
                       f"sur C ; aucune conclusion sur le GNN n'est tirée de C (D et l'axe (a) restent).")
         if avec_gnn:
             for r in regles_c:
-                b = GNN_REGLE[reglage_de(r)]
+                b = noms["regle"][reglage_de(r)]
                 lignes.append(f"    axe (a) de « {b} » contre {r} : {axe_a(fa_test[b], fa_test[r][0])} (fausses "
                               f"alertes du test non vues : GNN {_case(fa_test[b])}, règle {fa_test[r][0]})")
     elif not avec_gnn:
@@ -801,7 +979,7 @@ def decision_c(n_comptent: int, res: dict, comptent: dict, fa_test: dict, axe_d:
         lignes.append("  le GNN n'est pas dans la liste : pas de verdict.")
     else:
         for reg in REGLAGES:
-            propre, budget = GNN[reg], GNN_REGLE[reg]
+            propre, budget = noms["propre"][reg], noms["regle"][reg]
             regles_r = [n for n in regles if reglage_de(n) == reg]
             lignes.append(f"  -- « {propre} », contre les versions « …, {reg} » de la règle (E-2, J 2119-2126)")
             if regles_r:
@@ -834,19 +1012,22 @@ def decision_c(n_comptent: int, res: dict, comptent: dict, fa_test: dict, axe_d:
                               f"s'il TROUVE.")
                 lignes.append(f"  VERDICT DU GNN SUR C, {reg} : {'gagné' if trouve[propre] else 'égal'}"
                               + ("" if axe_d is not None else " (D à refaire : l'axe (d) n'est pas établi)"))
-            lignes += ecart_budget(res, reg)
+            lignes += ecart_budget(res, reg, noms)
     if avec_gnn:
         lignes += [f"  axe (d), de D, {reg} : {d_txt(reg)}" for reg in REGLAGES]
     return lignes
 
 
 def lecture(fen_series: list[dict], fen_c: list[dict], fen_d: list[dict], c: str, d: str, campagnes: Path,
-            fige: dict, graines: int, gnn: bool) -> list[str]:
-    """C et D dans la même lecture (J 1538-1540) : G, G_D, les deux campagnes, l'axe (d), puis C."""
-    liste_c = methodes(fige, gnn=gnn)
-    liste_d = methodes(fige, machine=True, gnn=gnn) + [(PLANCHER_D, lambda fen, g: APrioriMachines(fen), False)]
+            fige: dict, graines: int, gnn: bool, variante: str | None = None) -> list[str]:
+    """C et D dans la même lecture (J 1538-1540) : G, G_D, les deux campagnes, l'axe (d), puis C.
+    Avec une variante (§17), le GNN de cette variante seule, sous ses noms (noms_gnn)."""
+    noms = noms_gnn(variante)
+    liste_c = methodes(fige, gnn=gnn, variante=variante)
+    liste_d = methodes(fige, machine=True, gnn=gnn, variante=variante) + \
+        [(PLANCHER_D, lambda fen, g: APrioriMachines(fen), False)]
     noms_c = [n for n, _, _ in liste_c]
-    attendus = [n for r in REGLAGES for n in (GNN[r], GNN_REGLE[r])]
+    attendus = [n for r in REGLAGES for n in (noms["propre"][r], noms["regle"][r])]
     if gnn and not set(attendus) <= set(noms_c):   # E-2 : les deux réglages et leur budget (J 2119-2126)
         raise ValueError(f"gnn.methodes ne rend pas {', '.join(f'« {n} »' for n in attendus if n not in noms_c)}")
     test = [f for f in fen_series if f["jeu"] == "test" and f["etiquette"] not in juge.ECARTEES]
@@ -879,22 +1060,33 @@ def lecture(fen_series: list[dict], fen_c: list[dict], fen_d: list[dict], c: str
     lignes += l
 
     lignes += ["", "== L'axe (d), lu sur D (table du 28 sept., lignes lues dans l'ordre)"]
-    axe_d, l = table_axe_d(n_conf_d, sum(comptent_d.values()), res_d, comptent_d)
+    axe_d, l = table_axe_d(n_conf_d, sum(comptent_d.values()), res_d, comptent_d, noms)
     lignes += l
     if res_c:
         regles_c = [n for n in noms_c if n.startswith("règle")]
-        lignes += decision_c(sum(comptent_c.values()), res_c, comptent_c, fa_test, axe_d, regles_c)
+        lignes += decision_c(sum(comptent_c.values()), res_c, comptent_c, fa_test, axe_d, regles_c, noms)
     return lignes
 
 
 # ------------------------------------------------------------------------------
 def rapport(mode: str, c: str | None, campagnes: Path, runs: Path, graines: int,
-            d: str | None = None, machines: list[str] | None = None, gnn: bool | None = None) -> int:
+            d: str | None = None, machines: list[str] | None = None, gnn: bool | None = None,
+            variante: str | None = None) -> int:
     fige, _, _ = gel.reference()
+    # La version du GNN passée à gnn.py : celle de la variante (§17), sinon rien (l'appel d'avant).
+    kw_version = {} if variante is None else {"version": variante}
     if mode == "ouvrir":
-        soucis = controle_du_code(campagnes / d / "campagne.yaml")
+        soucis = controle_du_code(campagnes / d / "campagne.yaml") if variante is None else \
+            controle_du_code(campagnes / d / "campagne.yaml", variante)
         if soucis:
             print("\n".join(soucis))
+            return 1
+        premiere = campagnes / f"decision-{c}-{d}.txt"
+        if variante is not None and (not premiere.is_file() or premiere.stat().st_size == 0):
+            # §17 : la seconde lecture vient après la première (v12, la référence) ; seules son
+            # existence et sa taille sont regardées ici, jamais son contenu (relecture B, constat 4).
+            print(f"la première lecture (decision-{c}-{d}.txt) n'est pas écrite, ou est vide : la seconde lecture "
+                  f"(variante {variante}, {SECTIONS_GNN[variante]}) ne vient qu'après elle ; rien n'est lu.")
             return 1
         # C et D s'ouvrent ensemble (J 1540) : une campagne à refaire arrête tout, avant toute lecture
         # et tout calcul (J 1227, 1541-1542). Compter par cause couvre aussi C et D échangées.
@@ -915,14 +1107,22 @@ def rapport(mode: str, c: str | None, campagnes: Path, runs: Path, graines: int,
     if mode == "empreintes":   # §8 étape 8 : les modèles appris comme à --ouvrir, aucune réponse
         import gnn as gnn_module
         with contextlib.redirect_stdout(sys.stderr):
-            gnn_module.preparer(fen_series, fige, graines)
-        emp = empreintes_du_gnn(gnn_module, fen_series, fige, graines)
+            gnn_module.preparer(fen_series, fige, graines, **kw_version)
+        emp = empreintes_du_gnn(gnn_module, fen_series, fige, graines, variante)
         if emp is None:
             print("gnn.py ne fournit pas empreintes(fen, fige, graines)")
             return 1
-        print(f"# Empreintes du GNN (GNN_SPEC.md §8 étape 8) — écrit par graphe_en/decision_c.py --empreintes, "
-              f"graines 0 à {graines - 1} ; à commiter avec gnn-fige.")
-        print("\n".join(en_tete_gnn(gnn_module, None)[:1]))
+        if variante is None:
+            print(f"# Empreintes du GNN (GNN_SPEC.md §8 étape 8) — écrit par graphe_en/decision_c.py --empreintes, "
+                  f"graines 0 à {graines - 1} ; à commiter avec gnn-fige.")
+        else:
+            print(f"# Empreintes du GNN, variante {variante} (GNN_SPEC.md {SECTIONS_GNN[variante]}) — écrit par "
+                  f"graphe_en/decision_c.py --empreintes --variante {variante}, graines 0 à {graines - 1} ; à commiter "
+                  f"avec {etiquette_scelle(variante)}.")
+        print("\n".join(en_tete_gnn(gnn_module, None, variante)[:1]))
+        if variante is not None:   # §18 : les empreintes ne sont reproductibles que sur la même machine
+            import platform
+            print(f"# machine {platform.node()}")
         print("\n".join(f"{k} {v}" for k, v in sorted(emp.items())))
         return 0
     if machines:
@@ -936,17 +1136,27 @@ def rapport(mode: str, c: str | None, campagnes: Path, runs: Path, graines: int,
         gnn = mode == "ouvrir" or etiquette_existe(ETIQUETTE_SCELLE)
     print("# Décision sur la base lente — écrit par graphe_en/decision_c.py, ne pas éditer à la main.")
     print(f"# règles : notes/JOURNAL.md, 27 sept. ; graines 0 à {graines - 1} pour ce qui tire au hasard")
+    if variante is not None:
+        print(f"# SECONDE LECTURE (GNN_SPEC.md §17, §18, §19) : la variante « {VARIANTES_GNN[variante]} » "
+              f"({variante}) seule, figée à {etiquette_scelle(variante)} ; règle finale (§19 et sa mise à jour de "
+              f"16 h 10) : la seconde lecture n'est faite que pour le modèle retenu, choisi par l'utilisateur au vu "
+              f"des seuls résultats de validation (choix et heure écrits au journal avant toute lecture de C et D "
+              f"pour une variante unique) ; ses verdicts sont ceux du modèle retenu, avec les mêmes règles ; "
+              f"témoins et règle recalculés")
+        if mode == "ouvrir":
+            print("\n".join(en_tete_seconde_lecture(variante, campagnes / f"decision-{c}-{d}.txt")))
     if gnn:
         import gnn as gnn_module
         with contextlib.redirect_stdout(sys.stderr):   # ses messages à l'écran, pas dans le rapport
-            gnn_module.preparer(fen_series, fige, graines)
-        emp = empreintes_du_gnn(gnn_module, fen_series, fige, graines)
+            gnn_module.preparer(fen_series, fige, graines, **kw_version)
+        emp = empreintes_du_gnn(gnn_module, fen_series, fige, graines, variante)
         if mode == "ouvrir":   # §8 étape 8 : les modèles sont ceux du gel, ou C et D ne s'ouvrent pas
-            soucis = controle_empreintes(emp, empreintes_figees())
+            soucis = controle_empreintes(emp, empreintes_figees()) if variante is None else \
+                controle_empreintes(emp, empreintes_figees(variante), variante)
             if soucis:
                 print("\n".join(soucis))
                 return 1
-        print("\n".join(en_tete_gnn(gnn_module, emp)))
+        print("\n".join(en_tete_gnn(gnn_module, emp, variante)))
     if mode == "garde":
         print("\n== La garde de spécificité G (test des deux séries)")
         liste = methodes(fige, gnn=gnn)   # la même liste pour la garde et la lecture
@@ -965,13 +1175,13 @@ def rapport(mode: str, c: str | None, campagnes: Path, runs: Path, graines: int,
         print(f"REFUS  {e}")
         return 1
     print(f"# et sur les jumeaux : C = {c}, D = {d}, ouvertes dans la même lecture")
-    print("\n".join(lecture(fen_series, fen_c, fen_d, c, d, campagnes, fige, graines, gnn)))
+    print("\n".join(lecture(fen_series, fen_c, fen_d, c, d, campagnes, fige, graines, gnn, variante)))
     return 0
 
 
 def main(argv: list[str]) -> int:
     campagnes, runs, installer, graines = HERE.parent / "campagnes", HERE / "runs", True, GRAINES_ECRITES
-    mode, c, d, machines = None, None, None, None
+    mode, c, d, machines, variante = None, None, None, None, None
     args = argv[1:]
     try:
         while args:
@@ -998,6 +1208,10 @@ def main(argv: list[str]) -> int:
             elif a == "--graines":
                 graines = int(args.pop(0))
                 if graines < 1:
+                    raise ValueError
+            elif a == "--variante":
+                variante = args.pop(0)
+                if variante not in VARIANTES_GNN:
                     raise ValueError
             elif a == "--no-install":
                 installer = False
@@ -1027,6 +1241,10 @@ def main(argv: list[str]) -> int:
     if mode == "ouvrir" and machines is not None:
         print("--machines ne va qu'avec --garde (à --ouvrir, les X sont ceux de D)", file=sys.stderr)
         return 2
+    if variante is not None and mode not in ("ouvrir", "empreintes"):
+        print(f"--variante ne va qu'avec --ouvrir ou --empreintes (variantes : {', '.join(VARIANTES_GNN)})",
+              file=sys.stderr)
+        return 2
     for x, quoi in ((c, "C"), (d, "D")):
         if x is not None and x in fautifs_module.SERIES:
             print(f"{x} est une campagne des deux séries, pas {quoi}", file=sys.stderr)
@@ -1049,31 +1267,52 @@ def main(argv: list[str]) -> int:
     # avec le GNN d'après le gel, n'est jamais refaite ni écrasée ; refusé avant tout calcul. La
     # garde d'avant le gel (sans le GNN) se refait à l'identique dans decision-garde(-d).txt.
     gnn = mode == "ouvrir" or (mode == "garde" and etiquette_existe(ETIQUETTE_SCELLE))
+    if mode == "garde" and gnn:
+        # §17–§19 : la garde avec le GNN lit le test des deux séries avec v12, dont l'alarme est celle
+        # de u et le classement celui de u1 ; comme gnn.py --test, pas avant gnn-fige-2 bien posée.
+        import gnn as gnn_module
+        ferme = gnn_module.raisons_scelle_2(gnn_module.VERSION)
+        if ferme:
+            print(f"--garde refusé : l'étiquette {ETIQUETTE_SCELLE} existe, le GNN ({gnn_module.VERSION}) entrerait "
+                  f"dans la garde et y lirait le test des deux séries ; {'; '.join(ferme)}", file=sys.stderr)
+            return 1
     if mode == "empreintes":
-        cible, une_fois = HERE / FICHIER_EMPREINTES, False
+        cible, une_fois = HERE / fichier_empreintes(variante), False
     elif mode == "garde":
         cible = campagnes / ("decision-garde" + ("-d" if machines else "") + ("-gnn" if gnn else "") + ".txt")
         une_fois = gnn
-    else:
+    elif variante is None:
         cible, une_fois = campagnes / f"decision-{c}-{d}.txt", True
-    deja = ([cible] if cible.exists() else []) if mode != "ouvrir" else \
-        sorted(set(campagnes.glob(f"decision-{c}-*.txt")) | set(campagnes.glob(f"decision-*-{d}.txt")))
+    else:   # la seconde lecture (§17, §18) : son propre fichier, une seule seconde lecture
+        cible, une_fois = campagnes / f"decision-{c}-{d}-{variante}.txt", True
+    if mode != "ouvrir":
+        deja = [cible] if cible.exists() else []
+    elif variante is None:
+        deja = sorted(set(campagnes.glob(f"decision-{c}-*.txt")) | set(campagnes.glob(f"decision-*-{d}.txt")))
+    else:   # §18 : UNE seule seconde lecture, quelle que soit la variante (u ou u1)
+        deja = sorted({x for w in VARIANTES_GNN for x in (set(campagnes.glob(f"decision-{c}-*-{w}.txt"))
+                                                          | set(campagnes.glob(f"decision-*-{d}-{w}.txt")))})
     if une_fois and deja:
         print(f"déjà écrit : {', '.join(str(x) for x in deja)} ; chacun passe une seule fois (J 1210) : "
               f"rien n'est relu ni écrasé", file=sys.stderr)
         return 1
     sortie = io.StringIO()
     with contextlib.redirect_stdout(sortie):
-        code = rapport(mode, c, campagnes, runs, graines, d, machines, gnn=gnn if mode != "empreintes" else None)
+        code = rapport(mode, c, campagnes, runs, graines, d, machines, gnn=gnn if mode != "empreintes" else None,
+                       variante=variante)
     texte = sortie.getvalue()
-    print(texte, end="")
-    if code == 0:
+    if code == 0:   # écrit AVANT d'être affiché : une lecture montrée est toujours une lecture écrite
         try:
             with open(cible, "x" if une_fois else "w") as f:   # « x » : deux lancements ne s'écrasent pas
                 f.write(texte)
         except FileExistsError:
-            print(f"{cible} est apparu pendant le calcul : rien n'est écrasé", file=sys.stderr)
+            print(f"{cible} est apparu pendant le calcul : rien n'est écrasé ni affiché", file=sys.stderr)
             return 1
+        except OSError as e:
+            print(f"{cible} n'a pas pu être écrit ({e}) : rien n'est affiché", file=sys.stderr)
+            return 1
+    print(texte, end="")
+    if code == 0:
         print(f"-> {cible}")
     return code
 
