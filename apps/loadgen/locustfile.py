@@ -59,7 +59,22 @@ aucune file ont été retirés — du volume sans arête ni message.
 Avec un rythme de 5 s : 0,12 message/s par voyageur pour food_delivery,
 soit 3 messages/s à 25 voyageurs et 6 à 50. Les poids se règlent par
 TT_POIDS_REPAS, TT_POIDS_RESERVER, TT_POIDS_CHERCHER, TT_POIDS_COURRIEL.
+
+UN DÉLAI D'ABANDON
+
+Le 28/09, les requêtes n'en avaient aucun : environ 19 voyageurs sur 25
+attendaient sans fin un service figé. Locust affichait 25 voyageurs, la charge
+réelle était tombée au quart, et aucune erreur ne le montrait. Chaque requête
+abandonne désormais après 10 s sans connexion ou 60 s sans réponse
+(TT_DELAI_CONNEXION, TT_DELAI_REPONSE). Une requête bloquée devient un échec
+compté, et le voyageur passe au parcours suivant au lieu de rester figé.
+Conséquence : les réservations de plus de 60 s — vues le 12/09 pendant une
+panne « charge », jusqu'à 88 s — seront désormais des échecs.
+Une exception : une réponse coupée au milieu du corps (en-têtes reçus, puis
+plus rien) remonte en exception (onglet Exceptions de Locust), pas en échec —
+défaut de Locust 2.32.4.
 """
+import functools
 import os
 import random
 import time
@@ -114,6 +129,11 @@ POIDS_RESERVER = int(os.getenv("TT_POIDS_RESERVER", "2"))
 POIDS_CHERCHER = int(os.getenv("TT_POIDS_CHERCHER", "1"))
 POIDS_COURRIEL = int(os.getenv("TT_POIDS_COURRIEL", "1"))
 
+# Le délai d'abandon de chaque requête, en secondes : pour établir la
+# connexion, puis pour recevoir la réponse — voir l'en-tête.
+DELAI_CONNEXION = float(os.getenv("TT_DELAI_CONNEXION", "10"))
+DELAI_REPONSE = float(os.getenv("TT_DELAI_REPONSE", "60"))
+
 # Le repas commandé, identique pour tous : la référence n'a pas à varier là.
 REPAS = {"foodType": 2, "foodName": "Bone Soup", "price": 2.5,
          "storeName": "Roman Holiday"}
@@ -151,9 +171,30 @@ class Voyageur(HttpUser):
 
     wait_time = constant_pacing(PACING)
 
+    def __init__(self, *args, **kwargs):
+        """
+        Pose le délai d'abandon sur la session, avant toute requête.
+
+        Sans délai, requests attend indéfiniment, et HttpUser n'en fixe aucun.
+        Toutes les requêtes passent par « client.request » — get et post
+        l'appellent —, connexion et reconnexions comprises : le délai est donc
+        posé là, une seule fois. Une requête qui passe son propre délai garde
+        le sien.
+        """
+        super().__init__(*args, **kwargs)
+        self.client.request = functools.partial(
+            self.client.request, timeout=(DELAI_CONNEXION, DELAI_REPONSE))
+
     # ---------------------------------------------------------------- session
     def on_start(self):
-        self._connexion()
+        # Une exception ici arrêterait le voyageur pour de bon : on la compte
+        # comme Locust le fait dans un parcours, et le premier parcours refera
+        # la connexion (_session_fraiche).
+        try:
+            self._connexion()
+        except Exception as e:
+            self.environment.events.user_error.fire(
+                user_instance=self, exception=e, tb=e.__traceback__)
 
     def _connexion(self):
         """

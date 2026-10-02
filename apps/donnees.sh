@@ -51,10 +51,28 @@
 #  campagne de deux heures en produit 8 000. « dimensionner » relève sa
 #  limite CPU (2 cœurs par défaut) ; une fois, après l'installation.
 #
+#  QUAND « RÉSERVER » RESTE BLOQUÉ APRÈS LA PURGE
+#
+#  « Réserver » passe par deux services : preserve (la réservation) appelle
+#  security (la sécurité), qui interroge les commandes. Vu le 27/09 (JOURNAL,
+#  C.5) : après une purge avec redémarrage, la réservation restait figée à
+#  « checkSecurity » ; la sécurité ne répondait plus, sans doute accrochée à
+#  l'ancien pod des commandes. Redémarrer les deux a tout débloqué.
+#  « redemarrer-reservation » le fait : sécurité d'abord, puis réservation,
+#  chacun attendu avant le suivant. À lancer après une purge avec
+#  redémarrage, si « réserver » reste bloqué ; une fois par cycle ; jamais
+#  pendant une mesure — « réserver » est coupé environ une minute. Le script
+#  ne le lance jamais de lui-même.
+#
 #  Usage (depuis le master) :
 #      bash ~/autodeploy/apps/donnees.sh etat
+#      bash ~/autodeploy/apps/donnees.sh etat --brut   « orders=N … total=N », pour un
+#                     programme (« ? » et code 1 si une table n'a pas pu être lue)
 #      bash ~/autodeploy/apps/donnees.sh purger [--redemarrer]
 #      bash ~/autodeploy/apps/donnees.sh redemarrer          la chaîne seule
+#      bash ~/autodeploy/apps/donnees.sh redemarrer-reservation   voir plus haut : si
+#                     « réserver » reste bloqué après une purge avec redémarrage ;
+#                     une fois par cycle ; jamais pendant une mesure (coupé ~1 min)
 #      bash ~/autodeploy/apps/donnees.sh dimensionner [--cpu 2000m] [--tas 1g]
 #      bash ~/autodeploy/apps/donnees.sh tas-de-l-image        retour au 200m de l'image
 #
@@ -70,6 +88,8 @@
 #      DONNEES_TABLES   (défaut: "orders orders_other food_order delivery")
 #      DONNEES_CHAINE   (défaut: "ts-order-service ts-seat-service ts-travel-service")
 #                       les services redémarrés, dans cet ordre, avec --redemarrer
+#      DONNEES_RESERVATION (défaut: "ts-security-service ts-preserve-service")
+#                       les services redémarrés, dans cet ordre, par redemarrer-reservation
 #      DONNEES_CPU      (défaut: 2000m) limite CPU du service des commandes
 #      DONNEES_TAS      (défaut: vide = celui de l'image, 200m) tas Java du même service
 # ==============================================================================
@@ -77,13 +97,15 @@ set -uo pipefail
 
 _ici="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Une simple lecture ne laisse pas de journal : il n'y a rien à garder, et
-# un relevé répété toutes les 20 s en écrirait des centaines.
+# un relevé répété toutes les 20 s en écrirait des centaines. « etat --brut »
+# aussi : sa sortie doit rester une seule ligne.
 case "${1:-}" in etat) JOURNAL_OFF=1 ;; esac
 [ -f "$_ici/journal.sh" ] && JOURNAL_NOM="donnees" . "$_ici/journal.sh"
 . "$_ici/mysql.sh"
 
 TABLES="${DONNEES_TABLES:-orders orders_other food_order delivery}"
 CHAINE="${DONNEES_CHAINE:-ts-order-service ts-seat-service ts-travel-service}"
+RESERVATION="${DONNEES_RESERVATION:-ts-security-service ts-preserve-service}"
 CPU_COMMANDES="${DONNEES_CPU:-2000m}"
 TAS_COMMANDES="${DONNEES_TAS:-}"
 ENV_TAS="_JAVA_OPTIONS"
@@ -125,6 +147,19 @@ etat_app() {
     echo "  limite CPU de $COMMANDES : $(limite_cpu_commandes)"
     echo "  tas Java de $COMMANDES : $(tas_commandes)"
     return 0
+}
+
+etat_brut() {   # une seule ligne, pour un programme (le gardien) : rien d'autre sur la sortie
+    local t n ligne="" total=0 illisibles=""
+    for t in $TABLES; do
+        n=$(lignes "$t")
+        ligne="$ligne$t=$n "
+        case "$n" in *[!0-9]*) illisibles="$illisibles $t" ;; *) total=$((total + n)) ;; esac
+    done
+    # Un total partiel serait faux sans le dire : une table illisible le rend « ? ».
+    [ -z "$illisibles" ] || total="?"
+    echo "${ligne}total=$total"
+    [ -z "$illisibles" ] || { warn "table(s) illisible(s) :$illisibles — la base répond-elle ?"; return 1; }
 }
 
 limite_cpu_commandes() {
@@ -187,14 +222,36 @@ dimensionner_app() {
 }
 
 redemarrer_chaine() {   # commandes, sièges, recherche — l'un après l'autre
+    redemarrer_services "$CHAINE"
+}
+
+redemarrer_services() {   # <services> — l'un après l'autre ; au premier qui ne revient pas, on s'arrête
     local d
-    for d in $CHAINE; do
+    for d in $1; do
         say "Redémarrage de $d…"
         kubectl rollout restart deploy/"$d" -n "$NS" >/dev/null 2>&1 \
             && kubectl rollout status deploy/"$d" -n "$NS" --timeout=300s >/dev/null 2>&1 \
             && say "$d redémarré" \
             || { warn "$d n'est pas revenu en 5 min :  kubectl get pods -n $NS -l app=$d"; return 1; }
     done
+}
+
+redemarrer_reservation() {   # sécurité, puis réservation (qui l'appelle) — voir l'en-tête
+    # Pas de jokers ici : « ts-o* » ne doit pas devenir le nom d'un fichier du
+    # dossier courant, donc un autre service. Vaut aussi pour redemarrer_services.
+    local -; set -f
+    local d n=0
+    for d in $RESERVATION; do
+        case "$d" in *[!a-z0-9.-]*) fail "DONNEES_RESERVATION : nom de déploiement invalide : $d" ;; esac
+        n=$((n + 1))
+    done
+    [ "$n" -gt 0 ] || fail "DONNEES_RESERVATION est vide : rien à redémarrer."
+    redemarrer_services "$RESERVATION" || {
+        consigner redemarrer-reservation - ECHEC
+        fail "Redémarrage interrompu au service signalé ci-dessus (ceux qui le suivent, s'il y en a, n'ont pas été touchés) : « réserver » reste bloqué. Regarder ses pods (commande ci-dessus) ; une fois revenu, relancer « redemarrer-reservation », hors mesure."
+    }
+    consigner redemarrer-reservation - ok
+    ok "réservation redémarrée ($RESERVATION)"
 }
 
 purger_app() {
@@ -222,13 +279,21 @@ purger_app() {
 }
 
 case "${1:-etat}" in
-    etat)   etat_app ;;
+    etat)
+        case "${2:-}" in
+            --brut) etat_brut ;;
+            '') etat_app ;;
+            *) fail "Option inconnue : $2" ;;
+        esac ;;
     purger) shift; purger_app "${1:-}" ;;
     redemarrer) redemarrer_chaine && ok "chaîne redémarrée" ;;
+    redemarrer-reservation) redemarrer_reservation ;;
     dimensionner) shift; dimensionner_app "$@" ;;
     tas-de-l-image)
         # Retour au tas de l'image (200m) : même règle, avant une référence seulement.
         kubectl set env deploy/"$COMMANDES" -n "$NS" -c "$COMMANDES" "$ENV_TAS-" >/dev/null \
             && redemarrer_chaine && consigner dimensionner "tas:image" ok && ok "tas Java de $COMMANDES : celui de l'image" ;;
-    *) echo "Usage: $0 {etat|purger [--redemarrer]|redemarrer|dimensionner [--cpu <q>] [--tas <t>]|tas-de-l-image}" >&2; exit 2 ;;
+    *) echo "Usage: $0 {etat [--brut]|purger [--redemarrer]|redemarrer|redemarrer-reservation|dimensionner [--cpu <q>] [--tas <t>]|tas-de-l-image}" >&2
+       echo "       redemarrer-reservation : après une purge avec redémarrage, si « réserver » reste bloqué ; une fois par cycle ; jamais pendant une mesure (« réserver » coupé ~1 min)." >&2
+       exit 2 ;;
 esac

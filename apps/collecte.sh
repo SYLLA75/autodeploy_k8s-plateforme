@@ -86,9 +86,12 @@ arreter_un() {
         || warn "$quoi : arrêt impossible."
 }
 
+# Rend 1 si le déploiement est absent ou si la commande de redémarrage échoue
+# (qu'il soit prêt, c'est attendre_pret qui le vérifie) : c'est l'appelant qui
+# décide si c'est grave (la passerelle) ou non (le générateur de charge).
 demarrer_un() {
     local dep="$1" ns="$2" quoi="$3"
-    existe "$dep" "$ns" || { warn "$quoi introuvable dans « $ns » — ignoré."; return 0; }
+    existe "$dep" "$ns" || { warn "$quoi introuvable ou illisible dans « $ns »."; return 1; }
     local n; n=$(repliques "$dep" "$ns")
     if [ "${n:-0}" != "0" ]; then
         say "$quoi : déjà en marche ($n)."
@@ -99,7 +102,7 @@ demarrer_un() {
     [ -n "$avant" ] || avant=1
     kubectl scale deploy "$dep" -n "$ns" --replicas="$avant" >/dev/null \
         && say "$quoi : redémarré ($avant)." \
-        || warn "$quoi : redémarrage impossible."
+        || { warn "$quoi : redémarrage impossible."; return 1; }
 }
 
 attendre_pret() {
@@ -277,9 +280,21 @@ case "$ACTION" in
         etat_app
         ;;
     demarrer|start)
-        demarrer_un "$GATEWAY" "$NAMESPACE" "passerelle vers le magasin"
-        [ "$AVEC_CHARGE" = "1" ] && demarrer_un "$LOADGEN" "$LG_NAMESPACE" "générateur de charge"
-        attendre_pret "$GATEWAY" "$NAMESPACE" "passerelle vers le magasin"
+        # Sans passerelle prête, rien n'arrive dans le magasin : on le dit par
+        # une erreur, pour qu'une campagne ne mesure pas dans le vide.
+        demarrer_un "$GATEWAY" "$NAMESPACE" "passerelle vers le magasin" \
+            || fail "collecte NON démarrée : passerelle absente ou non relancée" \
+                    "(voir l'avertissement ci-dessus). Vérifie : kubectl get deploy -n $NAMESPACE"
+        # Le générateur de charge reste facultatif : un simple avertissement.
+        [ "$AVEC_CHARGE" = "1" ] && { demarrer_un "$LOADGEN" "$LG_NAMESPACE" "générateur de charge" \
+            || warn "générateur de charge ignoré : on continue sans lui."; }
+        # Ici la passerelle est allumée : si elle devient prête plus tard, les
+        # mesures partiront quand même. On dit donc quoi regarder et comment
+        # l'éteindre, plutôt que de la laisser tourner sans le savoir.
+        attendre_pret "$GATEWAY" "$NAMESPACE" "passerelle vers le magasin" \
+            || fail "collecte NON démarrée : passerelle allumée mais pas prête après 2 minutes." \
+                    "Regarde : kubectl get pods -n $NAMESPACE ; puis relance « bash $0 demarrer »," \
+                    "ou éteins-la avec « bash $0 arreter [--avec-charge] »."
         say "Enregistrement repris à $(date -u '+%H:%M:%S') UTC."
         say "Attends 2 à 3 minutes avant de rapatrier : les mesures partent par lots de 30 s."
         say "  bash $0 fenetre     donnera la plage exacte."

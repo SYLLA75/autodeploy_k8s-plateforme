@@ -1,0 +1,2243 @@
+{
+ "_origine": "Sorties réelles relevées sur le master le 1/10 au soir (lecture seule), capture_reel.py ; Locust 2.32.4 lancé en local contre tests/loadgen/faux_serveur.py",
+ "noeuds": "master     Ready   control-plane   19d   v1.36.4   10.10.223.161   <none>   Ubuntu 24.04.3 LTS   6.8.0-85-generic (amd64)    containerd://2.3.5\nworkers0   Ready   <none>          19d   v1.36.4   10.10.222.141   <none>   Ubuntu 24.04.3 LTS   6.8.0-85-generic (amd64)    containerd://2.3.5\nworkers1   Ready   <none>          19d   v1.36.4   10.10.221.236   <none>   Ubuntu 24.04.3 LTS   6.8.0-142-generic (amd64)   containerd://2.3.5\nworkers2   Ready   <none>          19d   v1.36.4   10.10.222.196   <none>   Ubuntu 24.04.3 LTS   6.8.0-85-generic (amd64)    containerd://2.3.5\nworkers3   Ready   <none>          19d   v1.36.4   10.10.223.107   <none>   Ubuntu 24.04.3 LTS   6.8.0-85-generic (amd64)    containerd://2.3.5\nworkers4   Ready   <none>          19d   v1.36.4   10.10.222.49    <none>   Ubuntu 24.04.3 LTS   6.8.0-142-generic (amd64)   containerd://2.3.5\nworkers5   Ready   <none>          19d   v1.36.4   10.10.221.168   <none>   Ubuntu 24.04.3 LTS   6.8.0-85-generic (amd64)    containerd://2.3.5\nworkers6   Ready   <none>          19d   v1.36.4   10.10.218.237   <none>   Ubuntu 24.04.3 LTS   6.8.0-85-generic (amd64)    containerd://2.3.5\n",
+ "pods": "nacos-0                                         workers2   Running   true             0       <none>\nnacos-1                                         workers1   Running   true             0       <none>\nnacos-2                                         workers4   Running   true             0       <none>\nnacosdb-mysql-0                                 workers3   Running   true,true,true   0,0,0   <none>\nnacosdb-mysql-1                                 workers4   Running   true,true,true   0,0,0   <none>\nnacosdb-mysql-2                                 workers5   Running   true,true,true   0,0,0   <none>\nrabbitmq-7f8b646c9d-nzjxz                       workers0   Running   true             0       <none>\nts-admin-basic-info-service-54db6f5f5b-xlstr    workers3   Running   true             0       <none>\nts-admin-order-service-7fbbc4f8db-7898g         workers2   Running   true             0       <none>\nts-admin-route-service-77cf9cd6-2cqwd           workers0   Running   true             0       <none>\nts-admin-travel-service-77d5ff88f-j82tz         workers3   Running   true             0       <none>\nts-admin-user-service-6d96cf5785-8sd74          workers3   Running   true             0       <none>\nts-assurance-service-7dc45d47fb-jfm7k           workers0   Running   true             0       <none>\nts-auth-service-d57b979b6-6rhnt                 workers5   Running   true             63      <none>\nts-avatar-service-7bd9bf7b7f-dv4k9              workers5   Running   true             0       <none>\n",
+ "chaos": {
+  "apiVersion": "v1",
+  "items": [
+   {
+    "apiVersion": "chaos-mesh.org/v1alpha1",
+    "kind": "NetworkChaos",
+    "metadata": {
+     "annotations": {
+      "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"chaos-mesh.org/v1alpha1\",\"kind\":\"NetworkChaos\",\"metadata\":{\"annotations\":{},\"labels\":{\"reglage\":\"consommateur\"},\"name\":\"consommateur-temps-de-service\",\"namespace\":\"train-ticket\"},\"spec\":{\"action\":\"delay\",\"delay\":{\"correlation\":\"0\",\"jitter\":\"0ms\",\"latency\":\"140ms\"},\"direction\":\"to\",\"externalTargets\":[\"10.233.28.58\",\"10.233.20.81\"],\"mode\":\"all\",\"selector\":{\"labelSelectors\":{\"app\":\"ts-delivery-service\"},\"namespaces\":[\"train-ticket\"]},\"target\":{\"mode\":\"all\",\"selector\":{\"labelSelectors\":{\"app\":\"tsdb-mysql\"},\"namespaces\":[\"train-ticket\"]}}}}\n"
+     },
+     "creationTimestamp": "2026-10-01T14:19:04Z",
+     "finalizers": [
+      "chaos-mesh/records"
+     ],
+     "generation": 9,
+     "labels": {
+      "reglage": "consommateur"
+     },
+     "name": "consommateur-temps-de-service",
+     "namespace": "train-ticket",
+     "resourceVersion": "5736231",
+     "uid": "56ce7cd7-50eb-40a4-b146-6df994a35f77"
+    },
+    "spec": {
+     "action": "delay",
+     "delay": {
+      "correlation": "0",
+      "jitter": "0ms",
+      "latency": "140ms"
+     },
+     "direction": "to",
+     "externalTargets": [
+      "10.233.28.58",
+      "10.233.20.81"
+     ],
+     "mode": "all",
+     "selector": {
+      "labelSelectors": {
+       "app": "ts-delivery-service"
+      },
+      "namespaces": [
+       "train-ticket"
+      ]
+     },
+     "target": {
+      "mode": "all",
+      "selector": {
+       "labelSelectors": {
+        "app": "tsdb-mysql"
+       },
+       "namespaces": [
+        "train-ticket"
+       ]
+      }
+     }
+    },
+    "status": {
+     "conditions": [
+      {
+       "status": "True",
+       "type": "Selected"
+      },
+      {
+       "status": "True",
+       "type": "AllInjected"
+      },
+      {
+       "status": "False",
+       "type": "AllRecovered"
+      },
+      {
+       "status": "False",
+       "type": "Paused"
+      }
+     ],
+     "experiment": {
+      "containerRecords": [
+       {
+        "events": [
+         {
+          "operation": "Apply",
+          "timestamp": "2026-10-01T14:19:04Z",
+          "type": "Succeeded"
+         }
+        ],
+        "id": "train-ticket/ts-delivery-service-79c46f4f45-mmndx",
+        "injectedCount": 1,
+        "phase": "Injected",
+        "recoveredCount": 0,
+        "selectorKey": "."
+       },
+       {
+        "events": [
+         {
+          "operation": "Apply",
+          "timestamp": "2026-10-01T14:19:04Z",
+          "type": "Succeeded"
+         }
+        ],
+        "id": "train-ticket/ts-delivery-service-79c46f4f45-r5pwb",
+        "injectedCount": 1,
+        "phase": "Injected",
+        "recoveredCount": 0,
+        "selectorKey": "."
+       },
+       {
+        "events": [
+         {
+          "operation": "Apply",
+          "timestamp": "2026-10-01T14:19:04Z",
+          "type": "Succeeded"
+         }
+        ],
+        "id": "train-ticket/ts-delivery-service-79c46f4f45-44v2p",
+        "injectedCount": 1,
+        "phase": "Injected",
+        "recoveredCount": 0,
+        "selectorKey": "."
+       },
+       {
+        "events": [
+         {
+          "operation": "Apply",
+          "timestamp": "2026-10-01T14:19:04Z",
+          "type": "Succeeded"
+         }
+        ],
+        "id": "train-ticket/tsdb-mysql-0",
+        "injectedCount": 1,
+        "phase": "Injected",
+        "recoveredCount": 0,
+        "selectorKey": ".Target"
+       },
+       {
+        "events": [
+         {
+          "operation": "Apply",
+          "timestamp": "2026-10-01T14:19:04Z",
+          "type": "Succeeded"
+         }
+        ],
+        "id": "train-ticket/tsdb-mysql-2",
+        "injectedCount": 1,
+        "phase": "Injected",
+        "recoveredCount": 0,
+        "selectorKey": ".Target"
+       },
+       {
+        "events": [
+         {
+          "operation": "Apply",
+          "timestamp": "2026-10-01T14:19:04Z",
+          "type": "Succeeded"
+         }
+        ],
+        "id": "train-ticket/tsdb-mysql-1",
+        "injectedCount": 1,
+        "phase": "Injected",
+        "recoveredCount": 0,
+        "selectorKey": ".Target"
+       }
+      ],
+      "desiredPhase": "Run"
+     },
+     "instances": {
+      "train-ticket/ts-delivery-service-79c46f4f45-44v2p": 1,
+      "train-ticket/ts-delivery-service-79c46f4f45-mmndx": 1,
+      "train-ticket/ts-delivery-service-79c46f4f45-r5pwb": 35
+     }
+    }
+   }
+  ],
+  "kind": "List",
+  "metadata": {
+   "resourceVersion": ""
+  }
+ },
+ "podnetworkchaos": {
+  "apiVersion": "v1",
+  "items": [
+   {
+    "apiVersion": "chaos-mesh.org/v1alpha1",
+    "kind": "PodNetworkChaos",
+    "metadata": {
+     "creationTimestamp": "2026-09-27T21:48:00Z",
+     "generation": 1,
+     "name": "ts-assurance-service-7dc45d47fb-jfm7k",
+     "namespace": "train-ticket",
+     "ownerReferences": [
+      {
+       "apiVersion": "v1",
+       "kind": "Pod",
+       "name": "ts-assurance-service-7dc45d47fb-jfm7k",
+       "uid": "5fc3ac22-6970-41fa-93fb-7086d23f7a86"
+      }
+     ],
+     "resourceVersion": "4676745",
+     "uid": "9fb094aa-5208-45ff-a457-862b6afe6c7e"
+    },
+    "spec": {},
+    "status": {
+     "observedGeneration": 1
+    }
+   },
+   {
+    "apiVersion": "chaos-mesh.org/v1alpha1",
+    "kind": "PodNetworkChaos",
+    "metadata": {
+     "creationTimestamp": "2026-10-01T14:19:04Z",
+     "generation": 1,
+     "name": "ts-delivery-service-79c46f4f45-44v2p",
+     "namespace": "train-ticket",
+     "ownerReferences": [
+      {
+       "apiVersion": "v1",
+       "kind": "Pod",
+       "name": "ts-delivery-service-79c46f4f45-44v2p",
+       "uid": "b10e1b5b-d083-44c0-85a0-70d1535ecc13"
+      }
+     ],
+     "resourceVersion": "5736226",
+     "uid": "6a1de3c6-5f72-4947-9b7e-5ab0297001ad"
+    },
+    "spec": {
+     "ipsets": [
+      {
+       "cidrs": [
+        "10.233.28.58/32",
+        "10.233.20.81/32",
+        "10.233.125.42/32",
+        "10.233.92.242/32",
+        "10.233.91.238/32"
+       ],
+       "ipsetType": "hash:net",
+       "name": "conso_c192e9a47ac_net_netgt",
+       "source": "train-ticket/consommateur-temps-de-service"
+      },
+      {
+       "ipsetType": "hash:net,port",
+       "name": "conso_c192e9a_netport_netgt",
+       "source": "train-ticket/consommateur-temps-de-service"
+      },
+      {
+       "ipsetType": "list:set",
+       "name": "conso_c192e9a47ac_set_netgt",
+       "setNames": [
+        "conso_c192e9a47ac_net_netgt",
+        "conso_c192e9a_netport_netgt"
+       ],
+       "source": "train-ticket/consommateur-temps-de-service"
+      }
+     ],
+     "tcs": [
+      {
+       "delay": {
+        "correlation": "0",
+        "jitter": "0ms",
+        "latency": "140ms"
+       },
+       "ipset": "conso_c192e9a47ac_set_netgt",
+       "source": "train-ticket/consommateur-temps-de-service",
+       "type": "netem"
+      }
+     ]
+    },
+    "status": {
+     "observedGeneration": 1
+    }
+   },
+   {
+    "apiVersion": "chaos-mesh.org/v1alpha1",
+    "kind": "PodNetworkChaos",
+    "metadata": {
+     "creationTimestamp": "2026-10-01T14:19:04Z",
+     "generation": 1,
+     "name": "ts-delivery-service-79c46f4f45-mmndx",
+     "namespace": "train-ticket",
+     "ownerReferences": [
+      {
+       "apiVersion": "v1",
+       "kind": "Pod",
+       "name": "ts-delivery-service-79c46f4f45-mmndx",
+       "uid": "0a5af6ba-a73c-48d8-ae1f-4e8935cfbfd5"
+      }
+     ],
+     "resourceVersion": "5736214",
+     "uid": "047005bf-88de-4208-bc8a-32382571f9bc"
+    },
+    "spec": {
+     "ipsets": [
+      {
+       "cidrs": [
+        "10.233.28.58/32",
+        "10.233.20.81/32",
+        "10.233.125.42/32",
+        "10.233.92.242/32",
+        "10.233.91.238/32"
+       ],
+       "ipsetType": "hash:net",
+       "name": "conso_c192e9a47ac_net_netgt",
+       "source": "train-ticket/consommateur-temps-de-service"
+      },
+      {
+       "ipsetType": "hash:net,port",
+       "name": "conso_c192e9a_netport_netgt",
+       "source": "train-ticket/consommateur-temps-de-service"
+      },
+      {
+       "ipsetType": "list:set",
+       "name": "conso_c192e9a47ac_set_netgt",
+       "setNames": [
+        "conso_c192e9a47ac_net_netgt",
+        "conso_c192e9a_netport_netgt"
+       ],
+       "source": "train-ticket/consommateur-temps-de-service"
+      }
+     ],
+     "tcs": [
+      {
+       "delay": {
+        "correlation": "0",
+        "jitter": "0ms",
+        "latency": "140ms"
+       },
+       "ipset": "conso_c192e9a47ac_set_netgt",
+       "source": "train-ticket/consommateur-temps-de-service",
+       "type": "netem"
+      }
+     ]
+    },
+    "status": {
+     "observedGeneration": 1
+    }
+   },
+   {
+    "apiVersion": "chaos-mesh.org/v1alpha1",
+    "kind": "PodNetworkChaos",
+    "metadata": {
+     "creationTimestamp": "2026-09-12T15:45:09Z",
+     "generation": 35,
+     "name": "ts-delivery-service-79c46f4f45-r5pwb",
+     "namespace": "train-ticket",
+     "ownerReferences": [
+      {
+       "apiVersion": "v1",
+       "kind": "Pod",
+       "name": "ts-delivery-service-79c46f4f45-r5pwb",
+       "uid": "84f42990-ce4d-44c9-af4f-f48b2e387575"
+      }
+     ],
+     "resourceVersion": "5736221",
+     "uid": "c88d8116-252b-4940-9467-21188bc45837"
+    },
+    "spec": {
+     "ipsets": [
+      {
+       "cidrs": [
+        "10.233.28.58/32",
+        "10.233.20.81/32",
+        "10.233.125.42/32",
+        "10.233.92.242/32",
+        "10.233.91.238/32"
+       ],
+       "ipsetType": "hash:net",
+       "name": "conso_c192e9a47ac_net_netgt",
+       "source": "train-ticket/consommateur-temps-de-service"
+      },
+      {
+       "ipsetType": "hash:net,port",
+       "name": "conso_c192e9a_netport_netgt",
+       "source": "train-ticket/consommateur-temps-de-service"
+      },
+      {
+       "ipsetType": "list:set",
+       "name": "conso_c192e9a47ac_set_netgt",
+       "setNames": [
+        "conso_c192e9a47ac_net_netgt",
+        "conso_c192e9a_netport_netgt"
+       ],
+       "source": "train-ticket/consommateur-temps-de-service"
+      }
+     ],
+     "tcs": [
+      {
+       "delay": {
+        "correlation": "0",
+        "jitter": "0ms",
+        "latency": "140ms"
+       },
+       "ipset": "conso_c192e9a47ac_set_netgt",
+       "source": "train-ticket/consommateur-temps-de-service",
+       "type": "netem"
+      }
+     ]
+    },
+    "status": {
+     "observedGeneration": 35
+    }
+   },
+   {
+    "apiVersion": "chaos-mesh.org/v1alpha1",
+    "kind": "PodNetworkChaos",
+    "metadata": {
+     "creationTimestamp": "2026-09-27T21:48:00Z",
+     "generation": 1,
+     "name": "ts-execute-service-549cc6c9d6-v67n5",
+     "namespace": "train-ticket",
+     "ownerReferences": [
+      {
+       "apiVersion": "v1",
+       "kind": "Pod",
+       "name": "ts-execute-service-549cc6c9d6-v67n5",
+       "uid": "a1b5285e-ce85-49ba-92da-91163a318876"
+      }
+     ],
+     "resourceVersion": "4676809",
+     "uid": "b898d520-1088-4943-89d2-eb5c36b9ed15"
+    },
+    "spec": {},
+    "status": {
+     "observedGeneration": 1
+    }
+   },
+   {
+    "apiVersion": "chaos-mesh.org/v1alpha1",
+    "kind": "PodNetworkChaos",
+    "metadata": {
+     "creationTimestamp": "2026-09-27T21:48:00Z",
+     "generation": 1,
+     "name": "ts-food-service-5f8f49dcd4-7lbqt",
+     "namespace": "train-ticket",
+     "ownerReferences": [
+      {
+       "apiVersion": "v1",
+       "kind": "Pod",
+       "name": "ts-food-service-5f8f49dcd4-7lbqt",
+       "uid": "4b549980-1e50-4cb0-af37-068fcb3eab0e"
+      }
+     ],
+     "resourceVersion": "4676815",
+     "uid": "9f1a15dd-5f79-4bb4-a8ba-608801de9d43"
+    },
+    "spec": {},
+    "status": {
+     "observedGeneration": 1
+    }
+   },
+   {
+    "apiVersion": "chaos-mesh.org/v1alpha1",
+    "kind": "PodNetworkChaos",
+    "metadata": {
+     "creationTimestamp": "2026-09-27T21:48:00Z",
+     "generation": 1,
+     "name": "ts-station-food-service-c7b95bbc8-nd9r7",
+     "namespace": "train-ticket",
+     "ownerReferences": [
+      {
+       "apiVersion": "v1",
+       "kind": "Pod",
+       "name": "ts-station-food-service-c7b95bbc8-nd9r7",
+       "uid": "38fe3a7b-f1be-404f-b5c6-7d590ec39839"
+      }
+     ],
+     "resourceVersion": "4676613",
+     "uid": "a586843a-25eb-472e-b437-cafbd12a41ea"
+    },
+    "spec": {},
+    "status": {
+     "observedGeneration": 1
+    }
+   },
+   {
+    "apiVersion": "chaos-mesh.org/v1alpha1",
+    "kind": "PodNetworkChaos",
+    "metadata": {
+     "creationTimestamp": "2026-09-27T21:48:00Z",
+     "generation": 1,
+     "name": "ts-ticket-office-service-85d9bfbfb8-dz8dl",
+     "namespace": "train-ticket",
+     "ownerReferences": [
+      {
+       "apiVersion": "v1",
+       "kind": "Pod",
+       "name": "ts-ticket-office-service-85d9bfbfb8-dz8dl",
+       "uid": "51aa2e1b-4f01-40e9-ab40-3e8cc901e17a"
+      }
+     ],
+     "resourceVersion": "4676823",
+     "uid": "92f4a0dc-5dc1-46cd-916c-8b8bed274cc4"
+    },
+    "spec": {},
+    "status": {
+     "observedGeneration": 1
+    }
+   },
+   {
+    "apiVersion": "chaos-mesh.org/v1alpha1",
+    "kind": "PodNetworkChaos",
+    "metadata": {
+     "creationTimestamp": "2026-09-27T21:48:00Z",
+     "generation": 1,
+     "name": "ts-ui-dashboard-57b765bbc9-9d9wk",
+     "namespace": "train-ticket",
+     "ownerReferences": [
+      {
+       "apiVersion": "v1",
+       "kind": "Pod",
+       "name": "ts-ui-dashboard-57b765bbc9-9d9wk",
+       "uid": "4ff99ead-2ac5-4b93-bc07-7b0096d0ebc9"
+      }
+     ],
+     "resourceVersion": "4676771",
+     "uid": "233b8365-ae6c-4184-9e20-a5a74fd3249f"
+    },
+    "spec": {},
+    "status": {
+     "observedGeneration": 1
+    }
+   },
+   {
+    "apiVersion": "chaos-mesh.org/v1alpha1",
+    "kind": "PodNetworkChaos",
+    "metadata": {
+     "creationTimestamp": "2026-10-01T14:19:04Z",
+     "generation": 1,
+     "name": "tsdb-mysql-0",
+     "namespace": "train-ticket",
+     "ownerReferences": [
+      {
+       "apiVersion": "v1",
+       "kind": "Pod",
+       "name": "tsdb-mysql-0",
+       "uid": "09fa1f2c-1681-468c-afdb-b3943baea509"
+      }
+     ],
+     "resourceVersion": "5736184",
+     "uid": "ea82f946-8e42-48a1-9314-a32be1b8d73b"
+    },
+    "spec": {},
+    "status": {
+     "observedGeneration": 1
+    }
+   },
+   {
+    "apiVersion": "chaos-mesh.org/v1alpha1",
+    "kind": "PodNetworkChaos",
+    "metadata": {
+     "creationTimestamp": "2026-10-01T14:19:04Z",
+     "generation": 1,
+     "name": "tsdb-mysql-1",
+     "namespace": "train-ticket",
+     "ownerReferences": [
+      {
+       "apiVersion": "v1",
+       "kind": "Pod",
+       "name": "tsdb-mysql-1",
+       "uid": "3585ea71-dc40-41fb-97fd-addee8301c07"
+      }
+     ],
+     "resourceVersion": "5736172",
+     "uid": "bf36904d-db37-45fc-bc99-26293fe8b437"
+    },
+    "spec": {},
+    "status": {
+     "observedGeneration": 1
+    }
+   },
+   {
+    "apiVersion": "chaos-mesh.org/v1alpha1",
+    "kind": "PodNetworkChaos",
+    "metadata": {
+     "creationTimestamp": "2026-10-01T14:19:04Z",
+     "generation": 1,
+     "name": "tsdb-mysql-2",
+     "namespace": "train-ticket",
+     "ownerReferences": [
+      {
+       "apiVersion": "v1",
+       "kind": "Pod",
+       "name": "tsdb-mysql-2",
+       "uid": "c420aa7e-6a33-42e8-bac8-6be277c76954"
+      }
+     ],
+     "resourceVersion": "5736178",
+     "uid": "bf1c9655-a831-441d-b1c8-92287f13d4dc"
+    },
+    "spec": {},
+    "status": {
+     "observedGeneration": 1
+    }
+   }
+  ],
+  "kind": "List",
+  "metadata": {
+   "resourceVersion": ""
+  }
+ },
+ "prom_erreur_err": "Error from server (BadRequest): the server rejected our request for an unknown reason\n",
+ "locust_absent_err": "Error from server (ServiceUnavailable): no endpoints available for service \"locust\"\n",
+ "verifier_ancien_err": "Usage: /home/ubuntu/autodeploy/apps/consommateur.sh {dimensionner --retard <ms> [--prefetch <n>]|etat|retirer}\n",
+ "prom_exemples": {
+  "depot": {
+   "status": "success",
+   "data": {
+    "resultType": "vector",
+    "result": [
+     {
+      "metric": {},
+      "value": [
+       1790886870.898,
+       "0"
+      ]
+     }
+    ]
+   }
+  },
+  "tas_pret": {
+   "status": "success",
+   "data": {
+    "resultType": "vector",
+    "result": [
+     {
+      "metric": {
+       "__name__": "rabbitmq_queue_messages_ready",
+       "app_kubernetes_io_managed_by": "Helm",
+       "instance": "10.233.107.72:15692",
+       "job": "kubernetes-service-endpoints",
+       "namespace": "train-ticket",
+       "node": "workers0",
+       "queue": "food_delivery",
+       "service": "rabbitmq",
+       "vhost": "/"
+      },
+      "value": [
+       1790886870.95,
+       "0"
+      ]
+     }
+    ]
+   }
+  },
+  "tas_nonacq": {
+   "status": "success",
+   "data": {
+    "resultType": "vector",
+    "result": [
+     {
+      "metric": {
+       "__name__": "rabbitmq_queue_messages_unacked",
+       "app_kubernetes_io_managed_by": "Helm",
+       "instance": "10.233.107.72:15692",
+       "job": "kubernetes-service-endpoints",
+       "namespace": "train-ticket",
+       "node": "workers0",
+       "queue": "food_delivery",
+       "service": "rabbitmq",
+       "vhost": "/"
+      },
+      "value": [
+       1790886870.998,
+       "0"
+      ]
+     }
+    ]
+   }
+  },
+  "consommateurs": {
+   "status": "success",
+   "data": {
+    "resultType": "vector",
+    "result": [
+     {
+      "metric": {
+       "__name__": "rabbitmq_queue_consumers",
+       "app_kubernetes_io_managed_by": "Helm",
+       "instance": "10.233.107.72:15692",
+       "job": "kubernetes-service-endpoints",
+       "namespace": "train-ticket",
+       "node": "workers0",
+       "queue": "food_delivery",
+       "service": "rabbitmq",
+       "vhost": "/"
+      },
+      "value": [
+       1790886871.051,
+       "3"
+      ]
+     }
+    ]
+   }
+  },
+  "cpu_commandes": {
+   "status": "success",
+   "data": {
+    "resultType": "vector",
+    "result": [
+     {
+      "metric": {},
+      "value": [
+       1790886871.102,
+       "0.0015979955347044507"
+      ]
+     }
+    ]
+   }
+  },
+  "noeuds_ready": {
+   "status": "success",
+   "data": {
+    "resultType": "vector",
+    "result": [
+     {
+      "metric": {
+       "__name__": "kube_node_status_condition",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "kube-state-metrics",
+       "app_kubernetes_io_part_of": "kube-state-metrics",
+       "app_kubernetes_io_version": "2.20.0",
+       "condition": "Ready",
+       "helm_sh_chart": "kube-state-metrics-8.4.2",
+       "instance": "10.233.109.245:8080",
+       "job": "kubernetes-service-endpoints",
+       "namespace": "observability",
+       "node": "workers0",
+       "service": "prom-kube-state-metrics",
+       "status": "true"
+      },
+      "value": [
+       1790886871.153,
+       "1"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "kube_node_status_condition",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "kube-state-metrics",
+       "app_kubernetes_io_part_of": "kube-state-metrics",
+       "app_kubernetes_io_version": "2.20.0",
+       "condition": "Ready",
+       "helm_sh_chart": "kube-state-metrics-8.4.2",
+       "instance": "10.233.109.245:8080",
+       "job": "kubernetes-service-endpoints",
+       "namespace": "observability",
+       "node": "workers6",
+       "service": "prom-kube-state-metrics",
+       "status": "true"
+      },
+      "value": [
+       1790886871.153,
+       "1"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "kube_node_status_condition",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "kube-state-metrics",
+       "app_kubernetes_io_part_of": "kube-state-metrics",
+       "app_kubernetes_io_version": "2.20.0",
+       "condition": "Ready",
+       "helm_sh_chart": "kube-state-metrics-8.4.2",
+       "instance": "10.233.109.245:8080",
+       "job": "kubernetes-service-endpoints",
+       "namespace": "observability",
+       "node": "workers1",
+       "service": "prom-kube-state-metrics",
+       "status": "true"
+      },
+      "value": [
+       1790886871.153,
+       "1"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "kube_node_status_condition",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "kube-state-metrics",
+       "app_kubernetes_io_part_of": "kube-state-metrics",
+       "app_kubernetes_io_version": "2.20.0",
+       "condition": "Ready",
+       "helm_sh_chart": "kube-state-metrics-8.4.2",
+       "instance": "10.233.109.245:8080",
+       "job": "kubernetes-service-endpoints",
+       "namespace": "observability",
+       "node": "workers5",
+       "service": "prom-kube-state-metrics",
+       "status": "true"
+      },
+      "value": [
+       1790886871.153,
+       "1"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "kube_node_status_condition",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "kube-state-metrics",
+       "app_kubernetes_io_part_of": "kube-state-metrics",
+       "app_kubernetes_io_version": "2.20.0",
+       "condition": "Ready",
+       "helm_sh_chart": "kube-state-metrics-8.4.2",
+       "instance": "10.233.109.245:8080",
+       "job": "kubernetes-service-endpoints",
+       "namespace": "observability",
+       "node": "workers4",
+       "service": "prom-kube-state-metrics",
+       "status": "true"
+      },
+      "value": [
+       1790886871.153,
+       "1"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "kube_node_status_condition",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "kube-state-metrics",
+       "app_kubernetes_io_part_of": "kube-state-metrics",
+       "app_kubernetes_io_version": "2.20.0",
+       "condition": "Ready",
+       "helm_sh_chart": "kube-state-metrics-8.4.2",
+       "instance": "10.233.109.245:8080",
+       "job": "kubernetes-service-endpoints",
+       "namespace": "observability",
+       "node": "workers3",
+       "service": "prom-kube-state-metrics",
+       "status": "true"
+      },
+      "value": [
+       1790886871.153,
+       "1"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "kube_node_status_condition",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "kube-state-metrics",
+       "app_kubernetes_io_part_of": "kube-state-metrics",
+       "app_kubernetes_io_version": "2.20.0",
+       "condition": "Ready",
+       "helm_sh_chart": "kube-state-metrics-8.4.2",
+       "instance": "10.233.109.245:8080",
+       "job": "kubernetes-service-endpoints",
+       "namespace": "observability",
+       "node": "workers2",
+       "service": "prom-kube-state-metrics",
+       "status": "true"
+      },
+      "value": [
+       1790886871.153,
+       "1"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "kube_node_status_condition",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "kube-state-metrics",
+       "app_kubernetes_io_part_of": "kube-state-metrics",
+       "app_kubernetes_io_version": "2.20.0",
+       "condition": "Ready",
+       "helm_sh_chart": "kube-state-metrics-8.4.2",
+       "instance": "10.233.109.245:8080",
+       "job": "kubernetes-service-endpoints",
+       "namespace": "observability",
+       "node": "master",
+       "service": "prom-kube-state-metrics",
+       "status": "true"
+      },
+      "value": [
+       1790886871.153,
+       "1"
+      ]
+     }
+    ]
+   }
+  },
+  "disque_libre": {
+   "status": "success",
+   "data": {
+    "resultType": "vector",
+    "result": [
+     {
+      "metric": {
+       "__name__": "node_filesystem_avail_bytes",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "prometheus-node-exporter",
+       "app_kubernetes_io_part_of": "prometheus-node-exporter",
+       "app_kubernetes_io_version": "1.12.1",
+       "device": "/dev/sda1",
+       "fstype": "ext4",
+       "helm_sh_chart": "prometheus-node-exporter-4.56.3",
+       "instance": "10.10.221.168:9100",
+       "job": "kubernetes-service-endpoints",
+       "mountpoint": "/",
+       "namespace": "observability",
+       "node": "workers5",
+       "service": "prom-prometheus-node-exporter"
+      },
+      "value": [
+       1790886871.205,
+       "33263620096"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "node_filesystem_avail_bytes",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "prometheus-node-exporter",
+       "app_kubernetes_io_part_of": "prometheus-node-exporter",
+       "app_kubernetes_io_version": "1.12.1",
+       "device": "/dev/sda1",
+       "fstype": "ext4",
+       "helm_sh_chart": "prometheus-node-exporter-4.56.3",
+       "instance": "10.10.222.141:9100",
+       "job": "kubernetes-service-endpoints",
+       "mountpoint": "/",
+       "namespace": "observability",
+       "node": "workers0",
+       "service": "prom-prometheus-node-exporter"
+      },
+      "value": [
+       1790886871.205,
+       "33969442816"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "node_filesystem_avail_bytes",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "prometheus-node-exporter",
+       "app_kubernetes_io_part_of": "prometheus-node-exporter",
+       "app_kubernetes_io_version": "1.12.1",
+       "device": "/dev/sda1",
+       "fstype": "ext4",
+       "helm_sh_chart": "prometheus-node-exporter-4.56.3",
+       "instance": "10.10.218.237:9100",
+       "job": "kubernetes-service-endpoints",
+       "mountpoint": "/",
+       "namespace": "observability",
+       "node": "workers6",
+       "service": "prom-prometheus-node-exporter"
+      },
+      "value": [
+       1790886871.205,
+       "30654144512"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "node_filesystem_avail_bytes",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "prometheus-node-exporter",
+       "app_kubernetes_io_part_of": "prometheus-node-exporter",
+       "app_kubernetes_io_version": "1.12.1",
+       "device": "/dev/sda1",
+       "fstype": "ext4",
+       "helm_sh_chart": "prometheus-node-exporter-4.56.3",
+       "instance": "10.10.222.196:9100",
+       "job": "kubernetes-service-endpoints",
+       "mountpoint": "/",
+       "namespace": "observability",
+       "node": "workers2",
+       "service": "prom-prometheus-node-exporter"
+      },
+      "value": [
+       1790886871.205,
+       "35729694720"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "node_filesystem_avail_bytes",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "prometheus-node-exporter",
+       "app_kubernetes_io_part_of": "prometheus-node-exporter",
+       "app_kubernetes_io_version": "1.12.1",
+       "device": "/dev/sda1",
+       "fstype": "ext4",
+       "helm_sh_chart": "prometheus-node-exporter-4.56.3",
+       "instance": "10.10.223.161:9100",
+       "job": "kubernetes-service-endpoints",
+       "mountpoint": "/",
+       "namespace": "observability",
+       "node": "master",
+       "service": "prom-prometheus-node-exporter"
+      },
+      "value": [
+       1790886871.205,
+       "42559283200"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "node_filesystem_avail_bytes",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "prometheus-node-exporter",
+       "app_kubernetes_io_part_of": "prometheus-node-exporter",
+       "app_kubernetes_io_version": "1.12.1",
+       "device": "/dev/sda1",
+       "fstype": "ext4",
+       "helm_sh_chart": "prometheus-node-exporter-4.56.3",
+       "instance": "10.10.223.107:9100",
+       "job": "kubernetes-service-endpoints",
+       "mountpoint": "/",
+       "namespace": "observability",
+       "node": "workers3",
+       "service": "prom-prometheus-node-exporter"
+      },
+      "value": [
+       1790886871.205,
+       "33089662976"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "node_filesystem_avail_bytes",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "prometheus-node-exporter",
+       "app_kubernetes_io_part_of": "prometheus-node-exporter",
+       "app_kubernetes_io_version": "1.12.1",
+       "device": "/dev/sda1",
+       "fstype": "ext4",
+       "helm_sh_chart": "prometheus-node-exporter-4.56.3",
+       "instance": "10.10.221.236:9100",
+       "job": "kubernetes-service-endpoints",
+       "mountpoint": "/",
+       "namespace": "observability",
+       "node": "workers1",
+       "service": "prom-prometheus-node-exporter"
+      },
+      "value": [
+       1790886871.205,
+       "33964236800"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "node_filesystem_avail_bytes",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "prometheus-node-exporter",
+       "app_kubernetes_io_part_of": "prometheus-node-exporter",
+       "app_kubernetes_io_version": "1.12.1",
+       "device": "/dev/sda1",
+       "fstype": "ext4",
+       "helm_sh_chart": "prometheus-node-exporter-4.56.3",
+       "instance": "10.10.222.49:9100",
+       "job": "kubernetes-service-endpoints",
+       "mountpoint": "/",
+       "namespace": "observability",
+       "node": "workers4",
+       "service": "prom-prometheus-node-exporter"
+      },
+      "value": [
+       1790886871.205,
+       "33646174208"
+      ]
+     }
+    ]
+   }
+  },
+  "disque_taille": {
+   "status": "success",
+   "data": {
+    "resultType": "vector",
+    "result": [
+     {
+      "metric": {
+       "__name__": "node_filesystem_size_bytes",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "prometheus-node-exporter",
+       "app_kubernetes_io_part_of": "prometheus-node-exporter",
+       "app_kubernetes_io_version": "1.12.1",
+       "device": "/dev/sda1",
+       "fstype": "ext4",
+       "helm_sh_chart": "prometheus-node-exporter-4.56.3",
+       "instance": "10.10.221.168:9100",
+       "job": "kubernetes-service-endpoints",
+       "mountpoint": "/",
+       "namespace": "observability",
+       "node": "workers5",
+       "service": "prom-prometheus-node-exporter"
+      },
+      "value": [
+       1790886871.256,
+       "49663639552"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "node_filesystem_size_bytes",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "prometheus-node-exporter",
+       "app_kubernetes_io_part_of": "prometheus-node-exporter",
+       "app_kubernetes_io_version": "1.12.1",
+       "device": "/dev/sda1",
+       "fstype": "ext4",
+       "helm_sh_chart": "prometheus-node-exporter-4.56.3",
+       "instance": "10.10.222.141:9100",
+       "job": "kubernetes-service-endpoints",
+       "mountpoint": "/",
+       "namespace": "observability",
+       "node": "workers0",
+       "service": "prom-prometheus-node-exporter"
+      },
+      "value": [
+       1790886871.256,
+       "49663639552"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "node_filesystem_size_bytes",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "prometheus-node-exporter",
+       "app_kubernetes_io_part_of": "prometheus-node-exporter",
+       "app_kubernetes_io_version": "1.12.1",
+       "device": "/dev/sda1",
+       "fstype": "ext4",
+       "helm_sh_chart": "prometheus-node-exporter-4.56.3",
+       "instance": "10.10.218.237:9100",
+       "job": "kubernetes-service-endpoints",
+       "mountpoint": "/",
+       "namespace": "observability",
+       "node": "workers6",
+       "service": "prom-prometheus-node-exporter"
+      },
+      "value": [
+       1790886871.256,
+       "49663639552"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "node_filesystem_size_bytes",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "prometheus-node-exporter",
+       "app_kubernetes_io_part_of": "prometheus-node-exporter",
+       "app_kubernetes_io_version": "1.12.1",
+       "device": "/dev/sda1",
+       "fstype": "ext4",
+       "helm_sh_chart": "prometheus-node-exporter-4.56.3",
+       "instance": "10.10.222.196:9100",
+       "job": "kubernetes-service-endpoints",
+       "mountpoint": "/",
+       "namespace": "observability",
+       "node": "workers2",
+       "service": "prom-prometheus-node-exporter"
+      },
+      "value": [
+       1790886871.256,
+       "49663639552"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "node_filesystem_size_bytes",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "prometheus-node-exporter",
+       "app_kubernetes_io_part_of": "prometheus-node-exporter",
+       "app_kubernetes_io_version": "1.12.1",
+       "device": "/dev/sda1",
+       "fstype": "ext4",
+       "helm_sh_chart": "prometheus-node-exporter-4.56.3",
+       "instance": "10.10.223.161:9100",
+       "job": "kubernetes-service-endpoints",
+       "mountpoint": "/",
+       "namespace": "observability",
+       "node": "master",
+       "service": "prom-prometheus-node-exporter"
+      },
+      "value": [
+       1790886871.256,
+       "49663639552"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "node_filesystem_size_bytes",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "prometheus-node-exporter",
+       "app_kubernetes_io_part_of": "prometheus-node-exporter",
+       "app_kubernetes_io_version": "1.12.1",
+       "device": "/dev/sda1",
+       "fstype": "ext4",
+       "helm_sh_chart": "prometheus-node-exporter-4.56.3",
+       "instance": "10.10.223.107:9100",
+       "job": "kubernetes-service-endpoints",
+       "mountpoint": "/",
+       "namespace": "observability",
+       "node": "workers3",
+       "service": "prom-prometheus-node-exporter"
+      },
+      "value": [
+       1790886871.256,
+       "49663639552"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "node_filesystem_size_bytes",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "prometheus-node-exporter",
+       "app_kubernetes_io_part_of": "prometheus-node-exporter",
+       "app_kubernetes_io_version": "1.12.1",
+       "device": "/dev/sda1",
+       "fstype": "ext4",
+       "helm_sh_chart": "prometheus-node-exporter-4.56.3",
+       "instance": "10.10.221.236:9100",
+       "job": "kubernetes-service-endpoints",
+       "mountpoint": "/",
+       "namespace": "observability",
+       "node": "workers1",
+       "service": "prom-prometheus-node-exporter"
+      },
+      "value": [
+       1790886871.256,
+       "49663639552"
+      ]
+     },
+     {
+      "metric": {
+       "__name__": "node_filesystem_size_bytes",
+       "app_kubernetes_io_component": "metrics",
+       "app_kubernetes_io_instance": "prom",
+       "app_kubernetes_io_managed_by": "Helm",
+       "app_kubernetes_io_name": "prometheus-node-exporter",
+       "app_kubernetes_io_part_of": "prometheus-node-exporter",
+       "app_kubernetes_io_version": "1.12.1",
+       "device": "/dev/sda1",
+       "fstype": "ext4",
+       "helm_sh_chart": "prometheus-node-exporter-4.56.3",
+       "instance": "10.10.222.49:9100",
+       "job": "kubernetes-service-endpoints",
+       "mountpoint": "/",
+       "namespace": "observability",
+       "node": "workers4",
+       "service": "prom-prometheus-node-exporter"
+      },
+      "value": [
+       1790886871.256,
+       "49663639552"
+      ]
+     }
+    ]
+   }
+  },
+  "redemarrages": {
+   "status": "success",
+   "data": {
+    "resultType": "vector",
+    "result": [
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-execute-service-549cc6c9d6-v67n5"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "prom-prometheus-node-exporter-4jg9n"
+      },
+      "value": [
+       1790886871.307,
+       "87"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "otel-agent-opentelemetry-collector-agent-77pnj"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-news-service-5f57cdcbb4-vhxmc"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "otel-agent-opentelemetry-collector-agent-hkcnm"
+      },
+      "value": [
+       1790886871.307,
+       "162"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "rabbitmq-7f8b646c9d-nzjxz"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-ui-dashboard-57b765bbc9-9d9wk"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "otel-agent-opentelemetry-collector-agent-q8qcl"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-assurance-service-7dc45d47fb-jfm7k"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-ticket-office-service-85d9bfbfb8-dz8dl"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-station-service-58b89477c-zmq88"
+      },
+      "value": [
+       1790886871.307,
+       "67"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-payment-service-7c6894557d-lckrd"
+      },
+      "value": [
+       1790886871.307,
+       "65"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "jaeger-594d676665-czxkt"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "prom-prometheus-node-exporter-gtrdr"
+      },
+      "value": [
+       1790886871.307,
+       "79"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "prom-prometheus-node-exporter-p4k65"
+      },
+      "value": [
+       1790886871.307,
+       "75"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "prom-prometheus-server-79f8654db6-2frsx"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-admin-route-service-77cf9cd6-2cqwd"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "otel-agent-opentelemetry-collector-agent-w8zwg"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-food-service-5f8f49dcd4-7lbqt"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "otel-agent-opentelemetry-collector-agent-45t2r"
+      },
+      "value": [
+       1790886871.307,
+       "152"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "nacosdb-mysql-0"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-preserve-service-55d5f7dd6-txx86"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-consign-service-d765f6d47-ztqpd"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "otel-agent-opentelemetry-collector-agent-swkt5"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "prom-prometheus-node-exporter-9jttn"
+      },
+      "value": [
+       1790886871.307,
+       "29"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "prom-kube-state-metrics-5c594dc8b8-f9jnf"
+      },
+      "value": [
+       1790886871.307,
+       "23"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "prom-prometheus-node-exporter-xp6k9"
+      },
+      "value": [
+       1790886871.307,
+       "85"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-delivery-service-79c46f4f45-r5pwb"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "nacos-0"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "prom-prometheus-node-exporter-xrzsx"
+      },
+      "value": [
+       1790886871.307,
+       "81"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-station-food-service-c7b95bbc8-nd9r7"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "prom-prometheus-node-exporter-hpznd"
+      },
+      "value": [
+       1790886871.307,
+       "79"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "observability",
+       "pod": "prom-prometheus-node-exporter-phcmx"
+      },
+      "value": [
+       1790886871.307,
+       "183"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-delivery-service-79c46f4f45-44v2p"
+      },
+      "value": [
+       1790886871.307,
+       "64"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-admin-basic-info-service-54db6f5f5b-xlstr"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-auth-service-d57b979b6-6rhnt"
+      },
+      "value": [
+       1790886871.307,
+       "63"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-price-service-6b649b745b-nsfhk"
+      },
+      "value": [
+       1790886871.307,
+       "62"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-travel-plan-service-569f7686ff-zl9sk"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-order-other-service-66c77f6d9f-mh49p"
+      },
+      "value": [
+       1790886871.307,
+       "64"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-notification-service-59fb79fc68-x57wm"
+      },
+      "value": [
+       1790886871.307,
+       "64"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-food-delivery-service-7cdc54dd4d-j2559"
+      },
+      "value": [
+       1790886871.307,
+       "64"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-route-plan-service-6c95dbb696-wtmwv"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-admin-travel-service-77d5ff88f-j82tz"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-admin-user-service-6d96cf5785-8sd74"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-security-service-6865d6f479-j97tt"
+      },
+      "value": [
+       1790886871.307,
+       "64"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-avatar-service-7bd9bf7b7f-dv4k9"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-config-service-85b66f6858-6hkhh"
+      },
+      "value": [
+       1790886871.307,
+       "64"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-cancel-service-679bc58845-tnpw9"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-wait-order-service-7d6f6dbcff-j98r7"
+      },
+      "value": [
+       1790886871.307,
+       "62"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-user-service-5cf6895d5-9zn8f"
+      },
+      "value": [
+       1790886871.307,
+       "62"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-delivery-service-79c46f4f45-mmndx"
+      },
+      "value": [
+       1790886871.307,
+       "62"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-gateway-service-6789477f49-85tsv"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-contacts-service-64974777d-99qkf"
+      },
+      "value": [
+       1790886871.307,
+       "64"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-route-service-766b65b4d4-r6v6x"
+      },
+      "value": [
+       1790886871.307,
+       "64"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-rebook-service-698bb87984-46jvt"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-voucher-service-867d99b49d-nn27v"
+      },
+      "value": [
+       1790886871.307,
+       "76"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-inside-payment-service-bd597757d-7dzzp"
+      },
+      "value": [
+       1790886871.307,
+       "64"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-travel2-service-54579fc4b6-qt7sc"
+      },
+      "value": [
+       1790886871.307,
+       "64"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-train-service-7ff86fc8b6-42n9f"
+      },
+      "value": [
+       1790886871.307,
+       "64"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-basic-service-74765dd8cc-vzxct"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-admin-order-service-7fbbc4f8db-7898g"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-preserve-other-service-6b49b686d4-fp28g"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-verification-code-service-7468f865db-7z8cl"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-consign-price-service-5ff665bb5b-7lmrj"
+      },
+      "value": [
+       1790886871.307,
+       "66"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-train-food-service-5f456b986b-kc2q8"
+      },
+      "value": [
+       1790886871.307,
+       "62"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "nacosdb-mysql-1"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "tsdb-mysql-0"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "tsdb-mysql-1"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "nacosdb-mysql-2"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "tsdb-mysql-2"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "nacos-1"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "nacos-2"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-order-service-5c59dc4866-tg7sc"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-seat-service-d44c44f9b-lc94k"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     },
+     {
+      "metric": {
+       "namespace": "train-ticket",
+       "pod": "ts-travel-service-5f9599b8bb-6vvkv"
+      },
+      "value": [
+       1790886871.307,
+       "0"
+      ]
+     }
+    ]
+   }
+  },
+  "mem_jaeger": {
+   "status": "success",
+   "data": {
+    "resultType": "vector",
+    "result": [
+     {
+      "metric": {},
+      "value": [
+       1790886871.358,
+       "1140367360"
+      ]
+     }
+    ]
+   }
+  },
+  "vide": {
+   "status": "success",
+   "data": {
+    "resultType": "vector",
+    "result": []
+   }
+  }
+ },
+ "paliers": "2026-10-01T14:06:38Z\t2026-10-01T14:07:06Z\t0\t0\t1\ttrain-ticket\tdemande\n2026-10-01T14:14:26Z\t2026-10-01T14:14:54Z\t25\t25\t1\ttrain-ticket\tdemande\n2026-10-01T14:28:37Z\t2026-10-01T14:29:05Z\t0\t0\t1\ttrain-ticket\tdemande\n2026-09-30T16:25:37Z\t2026-09-30T16:25:38Z\tretrait\tbase\t75\ttsdb-mysql-0@workers4 -> 55 clients\tchaos-mesh\tok\n2026-09-30T16:50:42Z\t2026-09-30T16:50:45Z\tinjection\tbase\t75\ttsdb-mysql-0@workers4 -> 55 clients, 55 adresses\tchaos-mesh/networkchaos\tconfirmee\n2026-09-30T17:10:37Z\t2026-09-30T17:10:38Z\tretrait\tbase\t75\ttsdb-mysql-0@workers4 -> 55 clients\tchaos-mesh\tok\npanne-20260928-131009.log\npanne-20260928-132359.log\npannes.tsv\ntrain-ticket-20260911-230001.log\ntrain-ticket-20260911-230544.log\ncat: /home/ubuntu/autodeploy/journaux/panne.etat: No such file or directory\n",
+ "locust_stats": {
+  "current_response_time_percentiles": {
+   "response_time_percentile_0.5": 5,
+   "response_time_percentile_0.95": 47
+  },
+  "errors": [],
+  "fail_ratio": 0.0,
+  "state": "running",
+  "stats": [
+   {
+    "avg_content_length": 13.0,
+    "avg_response_time": 6.273503600095864,
+    "current_fail_per_sec": 0.0,
+    "current_rps": 0.5,
+    "max_response_time": 7.0,
+    "median_response_time": 6,
+    "method": "GET",
+    "min_response_time": 6.0,
+    "name": "00 code de vérification",
+    "num_failures": 0,
+    "num_requests": 5,
+    "response_time_percentile_0.95": 7,
+    "response_time_percentile_0.99": 7,
+    "safe_name": "00 code de vérification",
+    "total_fail_per_sec": 0.0,
+    "total_rps": 0.43118398385000967
+   },
+   {
+    "avg_content_length": 60.0,
+    "avg_response_time": 47.719913798209745,
+    "current_fail_per_sec": 0.0,
+    "current_rps": 0.5,
+    "max_response_time": 49.0,
+    "median_response_time": 48,
+    "method": "POST",
+    "min_response_time": 47.0,
+    "name": "01 connexion",
+    "num_failures": 0,
+    "num_requests": 5,
+    "response_time_percentile_0.95": 49,
+    "response_time_percentile_0.99": 49,
+    "safe_name": "01 connexion",
+    "total_fail_per_sec": 0.0,
+    "total_rps": 0.43118398385000967
+   },
+   {
+    "avg_content_length": 68.0,
+    "avg_response_time": 6.266952804960763,
+    "current_fail_per_sec": 0.0,
+    "current_rps": 3.1,
+    "max_response_time": 47.0,
+    "median_response_time": 5,
+    "method": "POST",
+    "min_response_time": 3.0,
+    "name": "10 chercher un train",
+    "num_failures": 0,
+    "num_requests": 36,
+    "response_time_percentile_0.95": 15,
+    "response_time_percentile_0.99": 47,
+    "safe_name": "10 chercher un train",
+    "total_fail_per_sec": 0.0,
+    "total_rps": 3.1045246837200695
+   },
+   {
+    "avg_content_length": 37.0,
+    "avg_response_time": 45.62910529208845,
+    "current_fail_per_sec": 0.0,
+    "current_rps": 2.2,
+    "max_response_time": 58.0,
+    "median_response_time": 45,
+    "method": "GET",
+    "min_response_time": 43.0,
+    "name": "20 mes contacts",
+    "num_failures": 0,
+    "num_requests": 24,
+    "response_time_percentile_0.95": 47,
+    "response_time_percentile_0.99": 58,
+    "safe_name": "20 mes contacts",
+    "total_fail_per_sec": 0.0,
+    "total_rps": 2.0696831224800465
+   },
+   {
+    "avg_content_length": 13.0,
+    "avg_response_time": 45.24640962487562,
+    "current_fail_per_sec": 0.0,
+    "current_rps": 2.2,
+    "max_response_time": 48.0,
+    "median_response_time": 44,
+    "method": "POST",
+    "min_response_time": 43.0,
+    "name": "30 réserver un billet",
+    "num_failures": 0,
+    "num_requests": 24,
+    "response_time_percentile_0.95": 48,
+    "response_time_percentile_0.99": 48,
+    "safe_name": "30 réserver un billet",
+    "total_fail_per_sec": 0.0,
+    "total_rps": 2.0696831224800465
+   },
+   {
+    "avg_content_length": 13.0,
+    "avg_response_time": 6.779350828271292,
+    "current_fail_per_sec": 0.0,
+    "current_rps": 5.4,
+    "max_response_time": 48.0,
+    "median_response_time": 5,
+    "method": "POST",
+    "min_response_time": 3.0,
+    "name": "40 commander un repas",
+    "num_failures": 0,
+    "num_requests": 70,
+    "response_time_percentile_0.95": 16,
+    "response_time_percentile_0.99": 48,
+    "safe_name": "40 commander un repas",
+    "total_fail_per_sec": 0.0,
+    "total_rps": 6.036575773900135
+   },
+   {
+    "avg_content_length": 13.0,
+    "avg_response_time": 7.345246429135192,
+    "current_fail_per_sec": 0.0,
+    "current_rps": 1.0,
+    "max_response_time": 47.0,
+    "median_response_time": 4,
+    "method": "GET",
+    "min_response_time": 3.0,
+    "name": "60 déclencher un courriel",
+    "num_failures": 0,
+    "num_requests": 14,
+    "response_time_percentile_0.95": 47,
+    "response_time_percentile_0.99": 47,
+    "safe_name": "60 déclencher un courriel",
+    "total_fail_per_sec": 0.0,
+    "total_rps": 1.2073151547800272
+   },
+   {
+    "avg_content_length": 28.679775280898877,
+    "avg_response_time": 18.280773898674923,
+    "current_fail_per_sec": 0.0,
+    "current_rps": 14.9,
+    "max_response_time": 58.0,
+    "median_response_time": 5,
+    "method": "",
+    "min_response_time": 3.0,
+    "name": "Aggregated",
+    "num_failures": 0,
+    "num_requests": 178,
+    "response_time_percentile_0.95": 48,
+    "response_time_percentile_0.99": 49,
+    "safe_name": "Aggregated",
+    "total_fail_per_sec": 0.0,
+    "total_rps": 15.350149825060344
+   }
+  ],
+  "total_fail_per_sec": 0.0,
+  "total_rps": 14.9,
+  "user_count": 5
+ }
+}

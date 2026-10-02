@@ -37,11 +37,17 @@
 #  consigne QUI a été touché. Une campagne de panne, c'est un profil de charge
 #  ordinaire sur lequel une injection est posée à une minute donnée :
 #
-#      minute   0        5                        25       30
-#               |--------|========================|--------|
-#               25 voyageurs   panne « lenteur »   retour   fin
+#      minute   0        5                              25       30
+#               |--------|==============================|--------|
+#               25 voyageurs panne « consumer-slowdown » retour   fin
 #
-#      ./campagne.sh lenteur-01 --profil "25:30" --panne lenteur --a 5 --duree 20
+#      ./campagne.sh consumer-slowdown-01 --profil "25:30" --panne consumer-slowdown --a 5 --duree 20
+#
+#  Les noms des causes sont anglais (ceux de apps/panne.sh). Les anciens noms
+#  français sont encore acceptés pour --panne, traduits dès la lecture (une ligne
+#  le dit) ; le compte rendu porte toujours le nom anglais :
+#      charge → load-surge, lenteur → consumer-slowdown, blocage → replica-freeze,
+#      hote → noisy-neighbor, base → database-slowdown, reseau → network-delay
 #
 #  Un témoin (file, consommateurs, charge des répliques et des hôtes) est relevé
 #  juste avant, au milieu, et une minute après chaque injection. Il est recopié
@@ -58,12 +64,29 @@
 #  l'étape « rapatrier à la fin », donc supprime l'oubli possible.
 #
 #  Le réseau n'est pas un risque : le pilote dort, puis lance une commande
-#  courte. Si elle échoue, l'échec est écrit dans le compte rendu au lieu d'être
-#  passé sous silence. Et chaque injection expire d'elle-même sur le master :
+#  courte, bornée par un plafond (variables plus bas). Si elle échoue ou ne
+#  répond pas, l'échec est écrit dans le compte rendu au lieu d'être passé sous
+#  silence. Et chaque injection expire d'elle-même sur le master :
 #  un pilote qui meurt ne laisse pas la panne derrière lui.
 #
 #  Ctrl-C ne jette rien : l'injection en cours est retirée, la collecte est
-#  close proprement, le compte rendu est écrit avec ce qui a eu lieu.
+#  close proprement, le compte rendu est écrit avec ce qui a eu lieu. De même
+#  pour « kill -INT <pid du pilote> » (traité tout de suite, même pendant une
+#  longue attente), TERM, HUP (terminal fermé) et PIPE (sortie coupée) ; la
+#  suite du nettoyage s'écrit alors dans le journal. « kill -9 » ne se rattrape
+#  pas : rien n'est retiré ni écrit, et la ligne FIN manque. Lancé en
+#  arrière-plan par un script sans « set -m », le pilote ne peut pas rattraper
+#  INT (bash l'ignore dès l'entrée) : il le dit au départ ; envoyer TERM.
+#
+#  Chaque sortie ajoute UNE ligne à journaux/fins.tsv (ici, sur le nœud de
+#  contrôle ; tabulations) :
+#      FIN_CAMPAGNE  <nom>  <code>  <instant UTC>  <motif>
+#  motif : termine, depart_refuse, interrompu_<INT|TERM|HUP|PIPE>,
+#          parcours_en_defaut, reglage_absent, erreur
+#  Code de sortie : 0 terminée ; 1 erreur ou départ refusé ; 2 usage (-h,
+#  arguments manquants, motif « erreur ») ; 3 close sans la panne, le retard
+#  de base (140 ms) manquait juste avant une injection ; 130 interrompue
+#  (signal, ou parcours en défaut à la minute 2).
 #
 #  À LANCER SOUS TMUX. La campagne dure des heures ; une session SSH qui tombe
 #  emporterait le pilote avec elle.
@@ -71,20 +94,23 @@
 #  Usage :
 #      tmux new -s campagne
 #      ./campagne.sh <nom> --profil "10:15,25:15,10:15,40:15"
-#      ./campagne.sh <nom> --profil "25:30" --panne lenteur --a 5 --duree 20
-#      ./campagne.sh <nom> --profil "25:135" --panne hote --a 5,50,95 --duree 20 \
+#      ./campagne.sh <nom> --profil "25:30" --panne consumer-slowdown --a 5 --duree 20
+#      ./campagne.sh <nom> --profil "25:135" --panne noisy-neighbor --a 5,50,95 --duree 20 \
 #                          --cible workers5,workers2,workers0
 #
 #  Le profil se lit « voyageurs:minutes », séparés par des virgules.
 #
 #  Options :
 #      --profil <p>       obligatoire — les paliers à appliquer
-#      --panne <cause>    charge, lenteur, hote, blocage, base ou reseau ; sans : campagne saine
+#      --panne <cause>    load-surge, consumer-slowdown, replica-freeze, noisy-neighbor,
+#                         database-slowdown ou network-delay ; sans : campagne saine
 #      --a <min[,min…]>   minute(s) où chaque injection commence, comptées
 #                         depuis le premier palier
 #      --duree <min>      durée de chaque injection
-#      --intensite <n>    voyageurs (charge), millisecondes (lenteur, base, reseau), cœurs (hote)
-#      --cible <x[,y…]>   nœud (hote), pod (blocage) ou couple « X:Y » (reseau, exigé :
+#      --intensite <n>    voyageurs (load-surge), millisecondes (consumer-slowdown,
+#                         database-slowdown, network-delay), cœurs (noisy-neighbor)
+#      --cible <x[,y…]>   nœud (noisy-neighbor), pod (replica-freeze) ou couple « X:Y »
+#                         (network-delay, exigé :
 #                         la règle de D.1, recalculée au départ par graphe_en/couples_d.py,
 #                         doit donner les mêmes cibles, sinon départ refusé) ; sinon choisi par panne.sh.
 #                         Une liste donne une cible par injection, dans l'ordre
@@ -100,6 +126,20 @@
 #      CAMPAGNE_NAMESPACE (défaut: train-ticket) l'espace dont le placement est noté
 #      FILE_VIDE_MAX     (défaut: 40) minutes d'attente, au départ, pour que la
 #                        file laissée par la campagne précédente se vide
+#
+#  Plafonds, en secondes, de chaque appel au master (au moins le double de sa
+#  pire durée normale). Une lecture est bornée aussi sur le master ; un geste
+#  ne l'est jamais là-bas. Le plafond d'ici reste un dernier recours : s'il
+#  tombe, le geste distant s'arrête à sa prochaine écriture — d'où leur largeur.
+#      CAMPAGNE_PLAFOND_LECTURE  (défaut: 120)  états, bilans, vérifications
+#      CAMPAGNE_PLAFOND_LONGUE   (défaut: 300)  témoin complet, copie des journaux
+#      CAMPAGNE_PLAFOND_GESTE    (défaut: 360)  collecte, purge, reposer, reset
+#      CAMPAGNE_PLAFOND_SCALE    (défaut: 4 × (30 + plus grand palier), au moins 600)
+#      CAMPAGNE_PLAFOND_INJECTER (défaut: 1200)
+#      CAMPAGNE_PLAFOND_RETIRER  (défaut: 2400)  « consumer-slowdown » repose le réglage,
+#                                               rollout de 10 min compris
+#      (« load-surge » passe par loadgen.sh scale : au moins 4 × (30 + --intensite,
+#      ou plus grand palier sans elle), pour l'injection comme pour le retrait)
 # ==============================================================================
 set -uo pipefail
 
@@ -118,8 +158,32 @@ NS_APP="${CAMPAGNE_NAMESPACE:-train-ticket}"
 say()  { echo "  [campagne] $*"; }
 ok()   { echo "  [campagne] OK  $*"; }
 warn() { echo "  [campagne] ATTENTION: $*" >&2; }
-fail() { echo "  [campagne] ERREUR: $*" >&2; exit 1; }
+fail() { echo "  [campagne] ERREUR: $*" >&2; [ -n "${T0:-}" ] || MOTIF=depart_refuse; exit 1; }
 maintenant() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+exec 3>&2   # l'écran (ou le journal), même quand un appel a sa sortie capturée ou jetée
+
+# La ligne FIN, écrite à toute sortie, en dernier, directement dans le fichier :
+# ni tee ni le terminal n'ont besoin d'être encore là. Une injection restée
+# posée (sortie imprévue, hors interruption) est d'abord retirée.
+MOTIF=""; NOM_FIN="?"; T0=""; INJECTION_ACTIVE=0; SOUSTRAIT=""
+fin_de_campagne() {
+    local code=$?
+    trap '' PIPE; trap : INT TERM HUP     # plus rien ne coupe la fin
+    [ "$INJECTION_ACTIVE" != "1" ] || retrait_en_cours "sortie_imprevue"
+    # « termine » et « depart_refuse » sont posés là où ils arrivent : sans motif,
+    # c'est une erreur imprévue (bash tué par un signal non rattrapé sort ici avec 0).
+    [ -n "$MOTIF" ] || MOTIF=erreur
+    mkdir -p "$RACINE/journaux" 2>/dev/null
+    printf 'FIN_CAMPAGNE\t%s\t%s\t%s\t%s\n' "$NOM_FIN" "$code" "$(maintenant)" "$MOTIF" >> "$RACINE/journaux/fins.tsv"
+}
+trap fin_de_campagne EXIT
+# Hors du déroulé, rien n'est à défaire : un signal arrête net, la ligne FIN le dit.
+arret_simple() { local s; for s in INT TERM HUP PIPE; do trap "MOTIF=interrompu_$s; exit 130" "$s"; done; }
+arret_simple
+# Lancé en arrière-plan sans « set -m », bash ignore SIGINT dès l'entrée, sans
+# pouvoir le rattraper : « kill -INT » ne ferait rien, en silence.
+case "$(trap -p INT)" in *MOTIF=*) ;;
+    *) warn "SIGINT ignoré dès le lancement (arrière-plan sans « set -m ») : « kill -INT » sera sans effet — envoyer TERM" ;; esac
 
 # Chaque action du déroulé est ajoutée ici au fur et à mesure, jamais à la fin :
 # si le pilote est interrompu, ce qui a déjà eu lieu reste écrit.
@@ -129,11 +193,66 @@ noter_action() { DEROULE="${DEROULE}  - { instant: $(maintenant), $* }
 TEMOINS=""
 
 # ------------------------------------------------------------------------------
-distant() { ssh "$CIBLE" "JOURNAL_OFF=1 bash '$DISTANT/apps/$1' ${*:2}" 2>&1; }
+# Un lien mort se voit en une minute environ, et ssh ne demande jamais rien.
+SSH_OPTIONS=(-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4)
+
+# ssh_master <plafond> <libellé> <commande> — un appel au master, borné ici.
+# --foreground : timeout reste dans le groupe du pilote, sinon un Ctrl-C dans tmux n'atteindrait plus ssh.
+ssh_master() {
+    local code=0
+    ${SOUSTRAIT:+setsid -w} timeout --foreground -k 30 "$1" ssh "${SSH_OPTIONS[@]}" "$CIBLE" "$3" || code=$?
+    case "$code" in 124|137) echo "  [campagne] ATTENTION: « $2 » n'a pas répondu en $1 s" >&3 ;; esac
+    return "$code"
+}
+# Une lecture est bornée aussi sur le master, sans --foreground : tout son
+# groupe est tué, un kubectl exec pendu n'y reste pas orphelin. Jamais un geste.
+borne() { echo "timeout -k 10 $1"; }
+
+plafond_de() {   # <script> <action> [court] → « secondes lecture|geste »
+    case "$1 ${2:-}" in
+        "panne.sh injecter")  echo "$PLAFOND_INJECTER geste" ;;
+        "panne.sh retirer")   echo "$PLAFOND_RETIRER geste" ;;
+        "loadgen.sh scale")   echo "$PLAFOND_SCALE geste" ;;
+        "loadgen.sh reset"|"collecte.sh demarrer"|"collecte.sh arreter"|"donnees.sh purger"|"consommateur.sh reposer")
+                              echo "$PLAFOND_GESTE geste" ;;
+        "panne.sh temoin")    if [ "${3:-}" = court ]; then echo "$PLAFOND_LECTURE lecture"
+                              else echo "$PLAFOND_LONGUE lecture"; fi ;;
+        "panne.sh etat"|"panne.sh leader"|"panne.sh verifier"|"panne.sh libres"|"loadgen.sh bilan"|\
+        "collecte.sh etat"|"collecte.sh fenetre"|"consommateur.sh etat"|"consommateur.sh verifier"|"donnees.sh etat")
+                              echo "$PLAFOND_LECTURE lecture" ;;
+        *)                    echo "$PLAFOND_RETIRER geste" ;;   # inconnu : jamais coupé sur le master
+    esac
+}
+
+distant() {
+    local plafond sorte b=""
+    read -r plafond sorte <<< "$(plafond_de "$@")"
+    [ "$sorte" = geste ] || b="$(borne "$plafond") "
+    ssh_master "$plafond" "$1 ${2:-}" "JOURNAL_OFF=1 ${b}bash '$DISTANT/apps/$1' ${*:2}" 2>&1
+}
 
 usage() {
     sed -n '/^#  Usage :/,/^# ===/p' "$0" | sed 's/^#\s\?//' | head -n -1
     exit 2
+}
+
+# Les noms des causes, ceux de apps/panne.sh.
+CAUSES="load-surge consumer-slowdown replica-freeze noisy-neighbor database-slowdown network-delay"
+LISTE_CAUSES="load-surge, consumer-slowdown, replica-freeze, noisy-neighbor, database-slowdown ou network-delay"
+
+# COMPATIBILITÉ — à retirer après la collecte : les anciens noms français de
+# --panne, traduits dès la lecture des arguments ; ensuite seul le nom anglais
+# circule (déroulé, compte rendu, appels au master).
+alias_de_cause() {   # <ancien nom> → le nom anglais ; 1 si inconnu
+    case "$1" in
+        charge)  echo load-surge ;;
+        lenteur) echo consumer-slowdown ;;
+        blocage) echo replica-freeze ;;
+        hote)    echo noisy-neighbor ;;
+        base)    echo database-slowdown ;;
+        reseau)  echo network-delay ;;
+        *) return 1 ;;
+    esac
 }
 
 # ------------------------------------------------------------------------------
@@ -142,6 +261,7 @@ COLLECTE=1; PURGE=1; MARGE=""
 [ $# -gt 0 ] || usage
 NOM="$1"; shift
 case "$NOM" in -*|'') usage ;; *[!A-Za-z0-9._-]*) fail "Nom invalide : « $NOM »" ;; esac
+NOM_FIN="$NOM"
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -158,6 +278,17 @@ while [ $# -gt 0 ]; do
         *) fail "Option inconnue : $1" ;;
     esac
 done
+
+# Le nom de la cause, traduit tout de suite s'il est ancien (compat).
+if [ -n "$PANNE" ]; then
+    case " $CAUSES " in
+        *" $PANNE "*) ;;
+        *) if anglais=$(alias_de_cause "$PANNE"); then
+               say "$PANNE → $anglais"
+               PANNE="$anglais"
+           fi ;;
+    esac
+fi
 
 [ -n "$PROFIL" ] || fail "Le profil est obligatoire : --profil \"10:15,25:15\""
 case "${MARGE:-2}" in ''|*[!0-9]*) fail "--marge : un nombre de minutes" ;; esac
@@ -190,16 +321,16 @@ done
 TYPE="saine"; DEBUTS=()
 if [ -n "$PANNE" ]; then
     TYPE="panne"
-    case "$PANNE" in charge|lenteur|hote|blocage|base|reseau) ;;
-        *) fail "--panne accepte charge, lenteur, hote, blocage, base ou reseau — pas « $PANNE »" ;; esac
+    case " $CAUSES " in *" $PANNE "*) ;;
+        *) fail "--panne accepte $LISTE_CAUSES — pas « $PANNE »" ;; esac
     [ -n "$DEBUTS_BRUTS" ] || fail "--panne exige --a <minute> : quand l'injection commence"
-    [ "$PANNE" != "reseau" ] || [ -n "$CIBLE_PANNE" ] || fail "--panne reseau exige --cible X:Y (graphe_en/couples_d.py)"
-    [ "$PANNE" != "reseau" ] || [ -n "$INTENSITE" ] || fail "--panne reseau exige --intensite <ms>"
+    [ "$PANNE" != "network-delay" ] || [ -n "$CIBLE_PANNE" ] || fail "--panne network-delay exige --cible X:Y (graphe_en/couples_d.py)"
+    [ "$PANNE" != "network-delay" ] || [ -n "$INTENSITE" ] || fail "--panne network-delay exige --intensite <ms>"
     [ -n "$DUREE" ]        || fail "--panne exige --duree <minutes>"
     case "$DUREE" in ''|*[!0-9]*) fail "--duree : un nombre de minutes" ;; esac
     [ "$DUREE" -gt 0 ] || fail "--duree : au moins une minute"
     case "$INTENSITE" in *[!0-9]*) fail "--intensite : un nombre entier" ;; esac
-    [ "$PANNE" != "reseau" ] || [ "$INTENSITE" -ge 1 ] || fail "--panne reseau : --intensite d'au moins 1 ms"
+    [ "$PANNE" != "network-delay" ] || [ "$INTENSITE" -ge 1 ] || fail "--panne network-delay : --intensite d'au moins 1 ms"
     IFS=',' read -ra MORCEAUX <<< "$DEBUTS_BRUTS"
     for m in "${MORCEAUX[@]}"; do
         m="${m// /}"; [ -n "$m" ] || continue
@@ -212,8 +343,8 @@ if [ -n "$PANNE" ]; then
     # partent au master dans une ligne de commande : seuls les caractères d'un
     # nom Kubernetes sont admis.
     if [ -n "$CIBLE_PANNE" ]; then
-        case "$PANNE" in hote|blocage|reseau) ;;
-            *) fail "--cible est sans objet pour « $PANNE » : seules hote (un nœud), blocage (un pod) et reseau (X:Y) visent un composant" ;; esac
+        case "$PANNE" in noisy-neighbor|replica-freeze|network-delay) ;;
+            *) fail "--cible est sans objet pour « $PANNE » : seules noisy-neighbor (un nœud), replica-freeze (un pod) et network-delay (X:Y) visent un composant" ;; esac
         # La chaîne entière d'abord : un retour à la ligne (liste collée depuis
         # kubectl) couperait la lecture après le premier nom, sans erreur.
         [[ "${CIBLE_PANNE// /}" =~ ^[a-z0-9.,:-]+$ ]] \
@@ -221,9 +352,9 @@ if [ -n "$PANNE" ]; then
         case "${CIBLE_PANNE// /}" in ,*|*,|*,,*) fail "--cible « $CIBLE_PANNE » : une cible vide dans la liste" ;; esac
         IFS=',' read -ra MORCEAUX <<< "${CIBLE_PANNE// /}"
         for c in "${MORCEAUX[@]}"; do
-            if [ "$PANNE" = "reseau" ]; then
+            if [ "$PANNE" = "network-delay" ]; then
                 [[ "$c" =~ ^[a-z0-9.-]+:[a-z0-9.-]+$ ]] \
-                    || fail "--cible « $c » : pour reseau, « X:Y » (deux noms de nœud)"
+                    || fail "--cible « $c » : pour network-delay, « X:Y » (deux noms de nœud)"
             else
                 [[ "$c" =~ ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$ ]] \
                     || fail "--cible « $c » : pas un nom de nœud ou de pod (minuscules, chiffres, « - » et « . »)"
@@ -259,6 +390,22 @@ else
     [ -z "$DEBUTS_BRUTS$DUREE$INTENSITE$CIBLE_PANNE" ] \
         || fail "--a, --duree, --intensite et --cible n'ont de sens qu'avec --panne <cause>"
 fi
+
+# Les plafonds des appels au master (voir l'en-tête). Celui de « scale » suit le
+# plus grand palier : Locust ajoute ou retire un voyageur par seconde. « load-surge »
+# passe aussi par scale, à l'injection comme au retrait.
+v_max=$(printf '%s\n' "${PALIERS[@]%%:*}" | sort -n | tail -1)
+c=$(( 4 * (30 + 10#$v_max) )); PLAFOND_SCALE="${CAMPAGNE_PLAFOND_SCALE:-$(( c > 600 ? c : 600 ))}"
+[ "$PANNE" != load-surge ] || c=$(( 4 * (30 + 10#${INTENSITE:-$v_max}) ))
+PLAFOND_INJECTER="${CAMPAGNE_PLAFOND_INJECTER:-$(( c > 1200 ? c : 1200 ))}"
+PLAFOND_RETIRER="${CAMPAGNE_PLAFOND_RETIRER:-$(( c > 2400 ? c : 2400 ))}"
+PLAFOND_LECTURE="${CAMPAGNE_PLAFOND_LECTURE:-120}"
+PLAFOND_LONGUE="${CAMPAGNE_PLAFOND_LONGUE:-300}"
+PLAFOND_GESTE="${CAMPAGNE_PLAFOND_GESTE:-360}"
+for p in LECTURE LONGUE GESTE SCALE INJECTER RETIRER; do
+    v="PLAFOND_$p"
+    [[ "${!v}" =~ ^[1-9][0-9]*$ ]] || fail "CAMPAGNE_PLAFOND_$p : un nombre de secondes, pas « ${!v} »"
+done
 
 DOSSIER="$RACINE/campagnes/$NOM"
 [ -d "$DOSSIER" ] && warn "« $NOM » existe déjà — son contenu sera remplacé."
@@ -323,7 +470,7 @@ echo
 # ------------------------------------------------------------- vérifications
 # Avant le compte à rebours : ce qui peut être refusé doit l'être avant que
 # l'utilisateur s'en aille.
-ssh -o BatchMode=yes "$CIBLE" true 2>/dev/null \
+ssh_master "$PLAFOND_LECTURE" "ssh $CIBLE true" true 2>/dev/null \
     || fail "Master injoignable via « ssh $CIBLE ». Le cluster est-il debout ?"
 
 # Une référence saine enregistrée avec une panne encore en place serait fausse
@@ -504,7 +651,7 @@ retour_au_premier_palier() {
 }
 
 lire_placement() {   # « pod machine phase redémarrages arrêt » par pod de l'espace applicatif
-    ssh "$CIBLE" "kubectl get pods -n '$NS_APP' --no-headers -o custom-columns=:metadata.name,:spec.nodeName,:status.phase,:status.containerStatuses[*].restartCount,:metadata.deletionTimestamp" 2>/dev/null \
+    ssh_master "$PLAFOND_LECTURE" "kubectl get pods" "$(borne "$PLAFOND_LECTURE") kubectl get pods -n '$NS_APP' --no-headers -o custom-columns=:metadata.name,:spec.nodeName,:status.phase,:status.containerStatuses[*].restartCount,:metadata.deletionTimestamp" 2>/dev/null \
         | awk 'NF {print $1, $2, $3, "redemarrages=" $4, ($5 == "<none>" ? "" : "en_arret=" $5)}' | sed 's/ *$//' | sort
 }
 
@@ -548,13 +695,14 @@ cloturer() {
     fi
 
     say "Rapatriement des registres et des journaux…"
-    registre=$(ssh "$CIBLE" "cat '$DISTANT/journaux/paliers.tsv'" 2>/dev/null)
-    registre_pannes=$(ssh "$CIBLE" "cat '$DISTANT/journaux/pannes.tsv'" 2>/dev/null)
+    registre=$(ssh_master "$PLAFOND_LECTURE" "cat paliers.tsv" "$(borne "$PLAFOND_LECTURE") cat '$DISTANT/journaux/paliers.tsv'" 2>/dev/null)
+    registre_pannes=$(ssh_master "$PLAFOND_LECTURE" "cat pannes.tsv" "$(borne "$PLAFOND_LECTURE") cat '$DISTANT/journaux/pannes.tsv'" 2>/dev/null)
     # Les registres (.tsv) en entier : ils portent l'historique. Les journaux
     # (.log) seulement ceux écrits depuis le départ du pilote : le dossier du
     # master garde ceux de toutes les campagnes précédentes, qui n'ont rien à
     # faire dans la provenance de celle-ci.
-    ssh "$CIBLE" "cd '$DISTANT/journaux' && find . -maxdepth 1 -type f \\( -name '*.tsv' -o -newermt '@$T_PILOTE' \\) -print0 | tar -c --null -T -" 2>/dev/null \
+    local b; b=$(borne "$PLAFOND_LONGUE")
+    ssh_master "$PLAFOND_LONGUE" "copie des journaux" "cd '$DISTANT/journaux' && $b find . -maxdepth 1 -type f \\( -name '*.tsv' -o -newermt '@$T_PILOTE' \\) -print0 | $b tar -c --null -T -" 2>/dev/null \
         | tar -x -C "$DOSSIER/journaux" 2>/dev/null \
         && ok "journaux copiés ($(ls "$DOSSIER/journaux" | wc -l) fichiers)" || warn "copie des journaux impossible"
 
@@ -582,22 +730,54 @@ cloturer() {
     say "Ce dossier est à committer : c'est la provenance de tes données."
 }
 
-interrompu() {
-    trap - INT TERM
+retrait_en_cours() {   # <motif> — l'injection encore posée est retirée tout de suite
+    say "Retrait de l'injection en cours…"
+    # Hors du groupe du terminal (setsid) : un second Ctrl-C ne coupe pas ce
+    # retrait, qui commence par annuler le minuteur de la panne sur le master.
+    local code=0 sortie; sortie=$(SOUSTRAIT=1 distant panne.sh retirer) || code=$?
+    printf '%s\n' "$sortie" | sed 's/^/      /'
+    if [ "$code" = 0 ]; then
+        noter_action "action: retrait, motif: $1"
+    else
+        warn "Retrait non confirmé — à vérifier :  ssh $CIBLE 'bash $DISTANT/apps/panne.sh etat'"
+        noter_action "action: retrait, resultat: ECHEC, motif: $1"
+    fi
+    INJECTION_ACTIVE=0
+}
+
+# Le pilote dort en arrière-plan et l'attend : un signal envoyé à lui seul
+# (kill -INT <pid>) interrompt l'attente au lieu d'attendre le réveil.
+SOMMEIL=""
+dormir() { sleep "$1" </dev/null >/dev/null 2>&1 3>&- & SOMMEIL=$!; wait "$SOMMEIL"; SOMMEIL=""; }
+
+NETTOYAGE=0
+interrompu() {   # [signal] — sans signal : arrêt décidé par le pilote (MOTIF déjà posé)
+    [ "$NETTOYAGE" = "0" ] || return 0   # un second signal pendant le nettoyage : ignoré
+    NETTOYAGE=1
+    trap '' PIPE
+    if [ -n "${1:-}" ]; then
+        # La sortie a pu disparaître (Ctrl-C tue aussi le tee du journal, terminal
+        # fermé) : y écrire tuerait le nettoyage, ou le rendrait muet. Il
+        # continue dans le fichier du journal.
+        local f=""; [ -f "${JOURNAL_FICHIER:-}" ] && f="$JOURNAL_FICHIER"
+        case "$1" in HUP|PIPE) f="${f:-/dev/null}" ;; esac
+        if [ -n "$f" ]; then
+            [ "$f" = /dev/null ] || echo "  [campagne] nettoyage en cours — suite dans $f" 2>/dev/null
+            exec >>"$f" 2>&1 3>&2
+        fi
+    fi
+    [ -z "${1:-}" ] || MOTIF="interrompu_$1"
+    [ -z "$SOMMEIL" ] || kill "$SOMMEIL" 2>/dev/null
     echo; warn "Interrompu."
     INTERROMPUE=1
     noter_action "action: interrompu"
-    if [ "$INJECTION_ACTIVE" = "1" ]; then
-        say "Retrait de l'injection en cours…"
-        distant panne.sh retirer | sed 's/^/      /'
-        noter_action "action: retrait, motif: interruption"
-        INJECTION_ACTIVE=0
-    fi
+    [ "$INJECTION_ACTIVE" != "1" ] || retrait_en_cours interruption
     retour_au_premier_palier
     cloturer
+    [ "$MOTIF" != reglage_absent ] || exit 3
     exit 130
 }
-trap interrompu INT TERM
+for s in INT TERM HUP PIPE; do trap "interrompu $s" "$s"; done
 
 # ------------------------------------------------------------------ préparation
 etat_avant=$(distant collecte.sh etat)
@@ -622,7 +802,7 @@ attendre_file_vide() {
             noter_action "action: attente_file_vide, en_attente: $n"; attendu=1
         fi
         [ "$reste" -gt 0 ] || fail "La file ne s'est pas vidée en ${FILE_VIDE_MAX:-40} min ($n restants) : départ refusé."
-        sleep 30; reste=$((reste - 30))
+        dormir 30; reste=$((reste - 30))
     done
 }
 attendre_file_vide
@@ -651,7 +831,7 @@ fi
 # Phase D : les couples (X, Y) sont fixés par la règle écrite avant D (journal,
 # D.1) sur le placement relu ici même, après la purge. Des cibles fournies qui
 # ne sont plus celles de la règle refusent le départ, avant toute collecte.
-if [ "$PANNE" = "reseau" ]; then
+if [ "$PANNE" = "network-delay" ]; then
     f_pl=$(mktemp); f_li=$(mktemp)
     printf '%s\n' "$placement_depart" > "$f_pl"
     distant panne.sh libres > "$f_li" || { rm -f "$f_pl" "$f_li"; fail "CPU libre des machines illisible (panne.sh libres)."; }
@@ -675,6 +855,34 @@ if [ "$PANNE" = "reseau" ]; then
     noter_action "action: couples_verifies, cibles: \"$fournies\", couples_de_la_regle: \"$autorises\""
 fi
 
+# Toutes les machines prêtes : une machine absente, ou fermée à l'ordonnanceur,
+# déplacerait des pods pendant la mesure.
+machines=$(ssh_master "$PLAFOND_LECTURE" "kubectl get nodes" "$(borne "$PLAFOND_LECTURE") kubectl get nodes --no-headers") \
+    && [ -n "$(printf '%s\n' "$machines" | awk 'NF >= 2')" ] \
+    || fail "Aucune machine lue (kubectl get nodes) : départ refusé."
+pas_pretes=$(printf '%s\n' "$machines" | awk 'NF >= 2 && $2 != "Ready" {print $1 " (" $2 ")"}' | paste -sd' ' -)
+[ -z "$pas_pretes" ] || fail "Machine(s) pas prête(s) : $pas_pretes — départ refusé."
+noter_action "action: machines_pretes, machines: $(printf '%s\n' "$machines" | awk 'NF >= 2' | wc -l)"
+
+# Le retard de base (140 ms) doit être porté par CHAQUE réplique en marche :
+# Chaos Mesh ne le pose pas sur une réplique recréée (consommateur.sh). Il est
+# reposé ici s'il manque, avant la collecte — jamais pendant la mesure.
+code=0; reglage_lu=""; sortie=$(distant consommateur.sh verifier) || code=$?
+if [ "$code" = "1" ]; then
+    printf '%s\n' "$sortie" | sed 's/^/      /'
+    say "Le retard de base manque : nouvelle pose (consommateur.sh reposer)…"
+    distant consommateur.sh reposer | sed 's/^/      /'
+    code=0; sortie=$(distant consommateur.sh verifier) || code=$?
+    reglage_lu=repose
+fi
+case "$code" in
+    0) ok "retard de base sur chaque réplique${reglage_lu:+ (reposé)}"
+       noter_action "action: reglage_verifie, resultat: ${reglage_lu:-ok}" ;;
+    3) printf '%s\n' "$sortie" | sed 's/^/      /' >&2
+       fail "Une panne « consumer-slowdown » remplace le retard de base (consommateur.sh verifier, code 3) : départ refusé." ;;
+    *) printf '%s\n' "$sortie" | sed 's/^/      /' >&2
+       fail "Le retard de base n'est pas sur chaque réplique${reglage_lu:+, même après consommateur.sh reposer} (consommateur.sh verifier, code $code) : départ refusé." ;;
+esac
 
 if [ "$COLLECTE" = "1" ]; then
     say "Démarrage de la collecte…"
@@ -715,6 +923,23 @@ appliquer_palier() {
 
 injecter() {   # <rang de l'injection, depuis 0>
     local cible="${CIBLES[$1]:-}"
+    # Le retard de base relu juste avant, sans le reposer : le reposer pendant
+    # la mesure changerait les conditions. Sans lui, la panne n'est pas posée et
+    # la campagne est close (code 3).
+    local code=0 lu; lu=$(distant consommateur.sh verifier) || code=$?
+    if [ "$code" != "0" ]; then
+        printf '%s\n' "$lu" | sed 's/^/      /' >&2
+        noter_action "action: injection, cause: $PANNE, resultat: REFUSEE_REGLAGE${cible:+, cible: $cible}"
+        non_injectees=$((non_injectees + 1))
+        case "$code" in
+            1) lu="retard de base absent sur une réplique" ;;
+            3) lu="une panne « consumer-slowdown » est encore en place" ;;
+            *) lu="réglage non vérifiable" ;;
+        esac
+        warn "Injection « $PANNE » refusée : $lu (consommateur.sh verifier, code $code) — panne NON posée, campagne close."
+        MOTIF=reglage_absent
+        interrompu
+    fi
     say "Injection « $PANNE » pendant $DUREE minutes${cible:+ sur $cible}"
     INJECTION_ACTIVE=1
     # La cible est notée APRÈS le résultat : ligne_de_base.py lit « cause »
@@ -736,9 +961,9 @@ retirer() {
     say "Retrait de « $PANNE »"
     local ok_retrait=0 avant_retrait; avant_retrait=$(maintenant)
     sortie=$(distant panne.sh retirer) || ok_retrait=1
-    # « reseau » : les paquets jetés de la panne ne se lisent que juste avant son
+    # « network-delay » : les paquets jetés de la panne ne se lisent que juste avant son
     # retrait (Chaos Mesh refait la file des pods) ; gardés avec les témoins.
-    [ "$PANNE" != "reseau" ] || TEMOINS="${TEMOINS}
+    [ "$PANNE" != "network-delay" ] || TEMOINS="${TEMOINS}
 --- relevé « avant le retrait », demandé à $avant_retrait
 $(printf '%s\n' "$sortie" | grep -F 'avant le retrait')
 "
@@ -774,10 +999,11 @@ controle_des_parcours() {
     printf '%s\n' "$sortie" | sed 's/^/      /' >&2
     noter_action "action: controle_parcours, resultat: EN_DEFAUT"
     warn "Un parcours échoue ou ne tourne pas : la campagne ne vaudrait rien. Arrêt."
+    MOTIF=parcours_en_defaut
     interrompu
 }
 
-# Même bilan, mais seulement noté : une panne « charge » ou « lenteur » peut
+# Même bilan, mais seulement noté : une panne « load-surge » ou « consumer-slowdown » peut
 # faire échouer un parcours pendant l'injection sans que la campagne soit à
 # jeter — c'est justement ce qu'on mesure. Le déroulé dit quand ça a commencé.
 veille_des_parcours() {
@@ -806,7 +1032,7 @@ attendre_jusqua() {   # <epoch> — dort jusqu'à cet instant, sans dérive
     [ "$1" -gt "$n" ] || return 0
     [ $(($1 - n)) -lt 60 ] \
         || say "      … $(( ($1 - n + 30) / 60 )) min d'attente (jusqu'à $(date -u -d "@$1" '+%H:%M') UTC)"
-    sleep $(($1 - n))
+    dormir $(($1 - n))
 }
 
 # ------------------------------------------------------------------ le déroulé
@@ -826,9 +1052,10 @@ for ev in "${EVENEMENTS[@]}"; do
 done
 attendre_jusqua $((T0 + TOTAL * 60))
 
-trap - INT TERM
+arret_simple   # interrompu n'est plus posé : la fin n'a plus rien à retirer
 retour_au_premier_palier
 cloturer
+MOTIF=termine
 
 }
 
